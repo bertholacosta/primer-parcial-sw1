@@ -1,7 +1,7 @@
 id: P1-002
 title: "Resolver la implementación del modelo y validador"
 phase: 1
-status: planned
+status: ready
 kind: adr
 owner_role: Kiro
 objective: "Completar ADR-0006 con una elección justificada y aprobable para representar y validar el contrato de P1-001."
