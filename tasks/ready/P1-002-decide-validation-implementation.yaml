@@ -27,7 +27,7 @@ acceptance_criteria:
   - "Registra consecuencias, comando de validación propuesto y decisión pendiente de aprobación del Product Owner."
 validation_commands:
   - "git diff --check -- docs/adr/0006-domain-model-validation.md"
-  - "rg -n \"Alternativas|Consecuencias|Validación|Estado\" docs/adr/0006-domain-model-validation.md"
+  - "Select-String -Pattern 'Alternativas|Consecuencias|Validación|Estado' docs/adr/0006-domain-model-validation.md"
 deliverables:
   - docs/adr/0006-domain-model-validation.md
 links:
