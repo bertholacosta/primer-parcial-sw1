@@ -15,3 +15,4 @@ Registro actual:
 - `0004-mobile-state-and-storage.md`: propuesta pendiente.
 - `0005-android-local-ai.md`: propuesta pendiente.
 - `0006-domain-model-validation.md`: propuesta pendiente.
+- `0007-windows-orca-pipeline.md`: aceptado por instrucción explícita del Product Owner.

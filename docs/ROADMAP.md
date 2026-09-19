@@ -4,9 +4,10 @@ Los identificadores son estables. Las especificaciones ejecutables viven como ar
 
 ## Fase 0 — Gobierno y contratos
 
-Estado: completada y aprobada el 2026-09-19.
+Estado: baseline aprobada; automatización multiagente en ejecución.
 
 - `P0-001`: establecer gobierno, memoria, estructura y backlog inicial.
+- `P0-002`: automatizar el pipeline multiagente de Orca en Windows 11.
 
 Salida: reglas de agentes, arquitectura de referencia, ADR fundacional, propuestas pendientes, mapa del repositorio, contrato de tareas y backlog versionado.
 

@@ -12,6 +12,7 @@ Esta carpeta contendrá contratos versionados entre módulos. Un contrato acepta
 - `xmi-profile`: subconjunto UML/XMI soportado y reglas Enterprise Architect.
 - `collaboration-protocol`: orden, idempotencia, concurrencia y reconexión.
 - `multimodal-proposals`: propuestas de voz/imagen/IA sin mutación directa.
+- `orca-pipeline`: estados, roles, recuperación y salidas del orquestador multiagente.
 
 ## Circuito contractual mínimo
 

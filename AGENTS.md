@@ -2,7 +2,7 @@
 
 Antes de trabajar, lee solo este archivo, la tarea YAML asignada y los documentos que esa tarea enlace. No explores el repositorio completo.
 
-Entorno canónico: WSL Ubuntu/Linux para Orca, Codex, Kiro, Devin y Antigravity. Ejecuta las validaciones desde la raíz del repositorio; requieren `git`, `bash`, `grep` y `find`, además de las herramientas específicas del módulo cuando sean incorporadas.
+Entorno canónico: Windows 11 con PowerShell 7 (`pwsh`) para Orca, Codex, Kiro, Devin y Antigravity. Ejecuta las validaciones desde la raíz del repositorio; requieren `git`, `pwsh` y las herramientas específicas del módulo cuando sean incorporadas. No traduzcas los comandos a WSL ni a Windows PowerShell.
 
 Fuentes de verdad, en orden: decisiones explícitas del Product Owner registradas en `docs/PROJECT.md`; ADR aceptados en `docs/adr/`; contratos versionados en `docs/contracts/`; tarea asignada; `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` y `docs/REPO_MAP.md`. Una tarea no puede contradecir una fuente superior.
 

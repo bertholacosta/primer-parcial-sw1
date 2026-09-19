@@ -29,6 +29,10 @@ tasks/
   active/                   Tareas asignadas: una por rama/worktree/escritor
   done/                     Tareas aceptadas con evidencia
 scripts/                    Validaciones y automatización del repositorio
+tests/orca/                 Pruebas unitarias del orquestador PowerShell
+orca.ps1                    Entrada del pipeline multiagente
 ```
 
 Los README de cada módulo definen responsabilidad y límites actuales; no implican elección tecnológica.
+
+`.orca/` contiene estado, locks, sesiones y logs locales del pipeline; es recuperable pero no se versiona.

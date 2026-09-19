@@ -41,8 +41,8 @@ acceptance_criteria:
   - "Separa decisiones cerradas, supuestos y preguntas que requieren aprobación."
 validation_commands:
   - "git diff --check -- docs/contracts/domain-model-v1.md"
-  - "test -f docs/contracts/domain-model-v1.md"
-  - "grep -En 'version|class|attribute|association|multiplicity|determin' docs/contracts/domain-model-v1.md"
+  - "if (-not (Test-Path -LiteralPath 'docs/contracts/domain-model-v1.md' -PathType Leaf)) { throw 'Missing docs/contracts/domain-model-v1.md' }"
+  - "$content = Get-Content -LiteralPath 'docs/contracts/domain-model-v1.md' -Raw; if ($content -notmatch 'version|class|attribute|association|multiplicity|determin') { throw 'Required contract terms were not found' }"
 deliverables:
   - docs/contracts/domain-model-v1.md
 links:

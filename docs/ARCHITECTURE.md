@@ -56,6 +56,10 @@ Entradas UML/visuales/XMI/IA
 6. PostgreSQL se accede mediante JPA/Hibernate en los proyectos generados.
 7. Las propuestas de IA no mutan estado hasta superar validación determinista.
 
+## Orquestación de agentes
+
+El pipeline local se ejecuta en Windows 11 con PowerShell 7 mediante `orca.ps1`. Conserva estado y logs recuperables fuera de Git en `.orca/`, crea un worktree por tarea nueva, puede adoptar sin duplicación el worktree de una tarea heredada, impide escritores concurrentes y usa adaptadores explícitos para Codex, Kiro, Devin y Antigravity. Una adopción reinicia el control objetivo en validación y revisión independiente, no en implementación. Los agentes proponen o revisan; las transiciones, validaciones y operaciones Git permanecen deterministas. Véanse `docs/adr/0007-windows-orca-pipeline.md` y `docs/contracts/orca-pipeline-v1.md`.
+
 ## Decisiones pendientes
 
 No se elige todavía una tecnología concreta para el frontend CASE, la colaboración en tiempo real ni la implementación/engine de plantillas del generador. Las propuestas están en:

@@ -1,0 +1,91 @@
+id: P0-002
+title: "Automatizar el pipeline multiagente de Orca en Windows 11"
+phase: 0
+status: done
+kind: implementation
+owner_role: Codex / GPT-5.6 Sol
+objective: >-
+  Implementar un orquestador PowerShell 7 que ejecute el ciclo completo de una
+  tarea mediante Orca y adaptadores de agentes, con estado persistente,
+  recuperación, validación, revisión, corrección e integración deterministas.
+dependencies: [P0-001]
+inputs:
+  files:
+    - AGENTS.md
+    - tasks/TASK-TEMPLATE.yaml
+    - tasks/ready/P1-001-specify-domain-model-contract.yaml
+    - docs/contracts/orca-pipeline-v1.md
+    - docs/adr/0007-windows-orca-pipeline.md
+  docs:
+    - docs/ARCHITECTURE.md
+scope:
+  allowed_paths:
+    - .gitignore
+    - AGENTS.md
+    - orca.ps1
+    - scripts/README.md
+    - scripts/orca/
+    - tests/orca/
+    - docs/ARCHITECTURE.md
+    - docs/ROADMAP.md
+    - docs/REPO_MAP.md
+    - docs/adr/README.md
+    - docs/adr/0007-windows-orca-pipeline.md
+    - docs/contracts/README.md
+    - docs/contracts/orca-pipeline-v1.md
+    - tasks/active/P0-002-automate-orca-pipeline.yaml
+    - tasks/ready/P1-001-specify-domain-model-contract.yaml
+  forbidden_paths:
+    - apps/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/
+constraints:
+  - "Usar Windows 11 y PowerShell 7; no usar WSL, bash, grep, find ni test."
+  - "No ejecutar realmente P1-001 durante P0-002."
+  - "No inventar comandos o flags de CLIs; basarse en Get-Command y --help."
+  - "No hacer push ni merge de P0-002."
+acceptance_criteria:
+  - "Expone preflight, run, status, logs, resume, stop y dry-run con salida JSON."
+  - "Implementa y persiste la máquina de estados contractual."
+  - "Crea worktree por tarea y bloquea escritores concurrentes."
+  - "Incluye adaptadores verificados para Codex, Kiro, Devin y Antigravity."
+  - "Genera prompts por rol y reenvía hallazgos al escritor hasta dos veces."
+  - "Captura salida, error, código de retorno, duración, logs y sesiones."
+  - "Ejecuta validation_commands con PowerShell 7."
+  - "Solo integra tras aprobación del revisor, integrador y validaciones."
+  - "Recupera estado después de una interrupción y stop no elimina trabajo."
+  - "Las pruebas unitarias cubren transiciones y generación de prompts."
+  - "El dry-run de P1-001 muestra agentes, prompts, comandos, transiciones y Git sin mutaciones."
+validation_commands:
+  - "git diff --check"
+  - "pwsh -NoProfile -File .\\tests\\orca\\Run-Tests.ps1"
+  - "pwsh -NoProfile -File .\\orca.ps1 preflight"
+  - "pwsh -NoProfile -File .\\orca.ps1 dry-run P1-001"
+deliverables:
+  - orca.ps1
+  - scripts/orca/
+  - tests/orca/
+  - docs/adr/0007-windows-orca-pipeline.md
+  - docs/contracts/orca-pipeline-v1.md
+links:
+  - docs/ROADMAP.md
+  - docs/ARCHITECTURE.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: task/p0-002-automate-orca-pipeline
+  worktree: "9ff083ee-82ba-4f68-8c22-eaefaaef9c9f::C:/Users/aober/orca/workspaces/primer-parcial-sw1/p0-002-automate-orca-pipeline"
+  writer: Codex / GPT-5.6 Sol
+  reviewer: Antigravity / Gemini 3.6
+evidence:
+  - "2026-09-19: validation_commands completos aprobados en Windows 11 con PowerShell 7.6.6."
+  - "2026-09-19: dry-run P1-001 mostró cuatro adaptadores, prompts, tres validaciones, diez estados y mutationsPerformed=false."
+  - "2026-09-19: Antigravity aprobó la revisión independiente en réplica aislada, sin hallazgos."
+  - "2026-09-19: soporte de adopción heredada validado con 14 pruebas; Antigravity repitió revisión independiente en réplica aislada y aprobó sin hallazgos."
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"

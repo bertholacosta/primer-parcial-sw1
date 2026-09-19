@@ -28,6 +28,7 @@ temp/
 .cache/
 .artifacts/
 .validation/
+.orca/
 
 # Operating systems and IDEs
 .DS_Store
