@@ -1,0 +1,22 @@
+id: P3-002
+title: "Resolver ADR de estado y almacenamiento móvil"
+phase: 3
+status: planned
+kind: adr
+owner_role: Kiro
+objective: "Comparar y seleccionar, con aprobación, la estrategia Flutter de estado, persistencia, migración y cola offline."
+dependencies: [P3-001]
+inputs:
+  files: [docs/contracts/mobile-offline-v1.md, docs/adr/0004-mobile-state-and-storage.md]
+  docs: [docs/contracts/flutter-descriptor-v1.md]
+scope:
+  allowed_paths: [docs/adr/0004-mobile-state-and-storage.md]
+  forbidden_paths: [apps/, services/, packages/, templates/, fixtures/]
+acceptance_criteria:
+  - "Compara al menos dos opciones con evidencia en Android y estrategia de pruebas/migración."
+  - "Incluye comandos exactos para validar el runtime móvil y queda pendiente de aprobación antes de accepted."
+validation_commands:
+  - "git diff --check -- docs/adr/0004-mobile-state-and-storage.md"
+  - "rg -n \"Alternativas|Android|migraci|offline|Comandos\" docs/adr/0004-mobile-state-and-storage.md"
+deliverables: [docs/adr/0004-mobile-state-and-storage.md]
+links: [docs/contracts/mobile-offline-v1.md]

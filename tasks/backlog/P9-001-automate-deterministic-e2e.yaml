@@ -1,0 +1,22 @@
+id: P9-001
+title: "Automatizar circuito determinista de extremo a extremo"
+phase: 9
+status: planned
+kind: test
+owner_role: Devin CLI / SWE-2
+objective: "Ejecutar modelo de ejemplo → validación → generación → compilación → validación de descriptor en un comando reproducible."
+dependencies: [P2-005, P3-003]
+inputs:
+  files: [fixtures/models/minimal-valid.domain-model.json, docs/contracts/generator-input-output-v1.md]
+  docs: [docs/contracts/flutter-descriptor-v1.md]
+scope:
+  allowed_paths: [scripts/, fixtures/generated-projects/, services/generator-cli/]
+  forbidden_paths: [apps/case-web/, packages/xmi-adapter/, packages/collaboration-protocol/]
+acceptance_criteria:
+  - "Un único comando desde checkout limpio ejecuta las cinco etapas y falla ante cualquier error."
+  - "Dos ejecuciones producen salida equivalente y el proyecto generado no recibe ediciones manuales."
+validation_commands:
+  - "git diff --check -- scripts fixtures/generated-projects services/generator-cli"
+  - "GATE: el entregable debe definir y ejecutar el comando e2e exacto según ADR-0002"
+deliverables: [scripts/, fixtures/generated-projects/]
+links: [docs/PROJECT.md#objetivo-verificable-inicial]

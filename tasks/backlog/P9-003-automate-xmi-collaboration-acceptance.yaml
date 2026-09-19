@@ -1,0 +1,22 @@
+id: P9-003
+title: "Automatizar aceptación XMI y colaboración"
+phase: 9
+status: planned
+kind: test
+owner_role: Devin CLI / SWE-2
+objective: "Ejecutar round-trip XMI y convergencia de dos clientes sobre fixtures versionados."
+dependencies: [P5-003, P6-003]
+inputs:
+  files: [docs/contracts/xmi-profile-v1.md, docs/contracts/collaboration-protocol-v1.md]
+  docs: [docs/ARCHITECTURE.md]
+scope:
+  allowed_paths: [scripts/, fixtures/xmi/, packages/xmi-adapter/, packages/collaboration-protocol/, services/model-server/]
+  forbidden_paths: [apps/, services/generator-cli/, templates/, fixtures/generated-projects/]
+acceptance_criteria:
+  - "El round-trip conserva equivalencia semántica del corpus soportado."
+  - "La traza concurrente y la reconexión terminan en modelos equivalentes sin duplicados."
+validation_commands:
+  - "git diff --check -- scripts fixtures/xmi packages/xmi-adapter packages/collaboration-protocol services/model-server"
+  - "GATE: ejecutar suites exactas fijadas por ADR-0003 y el toolchain XMI"
+deliverables: [scripts/, fixtures/xmi/]
+links: [docs/contracts/xmi-profile-v1.md, docs/contracts/collaboration-protocol-v1.md]

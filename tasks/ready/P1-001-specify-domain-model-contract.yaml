@@ -1,0 +1,59 @@
+id: P1-001
+title: "Especificar el contrato mínimo del modelo canónico"
+phase: 1
+status: ready
+kind: specification
+owner_role: Kiro
+objective: >-
+  Definir una especificación tecnológica-neutral, versionada y verificable de
+  domain-model.json para el corte mínimo clase/atributo/asociación que alimentará
+  al validador, al generador Spring Boot y al descriptor Flutter.
+dependencies: []
+inputs:
+  files:
+    - AGENTS.md
+    - docs/PROJECT.md
+    - docs/ARCHITECTURE.md
+    - docs/contracts/README.md
+    - docs/adr/0000-foundational-decisions.md
+  docs: []
+scope:
+  allowed_paths:
+    - docs/contracts/domain-model-v1.md
+  forbidden_paths:
+    - apps/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/
+    - scripts/
+    - docs/adr/
+constraints:
+  - "No elegir lenguaje, framework, librería de validación ni motor de plantillas."
+  - "No implementar esquema, validador, generador ni código de producto."
+  - "Mantener el modelo canónico como única fuente de verdad."
+acceptance_criteria:
+  - "Define versión, identidad estable, política de campos desconocidos y evolución compatible."
+  - "Define semántica y restricciones de paquete/modelo, clase, atributo, tipo, nulabilidad, multiplicidad y asociación para el corte mínimo."
+  - "Define orden canónico o reglas de comparación para permitir resultados deterministas."
+  - "Incluye ejemplos JSON normativos mínimo válido e inválidos con diagnóstico esperado."
+  - "Declara la información mínima requerida por las cinco capas Spring y por Flutter sin imponer su implementación."
+  - "Separa decisiones cerradas, supuestos y preguntas que requieren aprobación."
+validation_commands:
+  - "git diff --check -- docs/contracts/domain-model-v1.md"
+  - "test -f docs/contracts/domain-model-v1.md"
+  - "grep -En 'version|class|attribute|association|multiplicity|determin' docs/contracts/domain-model-v1.md"
+deliverables:
+  - docs/contracts/domain-model-v1.md
+links:
+  - docs/ROADMAP.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

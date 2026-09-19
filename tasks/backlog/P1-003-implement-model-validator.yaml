@@ -1,0 +1,22 @@
+id: P1-003
+title: "Implementar esquema y validador mínimo"
+phase: 1
+status: planned
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Implementar la representación versionada y validación del corte mínimo aprobado, sin corrección automática."
+dependencies: [P1-001, P1-002]
+inputs:
+  files: [docs/contracts/domain-model-v1.md, docs/adr/0006-domain-model-validation.md]
+  docs: [docs/ARCHITECTURE.md]
+scope:
+  allowed_paths: [packages/domain-model/, packages/domain-validator/]
+  forbidden_paths: [apps/, services/, templates/, fixtures/generated-projects/]
+acceptance_criteria:
+  - "Acepta el ejemplo mínimo normativo y rechaza cada regla inválida definida por el contrato."
+  - "Expone diagnósticos deterministas con código y ruta, sin depender de red."
+validation_commands:
+  - "git diff --check -- packages/domain-model packages/domain-validator"
+  - "GATE: copiar aquí el comando exacto de pruebas aprobado por P1-002 antes de promover a ready"
+deliverables: [packages/domain-model/, packages/domain-validator/]
+links: [docs/contracts/domain-model-v1.md, docs/adr/0006-domain-model-validation.md]

@@ -1,0 +1,23 @@
+id: P7-002
+title: "Agregar adaptador de propuestas de voz"
+phase: 7
+status: planned
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Convertir una transcripción inyectada en una propuesta confirmable, sin escoger todavía reconocimiento local."
+dependencies: [P7-001, P3-003]
+inputs:
+  files: [docs/contracts/multimodal-proposals-v1.md]
+  docs: [docs/contracts/model-commands-v1.md]
+scope:
+  allowed_paths: [apps/mobile-flutter/]
+  forbidden_paths: [apps/case-web/, services/, packages/, templates/, fixtures/]
+acceptance_criteria:
+  - "Una transcripción de prueba produce la propuesta esperada con origen y confianza."
+  - "Aceptar exige validación; rechazar no altera el modelo; no requiere red en la prueba del adaptador."
+validation_commands:
+  - "git diff --check -- apps/mobile-flutter"
+  - "flutter analyze"
+  - "flutter test"
+deliverables: [apps/mobile-flutter/]
+links: [docs/contracts/multimodal-proposals-v1.md]

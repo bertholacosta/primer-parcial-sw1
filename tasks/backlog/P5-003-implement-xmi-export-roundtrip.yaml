@@ -1,0 +1,22 @@
+id: P5-003
+title: "Implementar exportación XMI y round-trip"
+phase: 5
+status: planned
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Exportar el subconjunto canónico soportado y demostrar equivalencia semántica de ida y vuelta."
+dependencies: [P5-002]
+inputs:
+  files: [docs/contracts/xmi-profile-v1.md, fixtures/models/minimal-valid.domain-model.json]
+  docs: [packages/xmi-adapter/README.md]
+scope:
+  allowed_paths: [packages/xmi-adapter/, fixtures/xmi/]
+  forbidden_paths: [apps/, services/, templates/, fixtures/generated-projects/]
+acceptance_criteria:
+  - "La exportación es estable y cumple namespaces/versiones del perfil."
+  - "Exportar e importar conserva la semántica declarada, con pérdidas explícitamente probadas."
+validation_commands:
+  - "git diff --check -- packages/xmi-adapter fixtures/xmi"
+  - "GATE: ejecutar suite XMI y comparación semántica fijada al promover"
+deliverables: [packages/xmi-adapter/, fixtures/xmi/]
+links: [docs/contracts/xmi-profile-v1.md]

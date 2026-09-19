@@ -1,0 +1,74 @@
+id: P0-001
+title: "Establecer gobierno, memoria, estructura y backlog inicial"
+phase: 0
+status: done
+kind: documentation
+owner_role: Codex / GPT-5.6 Sol
+objective: >-
+  Crear la base versionada de gobierno, arquitectura, estructura y planificación
+  sin implementar funcionalidades del producto ni elegir tecnologías pendientes.
+dependencies: []
+inputs:
+  files: [.gitattributes]
+  docs: ["Instrucción explícita del Product Owner del 2026-09-19"]
+scope:
+  allowed_paths:
+    - .gitignore
+    - AGENTS.md
+    - docs/
+    - apps/*/README.md
+    - services/*/README.md
+    - packages/*/README.md
+    - templates/spring-boot/README.md
+    - fixtures/*/README.md
+    - scripts/README.md
+    - tasks/
+  forbidden_paths:
+    - .git/
+    - node_modules/
+    - build/
+    - dist/
+    - target/
+constraints:
+  - "No implementar código de producto ni instalar dependencias."
+  - "No elegir tecnologías que requieran decisión arquitectónica pendiente."
+  - "No hacer push, merge remoto ni eliminar ramas."
+acceptance_criteria:
+  - "Existe un .gitignore raíz que cubre secretos, temporales y salidas conocidas sin ignorar generated/ globalmente."
+  - "Existen todos los documentos y directorios solicitados con contenido operativo."
+  - "Las decisiones confirmadas están en un ADR aceptado y las abiertas en ADR propuestos."
+  - "El roadmap cubre fases 0 a 9 y cada tarea tiene límites y aceptación verificable."
+  - "La primera tarea para Kiro está lista y no existe código funcional del producto."
+validation_commands:
+  - "git diff --check"
+  - "test -f .gitignore"
+  - "test -f tasks/ready/P1-001-specify-domain-model-contract.yaml"
+  - '! find . -path ''./.git'' -prune -o -type f -print | grep -Eq ''\.(java|kt|dart|ts|tsx|js|jsx|py|cs|go|rs)$'''
+deliverables:
+  - .gitignore
+  - AGENTS.md
+  - docs/
+  - apps/
+  - services/
+  - packages/
+  - templates/
+  - fixtures/
+  - scripts/
+  - tasks/
+links:
+  - docs/PROJECT.md
+  - docs/ARCHITECTURE.md
+  - docs/ROADMAP.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: task/p0-001-governance-baseline
+  worktree: "9ff083ee-82ba-4f68-8c22-eaefaaef9c9f::C:/Proyectos/primer-parcial-sw1"
+  writer: Codex / GPT-5.6 Sol
+  reviewer: Antigravity / Gemini 3.6
+evidence:
+  - "Estructura, whitespace, campos de tareas, IDs y dependencias validados localmente."
+  - "Correcciones de revisión: .gitignore, entorno WSL, comandos POSIX y enlace al roadmap validados."
+  - "Antigravity aprobó P0-001; cierre autorizado por el Product Owner."

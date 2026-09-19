@@ -1,0 +1,22 @@
+id: P4-004
+title: "Editar atributos mediante comandos"
+phase: 4
+status: planned
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Agregar creación y edición de un atributo mediante model-commands, con validación antes de mutar."
+dependencies: [P4-003]
+inputs:
+  files: [docs/contracts/model-commands-v1.md]
+  docs: [docs/contracts/domain-model-v1.md]
+scope:
+  allowed_paths: [apps/case-web/]
+  forbidden_paths: [apps/mobile-flutter/, services/, packages/, templates/, fixtures/]
+acceptance_criteria:
+  - "Un comando válido actualiza el modelo y la vista; uno inválido preserva el estado anterior."
+  - "Las pruebas cubren creación, renombre y rechazo por restricción del contrato."
+validation_commands:
+  - "git diff --check -- apps/case-web"
+  - "GATE: ejecutar comandos exactos de build/test de ADR-0001"
+deliverables: [apps/case-web/]
+links: [docs/contracts/model-commands-v1.md]

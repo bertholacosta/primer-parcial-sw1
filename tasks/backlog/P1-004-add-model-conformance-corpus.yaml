@@ -1,0 +1,22 @@
+id: P1-004
+title: "Crear corpus de conformidad del modelo"
+phase: 1
+status: planned
+kind: test
+owner_role: Devin CLI / SWE-2
+objective: "Materializar fixtures mínimos válidos e inválidos y verificar diagnósticos estables del validador."
+dependencies: [P1-003]
+inputs:
+  files: [docs/contracts/domain-model-v1.md]
+  docs: [packages/domain-validator/README.md]
+scope:
+  allowed_paths: [fixtures/models/, packages/domain-validator/]
+  forbidden_paths: [apps/, services/, templates/, fixtures/generated-projects/]
+acceptance_criteria:
+  - "Incluye un fixture válido y un fixture por restricción inválida del corte mínimo."
+  - "Las pruebas comparan código y ruta de cada diagnóstico y pasan dos ejecuciones consecutivas."
+validation_commands:
+  - "git diff --check -- fixtures/models packages/domain-validator"
+  - "GATE: usar el comando exacto de pruebas fijado por P1-002"
+deliverables: [fixtures/models/, packages/domain-validator/]
+links: [docs/contracts/domain-model-v1.md]

@@ -1,0 +1,24 @@
+id: P8-003
+title: "Integrar propuestas de IA local Android"
+phase: 8
+status: planned
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Ejecutar localmente el escenario de interpretación acordado y producir propuestas contractuales sin mutación directa."
+dependencies: [P8-001, P8-002]
+inputs:
+  files: [docs/adr/0005-android-local-ai.md, docs/contracts/multimodal-proposals-v1.md]
+  docs: [docs/contracts/model-commands-v1.md]
+scope:
+  allowed_paths: [apps/mobile-flutter/]
+  forbidden_paths: [apps/case-web/, services/, packages/, templates/, fixtures/]
+acceptance_criteria:
+  - "El escenario objetivo completa offline dentro del presupuesto aprobado de recursos."
+  - "Toda salida se valida, muestra evidencia y exige confirmación antes de modificar el modelo."
+validation_commands:
+  - "git diff --check -- apps/mobile-flutter"
+  - "flutter analyze"
+  - "flutter test"
+  - "GATE: ejecutar benchmark/prueba offline definido por ADR-0005"
+deliverables: [apps/mobile-flutter/]
+links: [docs/adr/0005-android-local-ai.md]

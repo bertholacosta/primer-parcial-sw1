@@ -1,0 +1,36 @@
+id: P0-000
+title: "Título imperativo y acotado"
+phase: 0
+status: ready
+kind: specification # specification | adr | implementation | test | documentation
+owner_role: unassigned
+objective: >-
+  Resultado único, observable y pequeño que debe producir la tarea.
+dependencies: []
+inputs:
+  files: []
+  docs: []
+scope:
+  allowed_paths: []
+  forbidden_paths:
+    - "**/generated/**"
+    - "fixtures/generated-projects/**"
+constraints:
+  - "No cambiar arquitectura ni requisitos fuera de un ADR aceptado."
+  - "No realizar refactorizaciones no solicitadas."
+acceptance_criteria:
+  - "Criterio binario y verificable."
+validation_commands:
+  - "Comando reproducible; usar N/A con justificación solo para revisión documental."
+deliverables: []
+links: []
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

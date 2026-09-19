@@ -1,0 +1,22 @@
+id: P4-002
+title: "Resolver ADR de tecnología CASE web"
+phase: 4
+status: planned
+kind: adr
+owner_role: Kiro
+objective: "Comparar y recomendar stack y renderer del editor contra el contrato de comandos y riesgos de interacción."
+dependencies: [P4-001]
+inputs:
+  files: [docs/contracts/model-commands-v1.md, docs/adr/0001-case-web-technology.md]
+  docs: [docs/ARCHITECTURE.md]
+scope:
+  allowed_paths: [docs/adr/0001-case-web-technology.md]
+  forbidden_paths: [apps/, services/, packages/, templates/, fixtures/]
+acceptance_criteria:
+  - "Compara al menos dos opciones en pruebas, rendimiento, accesibilidad y mantenimiento."
+  - "Incluye prueba técnica acotada/evidencia y comandos exactos; requiere aprobación antes de accepted."
+validation_commands:
+  - "git diff --check -- docs/adr/0001-case-web-technology.md"
+  - "rg -n \"Alternativas|Accesibilidad|Rendimiento|Pruebas|Comandos\" docs/adr/0001-case-web-technology.md"
+deliverables: [docs/adr/0001-case-web-technology.md]
+links: [docs/contracts/model-commands-v1.md]

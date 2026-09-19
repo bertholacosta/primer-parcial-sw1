@@ -1,0 +1,22 @@
+id: P5-002
+title: "Implementar importación XMI mínima"
+phase: 5
+status: planned
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Convertir el corpus XMI soportado a modelos canónicos válidos con diagnósticos explícitos."
+dependencies: [P5-001]
+inputs:
+  files: [docs/contracts/xmi-profile-v1.md, fixtures/xmi/]
+  docs: [docs/contracts/domain-model-v1.md]
+scope:
+  allowed_paths: [packages/xmi-adapter/, fixtures/xmi/]
+  forbidden_paths: [apps/, services/, templates/, fixtures/generated-projects/]
+acceptance_criteria:
+  - "Cada fixture soportado produce el modelo esperado y supera el validador canónico."
+  - "XML inválido o elemento fuera del perfil falla con diagnóstico estable y sin salida parcial."
+validation_commands:
+  - "git diff --check -- packages/xmi-adapter fixtures/xmi"
+  - "GATE: fijar comando exacto de pruebas al promover, según toolchain vigente"
+deliverables: [packages/xmi-adapter/]
+links: [docs/contracts/xmi-profile-v1.md]

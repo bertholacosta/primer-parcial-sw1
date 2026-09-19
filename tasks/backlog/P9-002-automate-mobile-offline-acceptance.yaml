@@ -1,0 +1,24 @@
+id: P9-002
+title: "Automatizar aceptación móvil y offline"
+phase: 9
+status: planned
+kind: test
+owner_role: Devin CLI / SWE-2
+objective: "Automatizar carga dinámica, edición, reinicio sin red y reintento idempotente en Android."
+dependencies: [P3-004, P9-001]
+inputs:
+  files: [docs/contracts/mobile-offline-v1.md, docs/contracts/flutter-descriptor-v1.md]
+  docs: [apps/mobile-flutter/README.md]
+scope:
+  allowed_paths: [apps/mobile-flutter/, scripts/]
+  forbidden_paths: [apps/case-web/, services/, packages/xmi-adapter/, templates/]
+acceptance_criteria:
+  - "La prueba reproduce el escenario sin intervención manual y conserva la operación tras reinicio."
+  - "Registra evidencia del descriptor usado, estado offline y ausencia de duplicados."
+validation_commands:
+  - "git diff --check -- apps/mobile-flutter scripts"
+  - "flutter analyze"
+  - "flutter test"
+  - "GATE: ejecutar comando de aceptación Android fijado por ADR-0004"
+deliverables: [apps/mobile-flutter/, scripts/]
+links: [docs/contracts/mobile-offline-v1.md]

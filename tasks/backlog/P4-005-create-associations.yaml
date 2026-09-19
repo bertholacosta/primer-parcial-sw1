@@ -1,0 +1,22 @@
+id: P4-005
+title: "Crear asociaciones mediante comandos"
+phase: 4
+status: planned
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Agregar creación visual de una asociación entre dos clases mediante un comando validado."
+dependencies: [P4-004]
+inputs:
+  files: [docs/contracts/model-commands-v1.md]
+  docs: [docs/contracts/domain-model-v1.md]
+scope:
+  allowed_paths: [apps/case-web/]
+  forbidden_paths: [apps/mobile-flutter/, services/, packages/, templates/, fixtures/]
+acceptance_criteria:
+  - "La asociación válida aparece en vista y modelo con identidad/multiplicidad correctas."
+  - "Extremos inexistentes o multiplicidad inválida no mutan el estado y producen diagnóstico."
+validation_commands:
+  - "git diff --check -- apps/case-web"
+  - "GATE: ejecutar comandos exactos de build/test de ADR-0001"
+deliverables: [apps/case-web/]
+links: [docs/contracts/model-commands-v1.md]

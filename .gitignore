@@ -1,0 +1,105 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+application-local.properties
+application-local.yml
+application-local.yaml
+application-secret.properties
+application-secret.yml
+application-secret.yaml
+
+# Logs, temporary files, and local caches
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+.cache/
+.artifacts/
+.validation/
+
+# Operating systems and IDEs
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+*.code-workspace
+
+# Node.js and TypeScript
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+.turbo/
+.next/
+.nuxt/
+.svelte-kit/
+.parcel-cache/
+.vite/
+.eslintcache
+*.tsbuildinfo
+dist/
+
+# Java, Gradle, and Spring Boot
+.gradle/
+build/
+target/
+out/
+*.class
+*.hprof
+hs_err_pid*
+.springBeans
+spring-shell.log
+
+# Flutter and Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub/
+.pub-cache/
+doc/api/
+android/.gradle/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+macos/Pods/
+macos/.symlinks/
+macos/Flutter/ephemeral/
+
+# Coverage and test results
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
+allure-results/
+*.lcov
+
+# Known validation and generator outputs
+reports/
+fixtures/generated-projects/.work/
+fixtures/generated-projects/.tmp/
+fixtures/generated-projects/output/
+!fixtures/generated-projects/README.md
+
+# Do not add a global generated/ rule: generated sources may be required inputs.

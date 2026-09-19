@@ -1,0 +1,22 @@
+id: P7-001
+title: "Especificar propuestas multimodales"
+phase: 7
+status: planned
+kind: specification
+owner_role: Kiro
+objective: "Definir cómo voz, imagen e IA producen propuestas auditables de model-commands sin mutar el modelo."
+dependencies: [P4-001]
+inputs:
+  files: [docs/contracts/model-commands-v1.md]
+  docs: [docs/ARCHITECTURE.md, docs/contracts/README.md]
+scope:
+  allowed_paths: [docs/contracts/multimodal-proposals-v1.md]
+  forbidden_paths: [apps/, services/, packages/, templates/, fixtures/]
+acceptance_criteria:
+  - "Define origen, confianza, evidencias, comandos propuestos, validación, confirmación y rechazo."
+  - "Declara privacidad y errores; ningún flujo permite mutación directa ni salta el validador."
+validation_commands:
+  - "git diff --check -- docs/contracts/multimodal-proposals-v1.md"
+  - "rg -n \"voice|image|confidence|confirm|reject|validat\" docs/contracts/multimodal-proposals-v1.md"
+deliverables: [docs/contracts/multimodal-proposals-v1.md]
+links: [docs/contracts/model-commands-v1.md]

@@ -1,0 +1,22 @@
+id: P6-002
+title: "Resolver ADR de colaboración en tiempo real"
+phase: 6
+status: planned
+kind: adr
+owner_role: Kiro
+objective: "Comparar y recomendar consistencia, transporte y persistencia que cumplan el protocolo P6-001."
+dependencies: [P6-001]
+inputs:
+  files: [docs/contracts/collaboration-protocol-v1.md, docs/adr/0003-realtime-collaboration.md]
+  docs: [docs/ARCHITECTURE.md]
+scope:
+  allowed_paths: [docs/adr/0003-realtime-collaboration.md]
+  forbidden_paths: [apps/, services/, packages/, templates/, fixtures/]
+acceptance_criteria:
+  - "Compara al menos dos alternativas con convergencia, offline, complejidad y pruebas."
+  - "Incluye evidencia acotada y comandos exactos; requiere aprobación antes de accepted."
+validation_commands:
+  - "git diff --check -- docs/adr/0003-realtime-collaboration.md"
+  - "rg -n \"Alternativas|converg|offline|transporte|Comandos\" docs/adr/0003-realtime-collaboration.md"
+deliverables: [docs/adr/0003-realtime-collaboration.md]
+links: [docs/contracts/collaboration-protocol-v1.md]
