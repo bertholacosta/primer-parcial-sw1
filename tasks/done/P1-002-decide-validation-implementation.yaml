@@ -1,7 +1,7 @@
 id: P1-002
 title: "Resolver la implementación del modelo y validador"
 phase: 1
-status: ready
+status: done
 kind: adr
 owner_role: Kiro
 objective: "Completar ADR-0006 con una elección justificada y aprobable para representar y validar el contrato de P1-001."
@@ -32,3 +32,6 @@ deliverables:
   - docs/adr/0006-domain-model-validation.md
 links:
   - docs/ROADMAP.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
