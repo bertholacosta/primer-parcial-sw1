@@ -7,16 +7,28 @@ owner_role: Kiro
 objective: "Completar ADR-0006 con una elección justificada y aprobable para representar y validar el contrato de P1-001."
 dependencies: [P1-001]
 inputs:
-  files: [AGENTS.md, docs/contracts/domain-model-v1.md, docs/adr/0006-domain-model-validation.md]
-  docs: [docs/ARCHITECTURE.md]
+  files:
+    - AGENTS.md
+    - docs/contracts/domain-model-v1.md
+    - docs/adr/0006-domain-model-validation.md
+  docs:
+    - docs/ARCHITECTURE.md
 scope:
-  allowed_paths: [docs/adr/0006-domain-model-validation.md]
-  forbidden_paths: [apps/, services/, packages/, templates/, fixtures/]
+  allowed_paths:
+    - docs/adr/0006-domain-model-validation.md
+  forbidden_paths:
+    - apps/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/
 acceptance_criteria:
   - "Compara al menos dos opciones con criterios de compatibilidad, diagnósticos, pruebas y operación offline."
   - "Registra consecuencias, comando de validación propuesto y decisión pendiente de aprobación del Product Owner."
 validation_commands:
   - "git diff --check -- docs/adr/0006-domain-model-validation.md"
   - "rg -n \"Alternativas|Consecuencias|Validación|Estado\" docs/adr/0006-domain-model-validation.md"
-deliverables: [docs/adr/0006-domain-model-validation.md]
-links: [docs/ROADMAP.md]
+deliverables:
+  - docs/adr/0006-domain-model-validation.md
+links:
+  - docs/ROADMAP.md
