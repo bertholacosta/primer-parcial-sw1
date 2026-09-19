@@ -1,7 +1,7 @@
 id: P1-001
 title: "Especificar el contrato mínimo del modelo canónico"
 phase: 1
-status: ready
+status: done
 kind: specification
 owner_role: Kiro
 objective: >-
@@ -52,8 +52,11 @@ attempts:
   maximum_before_analysis: 2
 orca:
   issue: null
-  branch: null
-  worktree: null
-  writer: null
-  reviewer: null
-evidence: []
+  branch: "task/p1-001-especificar-el-contrato-m-nimo-del-modelo-can-nico"
+  worktree: "9ff083ee-82ba-4f68-8c22-eaefaaef9c9f::C:/Users/aober/orca/workspaces/primer-parcial-sw1/p1-001-especificar-el-contrato-m-nimo-del-modelo-can-nico"
+  writer: "kiro"
+  reviewer: "antigravity"
+evidence:
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
