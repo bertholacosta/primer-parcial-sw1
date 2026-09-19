@@ -1,7 +1,7 @@
 id: P0-003
 title: "Corregir los adaptadores Kiro y Devin y la recuperación de fallos de infraestructura de Orca"
 phase: 0
-status: active
+status: done
 kind: implementation
 owner_role: Devin
 objective: >-
@@ -82,4 +82,7 @@ orca:
   worktree: "9ff083ee-82ba-4f68-8c22-eaefaaef9c9f::C:/Users/aober/orca/workspaces/primer-parcial-sw1/p0-003-fix-kiro-adapter"
   writer: devin
   reviewer: antigravity
-evidence: []
+evidence:
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
