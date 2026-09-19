@@ -17,13 +17,13 @@ $script:StateOrder = @(
 $script:AllowedTransitions = @{
     ready      = @('preparing')
     preparing  = @('executing')
-    executing  = @('validating', 'correcting')
-    validating = @('reviewing', 'correcting')
+    executing  = @('validating', 'correcting', 'paused-agent-error')
+    validating = @('reviewing', 'correcting', 'paused-agent-error')
     reviewing  = @('approved', 'correcting', 'review_failed', 'paused-agent-error')
     correcting = @('executing')
     review_failed = @('reviewing')
-    'paused-agent-error' = @('reviewing')
-    approved   = @('committing', 'validating')
+    'paused-agent-error' = @('executing', 'validating', 'reviewing', 'approved')
+    approved   = @('committing', 'validating', 'paused-agent-error')
     committing = @('merging')
     merging    = @('done')
     done       = @()
@@ -409,6 +409,31 @@ function Get-OrcaPreflight {
         $checks.Add($orcaCheck)
     }
 
+    foreach ($probe in @(Get-OrcaAdapterPreflightProbes)) {
+        if ($null -ne $probe.staticOk) {
+            $checks.Add([pscustomobject]@{ name = $probe.name; ok = [bool]$probe.staticOk; detail = $probe.detail })
+            continue
+        }
+        if (-not (Get-Command $probe.executable -ErrorAction SilentlyContinue)) {
+            $checks.Add([pscustomobject]@{ name = $probe.name; ok = $false; detail = "missing executable $($probe.executable)" })
+            continue
+        }
+        $probeResult = Invoke-OrcaNativeProcess -Executable $probe.executable -Arguments @($probe.arguments) -WorkingDirectory $RepoRoot -StandardInput $null
+        $probeOk = $probeResult.exitCode -eq $probe.expectExitCode
+        $missingTokens = [System.Collections.Generic.List[string]]::new()
+        if ($probeOk) {
+            foreach ($token in @($probe.stdoutMustContain)) {
+                if ($probeResult.stdout -notmatch [regex]::Escape([string]$token)) { $missingTokens.Add([string]$token); $probeOk = $false }
+            }
+        }
+        $probeDetail = if ($probeOk) {
+            ($probeResult.stdout -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 1)
+        }
+        elseif ($missingTokens.Count -gt 0) { "missing help tokens: $($missingTokens -join ', ')" }
+        else { "exit=$($probeResult.exitCode) $($probeResult.stderr)".Trim() }
+        $checks.Add([pscustomobject]@{ name = $probe.name; ok = $probeOk; detail = $probeDetail })
+    }
+
     $failed = @($checks | Where-Object { -not $_.ok })
     [ordered]@{
         success = $failed.Count -eq 0
@@ -417,6 +442,13 @@ function Get-OrcaPreflight {
         checks = @($checks)
         failures = $failed
     }
+}
+
+function Get-OrcaAdapterPreflightProbes {
+    @(
+        @(Get-KiroPreflightProbes)
+        @(Get-DevinPreflightProbes)
+    ) | ForEach-Object { $_ }
 }
 
 function Get-OrcaRunRoot {
@@ -705,10 +737,26 @@ function Invoke-OrcaAgent {
     $promptPath = Save-OrcaPrompt $RunRoot "$Role-$($State.correctionCount)" $Prompt
     $invocation = New-OrcaAgentInvocation -AgentId $AgentId -WorkingDirectory $Worktree -Prompt $Prompt -PromptPath $promptPath -RunDirectory $RunRoot -SessionId $SessionId -Role $Role
     Write-OrcaRunEvent $RunRoot 'agent-starting' @{ agent = $AgentId; role = $Role; executable = $invocation.Executable; arguments = $invocation.Arguments }
-    $result = Invoke-OrcaNativeProcess -Executable $invocation.Executable -Arguments $invocation.Arguments -WorkingDirectory $invocation.WorkingDirectory -StandardInput $invocation.StandardInput -OnStarted {
-        param($processId)
-        $State.currentProcess = @{ processId = $processId; agent = $AgentId; role = $Role }
-        Save-OrcaRunState $RunRoot $State
+    $result = try {
+        Invoke-OrcaNativeProcess -Executable $invocation.Executable -Arguments $invocation.Arguments -WorkingDirectory $invocation.WorkingDirectory -StandardInput $invocation.StandardInput -OnStarted {
+            param($processId)
+            $State.currentProcess = @{ processId = $processId; agent = $AgentId; role = $Role }
+            Save-OrcaRunState $RunRoot $State
+        }
+    }
+    catch {
+        [pscustomobject]@{
+            executable = $invocation.Executable
+            arguments = @($invocation.Arguments)
+            exitCode = -1
+            stdout = ''
+            stderr = $_.Exception.Message
+            startedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            finishedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            durationMs = 0
+            processId = $null
+            startFailed = $true
+        }
     }
     $persistedState = Read-OrcaRunState $RunRoot
     if ($persistedState -and $persistedState.stopRequested) { $State.stopRequested = $true }
@@ -723,6 +771,342 @@ function Invoke-OrcaAgent {
     Save-OrcaRunState $RunRoot $State
     Write-OrcaRunEvent $RunRoot 'agent-finished' @{ agent = $AgentId; role = $Role; sessionId = $session; result = $result }
     return $result
+}
+
+function Get-OrcaResultField {
+    param($Result, [string]$Name)
+    if ($null -eq $Result) { return $null }
+    if ($Result -is [System.Collections.IDictionary]) { return $Result[$Name] }
+    if ($Result.PSObject.Properties[$Name]) { return $Result.$Name }
+    return $null
+}
+
+function Get-OrcaAgentFailureClassification {
+    param(
+        $Result,
+        [string]$AgentId = '',
+        [string]$Role = ''
+    )
+
+    $stdout = [string](Get-OrcaResultField $Result 'stdout')
+    $stderr = [string](Get-OrcaResultField $Result 'stderr')
+    $exitCode = Get-OrcaResultField $Result 'exitCode'
+    $startFailed = [bool](Get-OrcaResultField $Result 'startFailed')
+    $text = ($stdout + "`n" + $stderr).ToLowerInvariant()
+    $firstLine = @($stderr -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 1)
+    if (-not $firstLine) { $firstLine = @($stdout -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 1) }
+    $detail = if ($firstLine) { [string]$firstLine[0] } else { "Agent $AgentId exited with code $exitCode." }
+
+    $category = $null
+    if ($startFailed) {
+        $category = 'process-start-failed'
+    }
+    elseif ($text -match 'not supported on the \w+ engine' -or $text -match 'pass --agent-engine' -or $text -match 'unsupported agent engine' -or $text -match 'agent engine (is )?(incompatible|not supported|unsupported)') {
+        $category = 'incompatible-engine'
+    }
+    elseif ($text -match 'output-format \S+ is not supported' -or $text -match 'unsupported output.format' -or $text -match 'invalid (output|transport) format' -or $text -match 'unknown output.format' -or $text -match 'invalid transport') {
+        $category = 'invalid-transport'
+    }
+    elseif ($text -match 'unexpected argument' -or $text -match 'unknown (option|flag|argument|subcommand)' -or $text -match 'unrecognized (option|flag|argument|subcommand|command)' -or $text -match 'neither a known subcommand nor an existing path' -or $text -match "isn't a valid value" -or $text -match 'invalid value' -or $text -match 'required arguments? (were )?not provided' -or $text -match 'missing required argument') {
+        $category = 'invalid-arguments'
+    }
+    elseif ($text -match 'unauthorized' -or $text -match '\b401\b' -or $text -match '\b403\b' -or $text -match 'authentication' -or $text -match 'not logged in' -or $text -match 'log ?in required' -or $text -match 'token (is )?(expired|invalid|missing)' -or $text -match 'invalid api key' -or $text -match 'api key (is )?(invalid|missing|expired)' -or $text -match 'invalid credentials' -or $text -match 'permission denied' -or $text -match 'forbidden') {
+        $category = 'authentication'
+    }
+    elseif ($text -match 'rate.?limit' -or $text -match '\b429\b' -or $text -match 'too many requests' -or $text -match 'quota' -or $text -match 'usage limit' -or $text -match 'insufficient' -or $text -match 'billing' -or $text -match 'exhausted' -or $text -match 'out of credits') {
+        $category = 'quota-exhausted'
+    }
+    elseif ($text -match 'econn(refused|reset)' -or $text -match 'etimedout' -or $text -match 'enotfound' -or $text -match 'enetunreach' -or $text -match 'eai_again' -or $text -match 'socket hang up' -or $text -match 'network' -or $text -match 'timed out' -or $text -match 'timeout' -or $text -match 'dns' -or $text -match 'spawn' -or $text -match 'enoent' -or $text -match 'command not found' -or $text -match 'no such file or directory' -or $text -match 'connection (refused|reset)') {
+        $category = 'infrastructure'
+    }
+    elseif ($exitCode -eq 2 -and $text -match 'usage:') {
+        $category = 'invalid-arguments'
+    }
+    else {
+        $category = 'functional'
+    }
+
+    [ordered]@{
+        category = $category
+        isInfrastructure = ($category -ne 'functional')
+        detail = $detail
+        exitCode = $exitCode
+    }
+}
+
+function Get-OrcaAgentCliVersion {
+    param([Parameter(Mandatory)][string]$AgentId, [Parameter(Mandatory)][string]$WorkingDirectory)
+
+    $executable = switch ($AgentId) {
+        'codex' { 'codex' }
+        'kiro' { 'kiro-cli' }
+        'devin' { 'devin' }
+        'antigravity' { 'agy' }
+        default { $AgentId }
+    }
+    if (-not (Get-Command $executable -ErrorAction SilentlyContinue)) { return $null }
+    try {
+        $result = Invoke-OrcaNativeProcess -Executable $executable -Arguments @('--version') -WorkingDirectory $WorkingDirectory -StandardInput $null
+        if ($result.exitCode -eq 0) {
+            $line = @($result.stdout -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 1)
+            if ($line) { return ([string]$line[0]).Trim() }
+        }
+    }
+    catch { }
+    return $null
+}
+
+function Save-OrcaAgentFailureLog {
+    param(
+        [string]$RunRoot,
+        [string]$AgentId,
+        [string]$Role,
+        [System.Collections.IDictionary]$Classification,
+        $Result,
+        [string]$CliVersion
+    )
+
+    $directory = Join-Path $RunRoot 'agent-failures'
+    [IO.Directory]::CreateDirectory($directory) | Out-Null
+    $sequence = @(Get-ChildItem -LiteralPath $directory -Filter 'failure-*.json' -File -ErrorAction SilentlyContinue).Count + 1
+    $path = Join-Path $directory ("failure-{0:d3}.json" -f $sequence)
+    $payload = [ordered]@{
+        timestamp = [DateTimeOffset]::UtcNow.ToString('o')
+        agent = $AgentId
+        role = $Role
+        category = $Classification.category
+        isInfrastructure = [bool]$Classification.isInfrastructure
+        detail = $Classification.detail
+        executable = Get-OrcaResultField $Result 'executable'
+        arguments = @(Get-OrcaResultField $Result 'arguments')
+        exitCode = Get-OrcaResultField $Result 'exitCode'
+        stdout = [string](Get-OrcaResultField $Result 'stdout')
+        stderr = [string](Get-OrcaResultField $Result 'stderr')
+        cliVersion = $CliVersion
+        startedAt = Get-OrcaResultField $Result 'startedAt'
+        finishedAt = Get-OrcaResultField $Result 'finishedAt'
+        durationMs = Get-OrcaResultField $Result 'durationMs'
+        logPath = $path
+    }
+    $temporaryPath = "$path.tmp"
+    [IO.File]::WriteAllText($temporaryPath, ($payload | ConvertTo-Json -Depth 30), [Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $temporaryPath -Destination $path -Force
+    return $path
+}
+
+function Register-OrcaAgentFailure {
+    param(
+        [string]$RunRoot,
+        [hashtable]$State,
+        [string]$AgentId,
+        [string]$Role,
+        $Result,
+        [System.Collections.IDictionary]$Classification,
+        [string]$WorkingDirectory
+    )
+
+    $cliVersion = Get-OrcaAgentCliVersion -AgentId $AgentId -WorkingDirectory $WorkingDirectory
+    $logPath = Save-OrcaAgentFailureLog -RunRoot $RunRoot -AgentId $AgentId -Role $Role -Classification $Classification -Result $Result -CliVersion $cliVersion
+    if (-not $State.ContainsKey('agentFailures') -or $null -eq $State.agentFailures) { $State.agentFailures = @() }
+    $State.agentFailures += ,([ordered]@{
+        timestamp = [DateTimeOffset]::UtcNow.ToString('o')
+        agent = $AgentId
+        role = $Role
+        category = $Classification.category
+        isInfrastructure = [bool]$Classification.isInfrastructure
+        exitCode = Get-OrcaResultField $Result 'exitCode'
+        cliVersion = $cliVersion
+        logPath = $logPath
+    })
+    $State.lastError = $Classification.detail
+    $State.lastAgentLog = $logPath
+    Save-OrcaRunState $RunRoot $State
+    Write-OrcaRunEvent $RunRoot 'agent-failure-recorded' @{
+        agent = $AgentId
+        role = $Role
+        category = $Classification.category
+        isInfrastructure = [bool]$Classification.isInfrastructure
+        exitCode = Get-OrcaResultField $Result 'exitCode'
+        cliVersion = $cliVersion
+        logPath = $logPath
+    }
+    return $logPath
+}
+
+function Suspend-OrcaRunForAgentError {
+    param(
+        [string]$RunRoot,
+        [hashtable]$State,
+        [string]$AgentId,
+        [string]$Role,
+        $Result,
+        [System.Collections.IDictionary]$Classification,
+        [string]$PausedFrom,
+        [string]$WorkingDirectory
+    )
+
+    Register-OrcaAgentFailure -RunRoot $RunRoot -State $State -AgentId $AgentId -Role $Role -Result $Result -Classification $Classification -WorkingDirectory $WorkingDirectory | Out-Null
+    $State.pausedFrom = $PausedFrom
+    Set-OrcaRunTransition $RunRoot $State 'paused-agent-error'
+}
+
+function Resolve-OrcaWriterFailure {
+    param(
+        [Parameter(Mandatory)][string]$RunRoot,
+        [Parameter(Mandatory)][hashtable]$State,
+        [Parameter(Mandatory)]$Result,
+        [Parameter(Mandatory)]$Task,
+        [Parameter(Mandatory)][string]$Worktree,
+        [Parameter(Mandatory)][string]$AgentId
+    )
+
+    $classification = Get-OrcaAgentFailureClassification -Result $Result -AgentId $AgentId -Role 'writer'
+    $hasImplementation = (Get-OrcaImplementationEvidence -Task $Task -Worktree $Worktree).hasImplementation
+    if ($classification.isInfrastructure -or -not $hasImplementation) {
+        Suspend-OrcaRunForAgentError -RunRoot $RunRoot -State $State -AgentId $AgentId -Role 'writer' -Result $Result -Classification $classification -PausedFrom 'executing' -WorkingDirectory $Worktree
+        return [ordered]@{ outcome = 'paused'; classification = $classification; detail = $classification.detail }
+    }
+    if ([int]$State.correctionCount -ge 2) {
+        $State.halted = $true
+        $State.haltReason = 'two-failed-corrections'
+        Save-OrcaRunState $RunRoot $State
+        return [ordered]@{ outcome = 'halted'; classification = $classification; detail = $classification.detail }
+    }
+    $State.correctionCount = [int]$State.correctionCount + 1
+    $State.lastFindings = "Writer CLI exited with code $(Get-OrcaResultField $Result 'exitCode'). STDERR: $(Get-OrcaResultField $Result 'stderr')"
+    Save-OrcaRunState $RunRoot $State
+    Set-OrcaRunTransition $RunRoot $State 'correcting'
+    return [ordered]@{ outcome = 'correction'; classification = $classification; detail = $classification.detail }
+}
+
+function Get-OrcaImplementationPaths {
+    param(
+        [Parameter(Mandatory)][string]$Worktree,
+        [Parameter(Mandatory)][string]$TaskFileName
+    )
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    $mergeBase = Invoke-OrcaNativeProcess -Executable 'git' -Arguments @('merge-base', 'main', 'HEAD') -WorkingDirectory $Worktree -StandardInput $null
+    if ($mergeBase.exitCode -eq 0 -and $mergeBase.stdout.Trim()) {
+        $committed = Invoke-OrcaNativeProcess -Executable 'git' -Arguments @('diff', '--name-only', '--no-renames', $mergeBase.stdout.Trim(), 'HEAD') -WorkingDirectory $Worktree -StandardInput $null
+        if ($committed.exitCode -eq 0) {
+            foreach ($line in @($committed.stdout -split "`r?`n")) { if ($line.Trim()) { $candidates.Add($line.Trim()) } }
+        }
+    }
+    $uncommitted = Invoke-OrcaNativeProcess -Executable 'git' -Arguments @('diff', '--name-only', '--no-renames', 'HEAD') -WorkingDirectory $Worktree -StandardInput $null
+    if ($uncommitted.exitCode -eq 0) {
+        foreach ($line in @($uncommitted.stdout -split "`r?`n")) { if ($line.Trim()) { $candidates.Add($line.Trim()) } }
+    }
+    $untracked = Invoke-OrcaNativeProcess -Executable 'git' -Arguments @('ls-files', '--others', '--exclude-standard') -WorkingDirectory $Worktree -StandardInput $null
+    if ($untracked.exitCode -eq 0) {
+        foreach ($line in @($untracked.stdout -split "`r?`n")) { if ($line.Trim()) { $candidates.Add($line.Trim()) } }
+    }
+
+    $escapedTask = [regex]::Escape($TaskFileName)
+    return @($candidates | Where-Object {
+        $normalized = $_.Replace('\', '/')
+        $normalized -and $normalized -notmatch '^\.orca/' -and $normalized -notmatch "^tasks/(ready|active|done|backlog)/$escapedTask$"
+    } | Sort-Object -Unique)
+}
+
+function Get-OrcaImplementationEvidence {
+    param(
+        [Parameter(Mandatory)]$Task,
+        [Parameter(Mandatory)][string]$Worktree
+    )
+
+    $deliverables = [System.Collections.Generic.List[string]]::new()
+    foreach ($deliverable in @($Task.Deliverables)) {
+        if (-not $deliverable) { continue }
+        $platformPath = ([string]$deliverable).Replace('/', [IO.Path]::DirectorySeparatorChar)
+        if (Test-Path -LiteralPath (Join-Path $Worktree $platformPath)) { $deliverables.Add([string]$deliverable) }
+    }
+    $taskFileName = if ($Task.FilePath) { [IO.Path]::GetFileName([string]$Task.FilePath) } else { "$($Task.Id).yaml" }
+    $implementationPaths = @(Get-OrcaImplementationPaths -Worktree $Worktree -TaskFileName $taskFileName)
+
+    [ordered]@{
+        deliverablesPresent = @($deliverables)
+        implementationPaths = $implementationPaths
+        hasImplementation = ($deliverables.Count -gt 0 -or $implementationPaths.Count -gt 0)
+    }
+}
+
+function Get-OrcaRunEvents {
+    param([Parameter(Mandatory)][string]$RunRoot)
+
+    $path = Join-Path $RunRoot 'events.jsonl'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return @() }
+    $events = [System.Collections.Generic.List[object]]::new()
+    foreach ($line in @([IO.File]::ReadAllLines($path))) {
+        if (-not $line.Trim()) { continue }
+        try { $events.Add(($line | ConvertFrom-Json)) } catch { }
+    }
+    return @($events)
+}
+
+function Test-OrcaInfrastructureOnlyAttempts {
+    param([Parameter(Mandatory)][string]$RunRoot)
+
+    $failures = @(
+        Get-OrcaRunEvents $RunRoot |
+            Where-Object { $_.type -eq 'agent-finished' -and $_.data.result -and $_.data.result.exitCode -ne 0 }
+    )
+    if ($failures.Count -eq 0) { return $false }
+    foreach ($failure in $failures) {
+        $classification = Get-OrcaAgentFailureClassification -Result $failure.data.result -AgentId ([string]$failure.data.agent) -Role ([string]$failure.data.role)
+        if (-not $classification.isInfrastructure) { return $false }
+    }
+    return $true
+}
+
+function Test-OrcaRunHasReviewChangeRequests {
+    param([Parameter(Mandatory)][string]$RunRoot)
+
+    $verdicts = @(Get-OrcaRunEvents $RunRoot | Where-Object { $_.type -eq 'review-verdict' -and $_.data.verdict -eq 'changes_requested' })
+    return $verdicts.Count -gt 0
+}
+
+function Test-OrcaInfrastructureRecovery {
+    param(
+        [Parameter(Mandatory)][string]$RunRoot,
+        [Parameter(Mandatory)][hashtable]$State,
+        [Parameter(Mandatory)]$Task
+    )
+
+    if (-not (Test-OrcaInfrastructureOnlyAttempts $RunRoot)) { return $false }
+    if (Test-OrcaRunHasReviewChangeRequests $RunRoot) { return $false }
+    $worktreePath = if ($State.worktree) { [string]$State.worktree.path } else { $null }
+    if (-not $worktreePath -or -not (Test-Path -LiteralPath $worktreePath -PathType Container)) { return $false }
+    if ((Get-OrcaImplementationEvidence -Task $Task -Worktree $worktreePath).hasImplementation) { return $false }
+    return $true
+}
+
+function Restore-OrcaInfrastructureRun {
+    param(
+        [Parameter(Mandatory)][string]$RunRoot,
+        [Parameter(Mandatory)][hashtable]$State
+    )
+
+    $from = [string]$State.state
+    $correctionsReset = [int]$State.correctionCount -gt 0
+    $State.correctionCount = 0
+    $State.lastFindings = ''
+    $State.lastError = $null
+    $State.halted = $false
+    $State.haltReason = $null
+    $State.pausedFrom = $null
+    if ($from -ne 'executing') {
+        $State.state = 'executing'
+        $State.history += ,([ordered]@{ from = $from; to = 'executing'; at = [DateTimeOffset]::UtcNow.ToString('o'); reason = 'infrastructure-recovery' })
+    }
+    Save-OrcaRunState $RunRoot $State
+    Write-OrcaRunEvent $RunRoot 'infrastructure-run-recovered' @{
+        from = $from
+        to = 'executing'
+        correctionsReset = $correctionsReset
+        worktree = $State.worktree
+        preservedLogs = $true
+    }
 }
 
 function Save-OrcaReviewAttempt {
@@ -791,6 +1175,9 @@ function Invoke-OrcaReviewerWithRetry {
             parseError = $analysis.error
         }
         if ($result.exitCode -ne 0) {
+            $classification = Get-OrcaAgentFailureClassification -Result $result -AgentId $AgentId -Role 'reviewer'
+            Register-OrcaAgentFailure -RunRoot $RunRoot -State $State -AgentId $AgentId -Role 'reviewer' -Result $result -Classification $classification -WorkingDirectory $Worktree | Out-Null
+            $State.pausedFrom = 'reviewing'
             Set-OrcaRunTransition $RunRoot $State 'paused-agent-error'
             return [ordered]@{ success = $false; analysis = $analysis; logPath = $logPath; attempts = $localAttempt }
         }
@@ -958,12 +1345,16 @@ function New-OrcaRunState {
         haltReason = $null
         history = @()
         adopted = $false
+        agentFailures = @()
+        pausedFrom = $null
     }
 }
 
 function New-OrcaAdoptedState {
     param([string]$RepoRoot, [string]$TaskId, $Task, [hashtable]$Roles, $Context)
-    $state = New-OrcaRunState -RepoRoot $RepoRoot -TaskId $TaskId -Task $Task -Roles $Roles -InitialState 'validating'
+    $evidence = Get-OrcaImplementationEvidence -Task $Task -Worktree ([string]$Context.worktree.path)
+    $initialState = if ($evidence.hasImplementation) { 'validating' } else { 'executing' }
+    $state = New-OrcaRunState -RepoRoot $RepoRoot -TaskId $TaskId -Task $Task -Roles $Roles -InitialState $initialState
     $state.integrationRoot = [string]$Context.integrationRoot
     $state.integrationMode = [string]$Context.integrationMode
     $state.worktree = @{
@@ -980,6 +1371,7 @@ function New-OrcaAdoptedState {
         branch = [string]$Context.branch
         worktreeId = [string]$Context.worktree.id
     }
+    $state.adoptionEvidence = $evidence
     return $state
 }
 
@@ -1271,6 +1663,13 @@ function New-OrcaDryRun {
         validationCommands = @($task.ValidationCommands)
         stateTransitions = @($script:StateOrder)
         correctionPolicy = [ordered]@{ maximumCycles = 2; findingsReturnToOriginalWriter = $true }
+        errorPolicy = [ordered]@{
+            recoverableStates = @('review_failed', 'paused-agent-error')
+            infrastructureCategories = @('authentication', 'quota-exhausted', 'invalid-arguments', 'process-start-failed', 'incompatible-engine', 'invalid-transport', 'infrastructure')
+            infrastructureDoesNotConsumeCorrections = $true
+            preservedOnAgentFailure = @('stdout', 'stderr', 'exitCode', 'arguments', 'cliVersion', 'logPath')
+            resumeResetsCorrectionsOnlyWhenAllAttemptsWereInfrastructure = $true
+        }
         gitActions = @(
             'verify clean main',
             'orca worktree create --base-branch main --no-parent',
@@ -1329,7 +1728,8 @@ function Invoke-OrcaRun {
                 priorStatus = $task.Status
                 branch = $state.worktree.branch
                 worktreeId = $state.worktree.id
-                startsAt = 'validating'
+                startsAt = [string]$state.state
+                implementationEvidence = $state.adoptionEvidence
             }
         }
         elseif (-not $state) {
@@ -1338,9 +1738,13 @@ function Invoke-OrcaRun {
             Write-OrcaRunEvent $runRoot 'run-created' @{ taskId = $TaskId; roles = $roles }
         }
         if ($state.halted) {
+            $infrastructureRecovery = $Resume -and (Test-OrcaInfrastructureRecovery -RunRoot $runRoot -State $state -Task $task)
             $legacyReviewParserFailure = $Resume -and $state.state -eq 'reviewing' -and $state.haltReason -eq 'contradictory-requirements-or-review-block'
             $recoverableIntegratorFailure = $Resume -and $state.state -eq 'approved' -and $state.haltReason -eq 'integrator-not-approved'
-            if ($legacyReviewParserFailure -or $recoverableIntegratorFailure) {
+            if ($infrastructureRecovery) {
+                Restore-OrcaInfrastructureRun -RunRoot $runRoot -State $state
+            }
+            elseif ($legacyReviewParserFailure -or $recoverableIntegratorFailure) {
                 $state.halted = $false
                 $state.haltReason = $null
                 $state.lastError = if ($legacyReviewParserFailure) {
@@ -1354,6 +1758,9 @@ function Invoke-OrcaRun {
                 Write-OrcaRunEvent $runRoot 'agent-gate-recovered' @{ state = $state.state; priorFailure = if ($legacyReviewParserFailure) { 'legacy-review-parser' } else { 'integrator-not-approved' }; newSession = $true }
             }
             else { throw "Run is halted: $($state.haltReason)" }
+        }
+        elseif ($Resume -and [int]$state.correctionCount -gt 0 -and (Test-OrcaInfrastructureRecovery -RunRoot $runRoot -State $state -Task $task)) {
+            Restore-OrcaInfrastructureRun -RunRoot $runRoot -State $state
         }
         $state.stopRequested = $false
         Save-OrcaRunState $runRoot $state
@@ -1376,14 +1783,13 @@ function Invoke-OrcaRun {
                     $result = Invoke-OrcaAgent $roles.writer 'writer' $prompt $worktree $runRoot $state $session
                     if ($state.stopRequested) { throw 'Stop requested.' }
                     if ($result.exitCode -ne 0) {
-                        if ($state.correctionCount -ge 2) {
-                            $state.halted = $true; $state.haltReason = 'two-failed-corrections'; Save-OrcaRunState $runRoot $state
+                        $writerOutcome = Resolve-OrcaWriterFailure -RunRoot $runRoot -State $state -Result $result -Task $promptTask -Worktree $worktree -AgentId $roles.writer
+                        if ($writerOutcome.outcome -eq 'paused') {
+                            throw "Writer paused with a recoverable agent error: $($writerOutcome.detail)"
+                        }
+                        if ($writerOutcome.outcome -eq 'halted') {
                             throw "Writer exited with code $($result.exitCode) after the maximum correction cycles."
                         }
-                        $state.correctionCount++
-                        $state.lastFindings = "Writer CLI exited with code $($result.exitCode). STDERR: $($result.stderr)"
-                        Save-OrcaRunState $runRoot $state
-                        Set-OrcaRunTransition $runRoot $state 'correcting'
                     }
                     else {
                         Set-OrcaRunTransition $runRoot $state 'validating'
@@ -1397,6 +1803,15 @@ function Invoke-OrcaRun {
                         Set-OrcaRunTransition $runRoot $state 'reviewing'
                     }
                     else {
+                        $hasImplementation = (Get-OrcaImplementationEvidence -Task $promptTask -Worktree ([string]$state.worktree.path)).hasImplementation
+                        if (-not $hasImplementation) {
+                            $state.pausedFrom = 'validating'
+                            $state.lastError = 'Validation failed without writer-produced changes or deliverables.'
+                            Save-OrcaRunState $runRoot $state
+                            Write-OrcaRunEvent $runRoot 'validation-paused-no-implementation' @{ failed = @($failed.command) }
+                            Set-OrcaRunTransition $runRoot $state 'paused-agent-error'
+                            throw 'Validation failed without writer-produced changes; run paused instead of consuming a correction.'
+                        }
                         if ($state.correctionCount -ge 2) {
                             $state.halted = $true; $state.haltReason = 'two-failed-corrections'; Save-OrcaRunState $runRoot $state
                             throw 'Maximum correction cycles reached.'
@@ -1432,7 +1847,13 @@ function Invoke-OrcaRun {
                     }
                 }
                 'review_failed' { Set-OrcaRunTransition $runRoot $state 'reviewing' }
-                'paused-agent-error' { Set-OrcaRunTransition $runRoot $state 'reviewing' }
+                'paused-agent-error' {
+                    $resumeTarget = if ($state.pausedFrom) { [string]$state.pausedFrom } else { 'reviewing' }
+                    if (-not (Test-OrcaStateTransition -From 'paused-agent-error' -To $resumeTarget)) { $resumeTarget = 'reviewing' }
+                    Set-OrcaRunTransition $runRoot $state $resumeTarget
+                    $state.pausedFrom = $null
+                    Save-OrcaRunState $runRoot $state
+                }
                 'correcting' { Set-OrcaRunTransition $runRoot $state 'executing' }
                 'approved' {
                     if ($task.Kind -eq 'adr') {
@@ -1448,6 +1869,13 @@ function Invoke-OrcaRun {
                     Save-OrcaRunState $runRoot $state
                     $result = Invoke-OrcaAgent $roles.integrator 'integrator' $prompts.integrator $integrationWorktree $runRoot $state $null
                     if ($state.stopRequested) { throw 'Stop requested.' }
+                    if ($result.exitCode -ne 0) {
+                        $classification = Get-OrcaAgentFailureClassification -Result $result -AgentId $roles.integrator -Role 'integrator'
+                        if ($classification.isInfrastructure) {
+                            Suspend-OrcaRunForAgentError -RunRoot $runRoot -State $state -AgentId $roles.integrator -Role 'integrator' -Result $result -Classification $classification -PausedFrom 'approved' -WorkingDirectory $integrationWorktree
+                            throw "Integrator paused with a recoverable agent error: $($classification.detail)"
+                        }
+                    }
                     $analysis = if ($result.exitCode -eq 0) {
                         ConvertFrom-OrcaReviewOutput ([string]$result.stdout)
                     }

@@ -17,13 +17,16 @@ El repositorio necesita ejecutar tareas completas sin copiar prompts, manteniend
 - Los agentes de solo lectura trabajan sobre réplicas Git desechables para aislar la rama del escritor incluso si una CLI intenta escribir.
 - Las transiciones y operaciones Git son deterministas; ningún agente decide por sí mismo integrar.
 - Un dry-run no crea worktrees, sesiones, commits ni estado persistente.
-- Las tareas heredadas sin estado pueden adoptarse desde su rama y worktree existentes. La adopción comienza en validación, exige revisión independiente nueva y no crea ni reemplaza worktrees.
+- Las tareas heredadas sin estado pueden adoptarse desde su rama y worktree existentes. La adopción comienza en validación cuando existen entregables o cambios reales de implementación, y en ejecución con el prompt inicial cuando no existe ninguno; el movimiento `tasks/ready → tasks/active` y los internos de `.orca/` no cuentan como implementación. Exige revisión independiente nueva y no crea ni reemplaza worktrees.
+- Los adaptadores construyen sus argumentos desde la ayuda instalada. Kiro usa `--agent-engine v3` siempre que emite `--output-format stream-json` (v1 no lo admite). Devin emite todas las opciones antes de cualquier PATH o separador `--`; el adaptador interno es independiente del lanzador externo de Orca, que ordenó incorrectamente esos argumentos.
+- Los fallos de agente se clasifican en funcionales o de infraestructura (autenticación, cuota, argumentos inválidos, proceso no iniciado, engine incompatible, transporte inválido). Los de infraestructura conservan stdout, stderr, código de salida, argumentos, versión del CLI y log; pausan la ejecución en `paused-agent-error` sin consumir correcciones. Los ciclos de corrección solo se consumen cuando el escritor produjo cambios y luego fallaron validaciones o el revisor pidió correcciones.
+- `resume` restablece `correctionCount` a cero únicamente cuando todos los intentos previos fueron de infraestructura, conserva historial, logs, rama y worktree, y reejecuta el prompt inicial.
 - Cuando `main` no está checkout, una adopción puede completar el mismo fast-forward mediante actualización atómica de la referencia, sin materializar otro worktree.
 - Las respuestas de revisión se normalizan a un contrato JSON estricto; cada intento conserva salida original, resultado normalizado y error. Una salida inválida solo admite un reintento con sesión nueva y deja un estado operativo recuperable si vuelve a fallar.
 
 ## Consecuencias
 
-- `preflight` debe fallar si falta PowerShell 7, Git, Orca o un adaptador requerido.
+- `preflight` debe fallar si falta PowerShell 7, Git, Orca o un adaptador requerido, o si una comprobación de parseo no destructiva (`kiro-cli chat <args> --help`, `devin <args> --version`) contra la versión instalada falla.
 - Las tareas deben declarar comandos ejecutables desde PowerShell 7.
 - Las decisiones de producto, aceptación de ADR, acciones destructivas, conflictos, dos correcciones fallidas o requisitos contradictorios detienen el pipeline.
 - Los cambios de la interfaz de una CLI requieren actualizar y probar su adaptador.

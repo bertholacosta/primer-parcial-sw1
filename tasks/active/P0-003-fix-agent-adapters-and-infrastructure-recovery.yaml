@@ -1,0 +1,85 @@
+id: P0-003
+title: "Corregir los adaptadores Kiro y Devin y la recuperación de fallos de infraestructura de Orca"
+phase: 0
+status: active
+kind: implementation
+owner_role: Devin
+objective: >-
+  Corregir la invocación de kiro-cli (engine v3 con stream-json), el orden de
+  argumentos del adaptador Devin (todas las opciones antes de cualquier PATH o
+  separador --), la clasificación de fallos de infraestructura sin consumir
+  correcciones funcionales, la adopción en executing cuando no hay entregables
+  y la recuperación mediante resume tras corregir la causa de infraestructura.
+dependencies: [P0-002]
+inputs:
+  files:
+    - AGENTS.md
+    - tasks/TASK-TEMPLATE.yaml
+    - orca.ps1
+    - scripts/orca/OrcaPipeline.psm1
+    - scripts/orca/adapters/Kiro.ps1
+    - scripts/orca/adapters/Devin.ps1
+    - tests/orca/
+    - docs/contracts/orca-pipeline-v1.md
+    - docs/adr/0007-windows-orca-pipeline.md
+  docs:
+    - docs/ARCHITECTURE.md
+scope:
+  allowed_paths:
+    - orca.ps1
+    - scripts/orca/
+    - tests/orca/
+    - docs/contracts/orca-pipeline-v1.md
+    - docs/adr/0007-windows-orca-pipeline.md
+    - tasks/active/P0-003-fix-agent-adapters-and-infrastructure-recovery.yaml
+  forbidden_paths:
+    - apps/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/
+    - tasks/ready/
+    - tasks/backlog/
+    - tasks/done/
+    - docs/contracts/domain-model-v1.md
+constraints:
+  - "Usar Windows 11 y PowerShell 7; no usar WSL, bash, grep, find ni test."
+  - "No inventar comandos o flags de CLIs; basarse en --version y --help instalados."
+  - "No modificar archivos de P1-001 ni generar docs/contracts/domain-model-v1.md."
+  - "No usar Codex; el escritor declarado es devin y el revisor antigravity."
+  - "No hacer commit, push ni merge; conservar cambios legítimos existentes."
+  - "Máximo dos ciclos de corrección funcional."
+acceptance_criteria:
+  - "kiro-cli se invoca con --agent-engine v3 cuando se usa --output-format stream-json."
+  - "El adaptador Devin emite --permission-mode, --respect-workspace-trust, --prompt-file, --export y --print antes de cualquier PATH o separador --."
+  - "El preflight ejecuta comprobaciones de parseo no destructivas contra las versiones instaladas de kiro-cli y devin."
+  - "Los fallos de infraestructura (autenticación, cuota, argumentos inválidos, proceso no iniciado, engine incompatible, transporte inválido) pausan en paused-agent-error sin incrementar correctionCount y conservan stdout, stderr, exitCode, argumentos, versión del CLI y ruta del log."
+  - "La adopción sin entregables ni cambios reales comienza en executing con el prompt inicial; con entregables comienza en validating."
+  - "resume restablece correctionCount a cero solo cuando todos los intentos previos fueron infraestructura, conservando historial, logs, rama y worktree."
+  - "Las pruebas nuevas cubren los dieciséis casos obligatorios y el límite de dos correcciones funcionales se mantiene."
+validation_commands:
+  - "git diff --check"
+  - "pwsh -NoProfile -File .\\tests\\orca\\Run-Tests.ps1"
+  - "pwsh -NoProfile -File .\\orca.ps1 preflight"
+  - "pwsh -NoProfile -File .\\orca.ps1 dry-run P0-003"
+deliverables:
+  - scripts/orca/OrcaPipeline.psm1
+  - scripts/orca/adapters/Kiro.ps1
+  - scripts/orca/adapters/Devin.ps1
+  - tests/orca/
+  - docs/contracts/orca-pipeline-v1.md
+  - docs/adr/0007-windows-orca-pipeline.md
+  - tasks/active/P0-003-fix-agent-adapters-and-infrastructure-recovery.yaml
+links:
+  - docs/ROADMAP.md
+  - docs/ARCHITECTURE.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: fix-kiro-adapter-and-infrastructure-recovery
+  worktree: "9ff083ee-82ba-4f68-8c22-eaefaaef9c9f::C:/Users/aober/orca/workspaces/primer-parcial-sw1/p0-003-fix-kiro-adapter"
+  writer: devin
+  reviewer: antigravity
+evidence: []

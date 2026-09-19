@@ -1,12 +1,13 @@
 $adoptionModule = Get-Module OrcaPipeline
 
 function New-OrcaAdoptionFixture {
-    param([string]$TaskId = 'LEG-001', [string]$Status = 'active')
+    param([string]$TaskId = 'LEG-001', [string]$Status = 'active', [switch]$WithDeliverable, [switch]$WithDirectoryDeliverable)
     $root = Join-Path ([IO.Path]::GetTempPath()) ("orca-adoption-$([guid]::NewGuid().ToString('N'))")
     $taskDirectory = Join-Path $root "tasks/$Status"
     [IO.Directory]::CreateDirectory($taskDirectory) | Out-Null
     $taskPath = Join-Path $taskDirectory "$TaskId-legacy-task.yaml"
     $yamlRoot = $root.Replace('\', '/')
+    $deliverablesYaml = if ($WithDirectoryDeliverable) { "deliverables:`n  - tests/orca/" } elseif ($WithDeliverable) { "deliverables:`n  - deliverable.txt" } else { 'deliverables: []' }
     $yaml = @"
 id: $TaskId
 title: "Legacy task"
@@ -28,7 +29,7 @@ constraints: []
 acceptance_criteria: []
 validation_commands:
   - "Write-Output validated"
-deliverables: []
+$deliverablesYaml
 links: []
 orca:
   issue: null
@@ -39,7 +40,20 @@ orca:
 evidence: []
 "@
     [IO.File]::WriteAllText($taskPath, $yaml, [Text.UTF8Encoding]::new($false))
+    if ($WithDeliverable) {
+        [IO.File]::WriteAllText((Join-Path $root 'deliverable.txt'), 'deliverable', [Text.UTF8Encoding]::new($false))
+    }
+    if ($WithDirectoryDeliverable) {
+        [IO.Directory]::CreateDirectory((Join-Path $root 'tests/orca')) | Out-Null
+    }
     return [pscustomobject]@{ Root = $root; TaskPath = $taskPath; TaskId = $TaskId }
+}
+
+function Initialize-OrcaAdoptionGit {
+    param([string]$Root)
+    & git -C $Root init --quiet -b main
+    & git -C $Root add --all
+    & git -C $Root -c user.name=OrcaTest -c user.email=orca-test@example.invalid commit --quiet -m baseline
 }
 
 function Remove-OrcaAdoptionFixture {
@@ -49,7 +63,10 @@ function Remove-OrcaAdoptionFixture {
     if (-not $resolved.StartsWith($temporaryRoot, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to remove non-temporary test path $resolved."
     }
-    if ([IO.Directory]::Exists($resolved)) { [IO.Directory]::Delete($resolved, $true) }
+    if ([IO.Directory]::Exists($resolved)) {
+        Get-ChildItem -LiteralPath $resolved -Force -Recurse -File | ForEach-Object { $_.IsReadOnly = $false }
+        [IO.Directory]::Delete($resolved, $true)
+    }
 }
 
 function New-OrcaAdoptionTestContext {
@@ -80,7 +97,7 @@ It 'reports an existing task without state as unmanaged and adoptable' {
 }
 
 It 'creates adopted state at validation while preserving the current worktree' {
-    $fixture = New-OrcaAdoptionFixture
+    $fixture = New-OrcaAdoptionFixture -WithDeliverable
     try {
         $task = Read-OrcaTask -RepoRoot $fixture.Root -TaskId $fixture.TaskId
         $context = New-OrcaAdoptionTestContext $fixture.Root $fixture.TaskId
@@ -156,7 +173,7 @@ It 'rejects adoption when branch or worktree does not correspond to the task' {
 }
 
 It 'continues an adopted task from validation through done' {
-    $fixture = New-OrcaAdoptionFixture -TaskId 'LEG-004'
+    $fixture = New-OrcaAdoptionFixture -TaskId 'LEG-004' -WithDeliverable
     try {
         $task = Read-OrcaTask -RepoRoot $fixture.Root -TaskId $fixture.TaskId
         $context = New-OrcaAdoptionTestContext $fixture.Root $fixture.TaskId
@@ -175,7 +192,7 @@ It 'continues an adopted task from validation through done' {
 }
 
 It 'does not schedule or create a duplicate worktree for adoption' {
-    $fixture = New-OrcaAdoptionFixture -TaskId 'LEG-005'
+    $fixture = New-OrcaAdoptionFixture -TaskId 'LEG-005' -WithDeliverable
     try {
         $task = Read-OrcaTask -RepoRoot $fixture.Root -TaskId $fixture.TaskId
         $context = New-OrcaAdoptionTestContext $fixture.Root $fixture.TaskId
@@ -186,6 +203,95 @@ It 'does not schedule or create a duplicate worktree for adoption' {
         Assert-Equal 'validating' $state.state
         Assert-False $state.ContainsKey('preparation')
         Assert-Equal $context.worktree.id $state.worktree.id
+    }
+    finally { Remove-OrcaAdoptionFixture $fixture.Root }
+}
+
+It 'starts an adopted task at executing when no deliverable or changes exist' {
+    $fixture = New-OrcaAdoptionFixture -TaskId 'LEG-006'
+    try {
+        $task = Read-OrcaTask -RepoRoot $fixture.Root -TaskId $fixture.TaskId
+        $context = New-OrcaAdoptionTestContext $fixture.Root $fixture.TaskId
+        $state = & $adoptionModule {
+            param($root, $id, $assignedTask, $roles, $adoptionContext)
+            New-OrcaAdoptedState -RepoRoot $root -TaskId $id -Task $assignedTask -Roles $roles -Context $adoptionContext
+        } $fixture.Root $fixture.TaskId $task @{ writer = 'codex'; reviewer = 'antigravity'; integrator = 'codex' } $context
+        Assert-Equal 'executing' $state.state
+        Assert-Equal 0 ([int]$state.correctionCount)
+        Assert-False $state.adoptionEvidence.hasImplementation
+    }
+    finally { Remove-OrcaAdoptionFixture $fixture.Root }
+}
+
+It 'starts an adopted task at validating when a deliverable exists' {
+    $fixture = New-OrcaAdoptionFixture -TaskId 'LEG-007' -WithDeliverable
+    try {
+        $task = Read-OrcaTask -RepoRoot $fixture.Root -TaskId $fixture.TaskId
+        $context = New-OrcaAdoptionTestContext $fixture.Root $fixture.TaskId
+        $state = & $adoptionModule {
+            param($root, $id, $assignedTask, $roles, $adoptionContext)
+            New-OrcaAdoptedState -RepoRoot $root -TaskId $id -Task $assignedTask -Roles $roles -Context $adoptionContext
+        } $fixture.Root $fixture.TaskId $task @{ writer = 'codex'; reviewer = 'antigravity'; integrator = 'codex' } $context
+        Assert-Equal 'validating' $state.state
+        Assert-True $state.adoptionEvidence.hasImplementation
+    }
+    finally { Remove-OrcaAdoptionFixture $fixture.Root }
+}
+
+It 'starts an adopted task at validating when a directory deliverable exists' {
+    $fixture = New-OrcaAdoptionFixture -TaskId 'LEG-010' -WithDirectoryDeliverable
+    try {
+        $task = Read-OrcaTask -RepoRoot $fixture.Root -TaskId $fixture.TaskId
+        $context = New-OrcaAdoptionTestContext $fixture.Root $fixture.TaskId
+        $state = & $adoptionModule {
+            param($root, $id, $assignedTask, $roles, $adoptionContext)
+            New-OrcaAdoptedState -RepoRoot $root -TaskId $id -Task $assignedTask -Roles $roles -Context $adoptionContext
+        } $fixture.Root $fixture.TaskId $task @{ writer = 'codex'; reviewer = 'antigravity'; integrator = 'codex' } $context
+        Assert-Equal 'validating' $state.state
+        Assert-True $state.adoptionEvidence.hasImplementation
+        Assert-True ($state.adoptionEvidence.deliverablesPresent -contains 'tests/orca/')
+    }
+    finally { Remove-OrcaAdoptionFixture $fixture.Root }
+}
+
+It 'does not count moving the task file to active as implementation' {
+    $fixture = New-OrcaAdoptionFixture -TaskId 'LEG-008' -Status 'ready'
+    try {
+        Initialize-OrcaAdoptionGit $fixture.Root
+        $activeDirectory = Join-Path $fixture.Root 'tasks/active'
+        [IO.Directory]::CreateDirectory($activeDirectory) | Out-Null
+        Move-Item -LiteralPath $fixture.TaskPath -Destination (Join-Path $activeDirectory ([IO.Path]::GetFileName($fixture.TaskPath)))
+        $task = Read-OrcaTask -RepoRoot $fixture.Root -TaskId $fixture.TaskId
+        $context = New-OrcaAdoptionTestContext $fixture.Root $fixture.TaskId
+        $evidence = & $adoptionModule {
+            param($assignedTask, $worktree)
+            Get-OrcaImplementationEvidence -Task $assignedTask -Worktree $worktree
+        } $task $fixture.Root
+        Assert-False $evidence.hasImplementation
+        Assert-Equal 0 $evidence.implementationPaths.Count
+        $state = & $adoptionModule {
+            param($root, $id, $assignedTask, $roles, $adoptionContext)
+            New-OrcaAdoptedState -RepoRoot $root -TaskId $id -Task $assignedTask -Roles $roles -Context $adoptionContext
+        } $fixture.Root $fixture.TaskId $task @{ writer = 'codex'; reviewer = 'antigravity'; integrator = 'codex' } $context
+        Assert-Equal 'executing' $state.state
+    }
+    finally { Remove-OrcaAdoptionFixture $fixture.Root }
+}
+
+It 'starts an adopted task at validating when implementation changes exist' {
+    $fixture = New-OrcaAdoptionFixture -TaskId 'LEG-009' -Status 'ready'
+    try {
+        Initialize-OrcaAdoptionGit $fixture.Root
+        [IO.File]::WriteAllText((Join-Path $fixture.Root 'implementation.txt'), 'change', [Text.UTF8Encoding]::new($false))
+        $task = Read-OrcaTask -RepoRoot $fixture.Root -TaskId $fixture.TaskId
+        $context = New-OrcaAdoptionTestContext $fixture.Root $fixture.TaskId
+        $state = & $adoptionModule {
+            param($root, $id, $assignedTask, $roles, $adoptionContext)
+            New-OrcaAdoptedState -RepoRoot $root -TaskId $id -Task $assignedTask -Roles $roles -Context $adoptionContext
+        } $fixture.Root $fixture.TaskId $task @{ writer = 'codex'; reviewer = 'antigravity'; integrator = 'codex' } $context
+        Assert-Equal 'validating' $state.state
+        Assert-True $state.adoptionEvidence.hasImplementation
+        Assert-True ($state.adoptionEvidence.implementationPaths -contains 'implementation.txt')
     }
     finally { Remove-OrcaAdoptionFixture $fixture.Root }
 }

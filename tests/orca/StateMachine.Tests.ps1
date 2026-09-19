@@ -20,3 +20,15 @@ It 'accepts the correction loop and rejects unsafe jumps' {
     Assert-False (Test-OrcaStateTransition -From 'ready' -To 'done')
     Assert-False (Test-OrcaStateTransition -From 'reviewing' -To 'committing')
 }
+
+It 'allows paused-agent-error to be reached and resumed from operational states' {
+    Assert-True (Test-OrcaStateTransition -From 'executing' -To 'paused-agent-error')
+    Assert-True (Test-OrcaStateTransition -From 'validating' -To 'paused-agent-error')
+    Assert-True (Test-OrcaStateTransition -From 'reviewing' -To 'paused-agent-error')
+    Assert-True (Test-OrcaStateTransition -From 'approved' -To 'paused-agent-error')
+    Assert-True (Test-OrcaStateTransition -From 'paused-agent-error' -To 'executing')
+    Assert-True (Test-OrcaStateTransition -From 'paused-agent-error' -To 'validating')
+    Assert-True (Test-OrcaStateTransition -From 'paused-agent-error' -To 'reviewing')
+    Assert-True (Test-OrcaStateTransition -From 'paused-agent-error' -To 'approved')
+    Assert-False (Test-OrcaStateTransition -From 'paused-agent-error' -To 'done')
+}

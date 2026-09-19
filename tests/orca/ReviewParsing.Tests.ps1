@@ -144,8 +144,8 @@ It 'retries invalid reviewer output exactly once with a new session' {
             param($attempt, $sessionId)
             $tracker.Calls++
             $tracker.Sessions.Add($sessionId)
-            if ($tracker.Calls -eq 1) { return New-TestReviewProcessResult -Stdout 'invalid' }
-            return New-TestReviewProcessResult -Stdout '{"verdict":"approved","summary":"Ready","findings":[]}'
+            if ($tracker.Calls -eq 1) { return [pscustomobject]@{ stdout = 'invalid'; stderr = ''; exitCode = 0 } }
+            return [pscustomobject]@{ stdout = '{"verdict":"approved","summary":"Ready","findings":[]}'; stderr = ''; exitCode = 0 }
         }.GetNewClosure()
         $outcome = & $reviewModule {
             param($runRoot, $runState, $fakeInvoker)
