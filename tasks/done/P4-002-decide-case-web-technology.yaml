@@ -1,7 +1,7 @@
 id: P4-002
 title: "Resolver ADR de tecnología CASE web"
 phase: 4
-status: ready
+status: done
 kind: adr
 owner_role: Kiro
 objective: "Comparar y recomendar stack y renderer del editor contra el contrato de comandos y riesgos de interacción."
@@ -32,3 +32,6 @@ deliverables:
   - docs/adr/0001-case-web-technology.md
 links:
   - docs/contracts/model-commands-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
