@@ -1,0 +1,35 @@
+id: P3-004
+title: "Implementar persistencia y cola offline mínima"
+phase: 3
+status: ready
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Persistir metadatos y una operación local, conservarla sin red y reintentarla de forma idempotente."
+dependencies:
+  - P3-003
+inputs:
+  files:
+    - docs/contracts/mobile-offline-v1.md
+    - docs/adr/0004-mobile-state-and-storage.md
+  docs:
+    - apps/mobile-flutter/README.md
+scope:
+  allowed_paths:
+    - apps/mobile-flutter/
+  forbidden_paths:
+    - apps/case-web/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/
+acceptance_criteria:
+  - "Una operación sobrevive reinicio sin red y se conserva hasta confirmación."
+  - "Reintentos no duplican la operación en el escenario de prueba."
+validation_commands:
+  - "git diff --check -- apps/mobile-flutter"
+  - "Push-Location apps/mobile-flutter; flutter analyze; Pop-Location"
+  - "Push-Location apps/mobile-flutter; flutter test; Pop-Location"
+deliverables:
+  - apps/mobile-flutter/
+links:
+  - docs/contracts/mobile-offline-v1.md
