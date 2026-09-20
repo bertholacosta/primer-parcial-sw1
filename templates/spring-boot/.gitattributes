@@ -1,0 +1,4 @@
+# El generador lee estas plantillas en bruto: fijar LF evita que el EOL del
+# checkout (core.autocrlf en Windows) se propague a la salida generada y a los
+# sha256 del manifiesto, preservando el determinismo de generator-input-output v1 §4.
+* text eol=lf
