@@ -1,0 +1,35 @@
+id: P4-003
+title: "Renderizar clases desde el modelo"
+phase: 4
+status: ready
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Mostrar clases y atributos del fixture canónico en el canvas, sin edición ni asociaciones."
+dependencies:
+  - P4-002
+inputs:
+  files:
+    - docs/contracts/domain-model-v1.md
+    - fixtures/models/valid-minimal.json
+    - fixtures/models/invalid-unsupported-contract-version.json
+  docs:
+    - docs/adr/0001-case-web-technology.md
+scope:
+  allowed_paths:
+    - apps/case-web/
+  forbidden_paths:
+    - apps/mobile-flutter/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/
+acceptance_criteria:
+  - "El fixture muestra nombre y atributos de cada clase sin lógica de dominio codificada fuera del adaptador."
+  - "Existe prueba automatizada del estado renderizado y de error de versión."
+validation_commands:
+  - "git diff --check -- apps/case-web"
+  - "Push-Location apps/case-web; npm test; Pop-Location"
+deliverables:
+  - apps/case-web/
+links:
+  - docs/adr/0001-case-web-technology.md
