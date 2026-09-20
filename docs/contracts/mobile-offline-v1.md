@@ -43,7 +43,7 @@ El runtime móvil persiste los siguientes artefactos de forma durable en el disp
 2. Cada registro local se identifica mediante un `localId` (ver §3.1).
 3. Un registro local puede tener un `remoteId` asociado si ya fue confirmado por el servidor.
 4. Los registros locales no confirmados conviven con los registros sincronizados. El runtime los distingue por estado (ver §3.3).
-5. El runtime no aplica migraciones de esquema de datos de instancia de forma autónoma; si el descriptor cambia y los datos locales son incompatibles con el nuevo esquema, el runtime transiciona al estado `stale` y bloquea nuevas ediciones hasta resolución explícita.
+5. El runtime evalúa la compatibilidad de esquema cuando descarga un nuevo descriptor: si el nuevo descriptor cambia la estructura de una clase cuyos datos locales son incompatibles con el nuevo esquema, el runtime transiciona a un subestado de `stale` con **edición bloqueada** (`stale_schema_incompatible`) para las entidades afectadas, y bloquea nuevas ediciones sobre esas entidades hasta resolución explícita. Si el nuevo esquema es compatible con los datos locales existentes, el runtime permanece en `stale` con edición permitida. Esta distinción es semántica; ambos subestados se representan externamente como `stale`.
 
 ---
 
@@ -87,7 +87,7 @@ Cada operación encolada (create, update, delete) tiene un `operationId` único 
 | `in_flight` | Enviada, esperando respuesta del servidor. | → `confirmed`, → `failed_retryable`, → `failed_permanent` |
 | `confirmed` | El servidor confirmó la operación con éxito. Estado terminal. | — |
 | `failed_retryable` | El servidor devolvió un error transitorio o se agotó el tiempo de espera. Se reintentará. | → `pending` (tras backoff) |
-| `failed_permanent` | El servidor rechazó la operación de forma definitiva (conflicto irresolvable, recurso eliminado, etc.). Estado terminal. | → `cancelled` (acción manual) |
+| `failed_permanent` | El servidor rechazó la operación de forma definitiva (conflicto irresolvable, recurso eliminado, etc.). Estado terminal. | — |
 | `cancelled` | Cancelada por el usuario o por el runtime (tras superar el límite de reintentos). Estado terminal. | — |
 
 ---
@@ -105,13 +105,14 @@ Cada operación encolada (create, update, delete) tiene un `operationId` único 
 
 Una operación se encola si y solo si:
 
-- El runtime está en estado `ready`, `stale` o `unavailable` (§14.2 de `flutter-descriptor` v1).
+- El runtime está en estado `ready`, o en estado `stale` con esquema compatible (ver §2.3 punto 5).
 - El descriptor local está presente y la `entityClassId` referencia una clase conocida en el descriptor.
 - Los datos del `payload` superan las validaciones mínimas del `uiType` correspondiente (§14.4 de `flutter-descriptor` v1).
 
 Una operación **no** se encola si:
 
-- El runtime está en estado `error_contract_mismatch` o `error_missing_field`.
+- El runtime está en estado `error_contract_mismatch`, `error_missing_field` o `unavailable`.
+- El runtime está en estado `stale` con esquema incompatible para la entidad afectada (ver §2.3 punto 5).
 - El `payload` está vacío para una operación `create` o `update`.
 
 ### 4.3 Orden de envío y dependencias entre operaciones
@@ -257,7 +258,7 @@ Antes de reemplazar el snapshot local, el runtime verifica:
 
 1. `descriptorContractVersion` coincide con la versión soportada por el runtime.
 2. Todos los campos obligatorios del documento raíz están presentes.
-3. `sourceModelSha256` es coherente con el contenido declarado del descriptor.
+3. `sourceModelSha256` coincide con el SHA-256 del modelo activo publicado por el servidor como metadato autenticado independiente (sin requerir `domain-model.json` completo en el runtime), conforme a §10.2 de `flutter-descriptor` v1.
 
 Si cualquiera de estas verificaciones falla, el descriptor descargado se descarta y el snapshot anterior se conserva.
 

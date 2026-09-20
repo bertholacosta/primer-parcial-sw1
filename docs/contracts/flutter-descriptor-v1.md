@@ -445,16 +445,18 @@ El runtime Flutter gestiona el descriptor mediante los siguientes estados bien d
 | `ready` | Completo | Sí | Sí | Ninguno (operación normal) |
 | `error_contract_mismatch` | No | No | No | Error bloqueante: solicitar actualización de la app |
 | `error_missing_field` | No | No | No | Error bloqueante: descriptor corrupto, solicitar regeneración |
-| `stale` | Parcial (datos locales) | Sí (cola offline) | No (hasta resolver) | Advertencia no bloqueante: el modelo cambió |
+| `stale` | Parcial (datos locales) | Solo si esquema compatible (ver §14.3) | No (hasta resolver) | Advertencia no bloqueante: el modelo cambió |
 | `unavailable` | No (sin descriptor local) | No | No | Aviso informativo: sin conexión ni descriptor local |
 
 ### 14.3 Modo degradado (`stale`)
 
 Cuando el estado es `stale`, el runtime opera con el descriptor almacenado localmente bajo las siguientes restricciones:
 
-1. Las operaciones de edición se encolan en la cola offline (ver `mobile-offline-v1.md`).
+1. **Compatibilidad de esquema:** el runtime evalúa si el descriptor local es compatible con los datos de instancia ya almacenados. Esta es la condición normativa única para permitir edición en `stale`:
+   - Si el esquema es **compatible**, las operaciones de edición se encolan en la cola offline (ver `mobile-offline-v1.md §4.2`).
+   - Si el esquema es **incompatible** con alguna entidad local, el runtime bloquea nuevas ediciones sobre esas entidades y notifica al usuario. Las operaciones ya encoladas no se cancelan.
 2. No se solicita una nueva sincronización hasta que el usuario lo confirme explícitamente o se restablezca la conectividad.
-3. El runtime no descarta el descriptor stale automáticamente; solo lo reemplaza cuando recibe un descriptor nuevo con `descriptorContractVersion` válida y `sourceModelSha256` verificado.
+3. El runtime no descarta el descriptor stale automáticamente; solo lo reemplaza cuando recibe un descriptor nuevo con `descriptorContractVersion` válida y `sourceModelSha256` verificado contra el metadato autenticado del servidor (ver §10.2).
 4. El estado `stale` no impide el renderizado de los widgets ya conocidos; solo impide asumir que el modelo subyacente no ha cambiado.
 
 ### 14.4 Renderizado mínimo garantizado por `uiType`
