@@ -161,7 +161,7 @@ Una operación es reintentable (`failed_retryable`) si el error es transitorio:
 | Pérdida de conectividad | Sí |
 | Error HTTP 4xx del servidor (400, 422) | No (`failed_permanent`) |
 | Error HTTP 409 Conflict irresolvable | No (`failed_permanent`) |
-| Error HTTP 404 (recurso eliminado en servidor) | No (`failed_permanent`) |
+| Error HTTP 404 (recurso eliminado en servidor) | No — tratar como `confirmed` (el recurso ya no existe; el efecto del `delete` está logrado) |
 | Error de validación del servidor (negocio) | No (`failed_permanent`) |
 
 ### 5.3 Reactivación de la cola tras conectividad
@@ -318,7 +318,7 @@ La descarga de un nuevo descriptor no cancela ni modifica las operaciones pendie
 | S1 | El servidor acepta el `operationId` como clave de idempotencia (cabecera o campo de cuerpo). | Si el servidor no soporta idempotencia, el runtime no puede garantizar la semántica de §6.2. |
 | S2 | El almacenamiento local es durable ante reinicios de app y del dispositivo. | Si la persistencia no es durable, las garantías de §4.1 no se cumplen. |
 | S3 | El servidor devuelve el `remoteId` asignado al recurso en la respuesta de confirmación del `create`. | Si el servidor no devuelve el `remoteId`, la correlación `localId → remoteId` no puede establecerse. |
-| S4 | Las operaciones `delete` son idempotentes en el servidor (eliminar un recurso ya eliminado devuelve 200/204, no 404 bloqueante). | Si el servidor devuelve 404 para un `delete` de recurso ya eliminado, el runtime debe tratarlo como `confirmed`, no `failed_permanent`. |
+| S4 | *(eliminado: el comportamiento de HTTP 404 en operaciones `delete` es ahora normativo; ver §5.2)* | — |
 | S5 | El número máximo de 500 operaciones pendientes es suficiente para los casos de uso del parcial. | Si el dominio requiere más, el límite configurable debe ajustarse. |
 
 ### 11.3 Preguntas abiertas que requieren aprobación del Product Owner

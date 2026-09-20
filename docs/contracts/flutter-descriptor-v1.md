@@ -183,7 +183,7 @@ Dos descriptores son **canónicamente iguales** si, tras normalización del orde
 
 El descriptor es reproducible bajo las mismas condiciones que el generador: dado el mismo `domain-model.json` de origen (canónicamente igual), la misma versión del generador y el mismo `templateSetId`, el contenido del `flutter-descriptor.json` es byte a byte idéntico entre ejecuciones.
 
-El campo `sourceModelSha256` permite verificar que un descriptor dado corresponde exactamente a un modelo concreto. Si el modelo cambia (aunque sea mínimamente), el `sourceModelSha256` difiere y el runtime Flutter puede detectar la inconsistencia.
+El campo `sourceModelSha256` permite verificar que un descriptor dado corresponde exactamente a un modelo concreto. Si el modelo cambia (aunque sea mínimamente), el `sourceModelSha256` difiere y el runtime Flutter puede detectar la inconsistencia comparando con el SHA-256 que el servidor publica como metadato del modelo activo (ver §10.2).
 
 ---
 
@@ -203,7 +203,7 @@ El descriptor se genera en la misma ejecución atómica que el proyecto Spring B
 | Código | Descripción | Acción recomendada |
 |---|---|---|
 | `DESCRIPTOR_CONTRACT_VERSION_MISMATCH` | `descriptorContractVersion` no coincide con la versión soportada por el runtime. | Rechazar el descriptor; solicitar regeneración. |
-| `DESCRIPTOR_MODEL_MISMATCH` | `sourceModelSha256` no coincide con el del modelo activo en el servidor. El descriptor es stale. | Notificar al usuario; continuar en modo degradado o rechazar. |
+| `DESCRIPTOR_MODEL_MISMATCH` | `sourceModelSha256` no coincide con el SHA-256 del modelo activo publicado por el servidor como metadato (sin requerir `domain-model.json` completo en el runtime). El descriptor es stale. | Notificar al usuario; continuar en modo degradado o rechazar. |
 | `DESCRIPTOR_MISSING_REQUIRED_FIELD` | Falta un campo obligatorio del descriptor. | Rechazar el descriptor. |
 
 ---
@@ -318,9 +318,11 @@ Generado desde el modelo `valid-minimal.json` (clase `Libro`, atributos `titulo:
 
 Para verificar que el descriptor es coherente con el modelo activo:
 
-1. Calcular `sha256` del `domain-model.json` normalizado (orden canónico, separadores mínimos, UTF-8).
-2. Comparar con `sourceModelSha256` del descriptor.
+1. Solicitar al servidor el SHA-256 del modelo activo (endpoint de metadatos; el servidor calcula y expone este valor sin transferir el `domain-model.json` completo al runtime).
+2. Comparar con `sourceModelSha256` del descriptor local.
 3. Si difieren → el descriptor es stale → emitir `DESCRIPTOR_MODEL_MISMATCH`.
+
+El runtime no necesita acceder ni parsear `domain-model.json` directamente. El SHA-256 es un metadato de modelo publicado por el servidor como valor escalar.
 
 ### 10.3 Clase abstracta — sin formulario de creación
 
@@ -402,8 +404,8 @@ El runtime Flutter gestiona el descriptor mediante los siguientes estados bien d
 | Listo | `ready` | El descriptor se cargó, se verificó la `descriptorContractVersion` y todos los campos obligatorios están presentes. La UI dinámica completa está disponible. |
 | Versión incompatible | `error_contract_mismatch` | `descriptorContractVersion` no coincide con la versión que soporta el runtime. Corresponde al error `DESCRIPTOR_CONTRACT_VERSION_MISMATCH` (§8.2). |
 | Campo requerido ausente | `error_missing_field` | Falta al menos un campo obligatorio del documento raíz o de un descriptor anidado. Corresponde a `DESCRIPTOR_MISSING_REQUIRED_FIELD` (§8.2). |
-| Desactualizado | `stale` | El descriptor se cargó correctamente pero `sourceModelSha256` no coincide con el modelo activo en el servidor. Corresponde a `DESCRIPTOR_MODEL_MISMATCH` (§8.2). El runtime puede operar en modo degradado (ver §14.3). |
-| Sin descriptor | `unavailable` | No existe descriptor almacenado localmente y no hay conectividad para descargarlo. Se aplica el renderizado mínimo de emergencia (ver §14.3). |
+| Desactualizado | `stale` | El descriptor se cargó correctamente pero `sourceModelSha256` no coincide con el SHA-256 que el servidor publica para el modelo activo (servido como metadato independiente, sin requerir `domain-model.json` completo en el runtime). Corresponde a `DESCRIPTOR_MODEL_MISMATCH` (§8.2). El runtime puede operar en modo degradado (ver §14.3). |
+| Sin descriptor | `unavailable` | No existe descriptor almacenado localmente y no hay conectividad para descargarlo. Sin descriptor no hay `uiType` conocidos; el runtime no puede renderizar UI dinámica ni encolar ediciones. |
 
 **Transiciones válidas:**
 
@@ -432,7 +434,7 @@ El runtime Flutter gestiona el descriptor mediante los siguientes estados bien d
          +---> unavailable
                  |
                  v
-         [renderizado mínimo de emergencia]
+         [bloquear UI dinámica y edición; mostrar aviso de sin conexión ni descriptor]
 ```
 
 ### 14.2 Comportamiento requerido por estado
@@ -444,7 +446,7 @@ El runtime Flutter gestiona el descriptor mediante los siguientes estados bien d
 | `error_contract_mismatch` | No | No | No | Error bloqueante: solicitar actualización de la app |
 | `error_missing_field` | No | No | No | Error bloqueante: descriptor corrupto, solicitar regeneración |
 | `stale` | Parcial (datos locales) | Sí (cola offline) | No (hasta resolver) | Advertencia no bloqueante: el modelo cambió |
-| `unavailable` | Mínimo de emergencia (ver §14.4) | Sí (cola offline) | No | Aviso informativo: sin conexión |
+| `unavailable` | No (sin descriptor local) | No | No | Aviso informativo: sin conexión ni descriptor local |
 
 ### 14.3 Modo degradado (`stale`)
 
@@ -457,7 +459,7 @@ Cuando el estado es `stale`, el runtime opera con el descriptor almacenado local
 
 ### 14.4 Renderizado mínimo garantizado por `uiType`
 
-Independientemente del estado del descriptor (incluyendo `unavailable` y `stale`), el runtime debe ser capaz de renderizar una representación de emergencia para cada `uiType`. La representación mínima no precisa lógica de validación avanzada; solo debe permitir al usuario ver e introducir datos sin pérdida.
+Cuando el descriptor está presente localmente (estados `ready` y `stale`), el runtime debe ser capaz de renderizar una representación mínima para cada `uiType` conocido. Esta garantía **no aplica** al estado `unavailable`: sin descriptor local no hay `uiType` conocidos, por lo que el runtime debe mostrar únicamente un aviso de sin conexión y bloquear la edición. La representación mínima no precisa lógica de validación avanzada; solo debe permitir al usuario ver e introducir datos sin pérdida.
 
 | `uiType` | Representación mínima garantizada | Validación mínima |
 |---|---|---|
