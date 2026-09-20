@@ -1,7 +1,7 @@
 id: P4-003
 title: "Renderizar clases desde el modelo"
 phase: 4
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Mostrar clases y atributos del fixture canónico en el canvas, sin edición ni asociaciones."
@@ -33,3 +33,6 @@ deliverables:
   - apps/case-web/
 links:
   - docs/adr/0001-case-web-technology.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
