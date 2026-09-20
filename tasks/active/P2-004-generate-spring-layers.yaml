@@ -5,18 +5,31 @@ status: ready
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Agregar plantillas y reglas para Entity, DTO, Repository, Service y Controller con JPA/Hibernate y PostgreSQL."
-dependencies: [P2-003]
+dependencies:
+  - P2-003
 inputs:
-  files: [docs/contracts/generator-input-output-v1.md, fixtures/models/valid-minimal.json]
-  docs: [templates/spring-boot/README.md]
+  files:
+    - docs/contracts/generator-input-output-v1.md
+    - fixtures/models/valid-minimal.json
+  docs:
+    - templates/spring-boot/README.md
 scope:
-  allowed_paths: [services/generator-cli/*, templates/spring-boot/*]
-  forbidden_paths: [apps/, services/model-server/, packages/xmi-adapter/, fixtures/generated-projects/]
+  allowed_paths:
+    - services/generator-cli/*
+    - templates/spring-boot/*
+  forbidden_paths:
+    - apps/
+    - services/model-server/
+    - packages/xmi-adapter/
+    - fixtures/generated-projects/
 acceptance_criteria:
   - "Cada clase del fixture produce artefactos de las cinco capas con responsabilidades separadas."
   - "La configuración generada usa JPA/Hibernate y PostgreSQL y dos ejecuciones son equivalentes."
 validation_commands:
   - "git diff --check -- services/generator-cli templates/spring-boot"
   - "Set-Location services/generator-cli; npm ci; npm run test"
-deliverables: [services/generator-cli/, templates/spring-boot/]
-links: [docs/contracts/generator-input-output-v1.md]
+deliverables:
+  - services/generator-cli/
+  - templates/spring-boot/
+links:
+  - docs/contracts/generator-input-output-v1.md
