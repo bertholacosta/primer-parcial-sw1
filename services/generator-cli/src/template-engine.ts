@@ -83,7 +83,11 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
       } else if ((srcMult === "1" || srcMult === "0..1") && (tgtMult === "0..*" || tgtMult === "1..*")) {
         annotation = "@OneToMany";
         isCollection = true;
-        joinColumn = a.name ? toSnakeCase(a.name) + "_id" : toSnakeCase(relatedClassName) + "_id";
+        if (a.navigability === "bidirectional") {
+          mappedBy = toLowerCamelCase(className);
+        } else {
+          joinColumn = a.name ? toSnakeCase(a.name) + "_id" : toSnakeCase(relatedClassName) + "_id";
+        }
       } else {
         annotation = "@ManyToMany";
         isCollection = true;
@@ -103,6 +107,7 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
         mappedBy = toLowerCamelCase(a.name || className);
       } else if ((srcMult === "1" || srcMult === "0..1") && (tgtMult === "0..*" || tgtMult === "1..*")) {
         annotation = "@ManyToOne";
+        joinColumn = a.name ? toSnakeCase(a.name) + "_id" : toSnakeCase(relatedClassName) + "_id";
       } else {
         annotation = "@ManyToMany";
         isCollection = true;

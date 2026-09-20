@@ -32,9 +32,11 @@ public class {{className}}Entity {
 {{/each}}
 {{#each associations}}
     {{this.annotation}}{{#if this.mappedBy}}(mappedBy = "{{this.mappedBy}}"){{/if}}
+    {{#unless this.joinTable}}
     {{#if this.joinColumn}}
     @JoinColumn(name = "{{this.joinColumn}}")
     {{/if}}
+    {{/unless}}
     {{#if this.joinTable}}
     @JoinTable(
         name = "{{this.joinTable}}",
