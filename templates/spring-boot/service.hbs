@@ -1,0 +1,58 @@
+package {{packagePath}}.service;
+
+import {{packagePath}}.dto.{{className}}DTO;
+import {{packagePath}}.entity.{{className}}Entity;
+import {{packagePath}}.repository.{{className}}Repository;
+import org.springframework.stereotype.Service;
+import java.util.List;
+import java.util.Optional;
+{{#if idImport}}
+import {{idImport}};
+{{/if}}
+
+@Service
+public class {{className}}Service {
+
+    private final {{className}}Repository repository;
+
+    public {{className}}Service({{className}}Repository repository) {
+        this.repository = repository;
+    }
+
+    public List<{{className}}DTO> findAll() {
+        return repository.findAll().stream().map(this::toDTO).toList();
+    }
+
+    public Optional<{{className}}DTO> findById({{idJavaType}} id) {
+        return repository.findById(id).map(this::toDTO);
+    }
+
+    public {{className}}DTO save({{className}}DTO dto) {
+        return toDTO(repository.save(toEntity(dto)));
+    }
+
+    public void deleteById({{idJavaType}} id) {
+        repository.deleteById(id);
+    }
+
+    private {{className}}DTO toDTO({{className}}Entity entity) {
+        {{className}}DTO dto = new {{className}}DTO();
+        {{#if hasDefaultId}}
+        dto.setId(entity.getId());
+        {{/if}}
+        {{#each attributes}}
+        dto.set{{this.capitalizedName}}(entity.get{{this.capitalizedName}}());
+        {{/each}}
+        return dto;
+    }
+
+    private {{className}}Entity toEntity({{className}}DTO dto) {
+        {{className}}Entity entity = new {{className}}Entity();
+        {{#each attributes}}
+        {{#unless this.isId}}
+        entity.set{{this.capitalizedName}}(dto.get{{this.capitalizedName}}());
+        {{/unless}}
+        {{/each}}
+        return entity;
+    }
+}

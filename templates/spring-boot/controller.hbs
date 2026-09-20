@@ -1,0 +1,44 @@
+package {{packagePath}}.controller;
+
+import {{packagePath}}.dto.{{className}}DTO;
+import {{packagePath}}.service.{{className}}Service;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+{{#if idImport}}
+import {{idImport}};
+{{/if}}
+
+@RestController
+@RequestMapping("{{restPath}}")
+public class {{className}}Controller {
+
+    private final {{className}}Service service;
+
+    public {{className}}Controller({{className}}Service service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public List<{{className}}DTO> getAll() {
+        return service.findAll();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<{{className}}DTO> getById(@PathVariable {{idJavaType}} id) {
+        return service.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public {{className}}DTO create(@RequestBody {{className}}DTO dto) {
+        return service.save(dto);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable {{idJavaType}} id) {
+        service.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+}

@@ -17,6 +17,11 @@ import { planClassArtifactPaths, type PlannedArtifact } from "./artifact-plan.js
 import { buildManifest } from "./manifest.js";
 import { buildWritePlan } from "./write-plan.js";
 import { ensureOutputDirAvailable, writePlanAtomically } from "./atomic-write.js";
+import { getTemplateEngine, buildTemplateContext } from "./template-engine.js";
+import * as path from "node:path";
+import * as url from "node:url";
+
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 export const MANIFEST_FILE_NAME = "generation-manifest.json";
 
@@ -79,18 +84,55 @@ export function generate(input: GenerateInput): GenerateResult {
     const config: GenerationConfig = validateConfig(input.config);
     ensureOutputDirAvailable(config.outputDir);
 
-    // Planificación ordenada de artefactos de capa (§5.1, §6). Las rutas se
-    // calculan ahora; su contenido lo añade P2-004.
+    // Planificación ordenada de artefactos de capa (§5.1, §6).
     const plannedArtifacts = planClassArtifactPaths(model, config);
+
+    // Motor de plantillas Handlebars (P2-004)
+    const templateDir = path.resolve(__dirname, "../../../templates", "spring-boot");
+    const engine = getTemplateEngine(templateDir);
 
     // Plan de escritura ordenado y contenido atómico.
     const modelSha256 = sha256Hex(canonicalJson(model));
+
+    // Convertimos los artefactos en PlannedFile con su contenido perezoso
+    const artifactFiles = plannedArtifacts.map(artifact => ({
+      relativePath: artifact.relativePath,
+      content: () => {
+        const cls = model.classes.find(c => c.id === artifact.classId);
+        if (!cls) throw new Error("Class not found: " + artifact.classId);
+        const context = buildTemplateContext(model, cls, config);
+        return engine.render(artifact.layer, context);
+      }
+    }));
+
+    const globalContext = {
+      groupId: config.groupId,
+      artifactId: config.artifactId,
+    };
+
+    const globalFiles = [
+      {
+        relativePath: "pom.xml",
+        content: () => engine.render("pom", globalContext)
+      },
+      {
+        relativePath: "src/main/resources/application.yml",
+        content: () => engine.render("application", globalContext)
+      }
+    ];
+
+    const allFiles = [...artifactFiles, ...globalFiles];
+
     const plan = buildWritePlan(
       [
         {
           relativePath: MANIFEST_FILE_NAME,
-          content: () => buildManifest(model, config, modelSha256, []),
+          content: () => buildManifest(model, config, modelSha256, allFiles.map(f => ({
+            path: f.relativePath,
+            sha256: sha256Hex(f.content())
+          }))),
         },
+        ...allFiles,
       ],
       config.outputDir,
     );
@@ -105,6 +147,7 @@ export function generate(input: GenerateInput): GenerateResult {
       warnings: validation.warnings,
     };
   } catch (err) {
+    console.error("GENERATE ERROR:", err);
     if (err instanceof GeneratorError) {
       return { outcome: "failed", errors: [err.toEntry()] };
     }

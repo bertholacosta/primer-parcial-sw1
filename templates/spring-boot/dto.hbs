@@ -1,0 +1,44 @@
+package {{packagePath}}.dto;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.UUID;
+import java.util.List;
+
+public class {{className}}DTO {
+
+{{#if hasDefaultId}}
+    private Long id;
+{{/if}}
+
+{{#each attributes}}
+    private {{this.javaType}} {{this.name}};
+{{/each}}
+{{#each associations}}
+    {{#if this.isCollection}}
+    private List<{{this.baseJavaType}}DTO> {{this.name}};
+    {{else}}
+    private {{this.baseJavaType}}DTO {{this.name}};
+    {{/if}}
+{{/each}}
+
+    public {{className}}DTO() {}
+
+{{#if hasDefaultId}}
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+{{/if}}
+{{#each attributes}}
+    public {{this.javaType}} get{{this.capitalizedName}}() { return {{this.name}}; }
+    public void set{{this.capitalizedName}}({{this.javaType}} {{this.name}}) { this.{{this.name}} = {{this.name}}; }
+{{/each}}
+{{#each associations}}
+    {{#if this.isCollection}}
+    public List<{{this.baseJavaType}}DTO> get{{this.capitalizedName}}() { return {{this.name}}; }
+    public void set{{this.capitalizedName}}(List<{{this.baseJavaType}}DTO> {{this.name}}) { this.{{this.name}} = {{this.name}}; }
+    {{else}}
+    public {{this.baseJavaType}}DTO get{{this.capitalizedName}}() { return {{this.name}}; }
+    public void set{{this.capitalizedName}}({{this.baseJavaType}}DTO {{this.name}}) { this.{{this.name}} = {{this.name}}; }
+    {{/if}}
+{{/each}}
+}

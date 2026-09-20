@@ -1,0 +1,61 @@
+package {{packagePath}}.entity;
+
+import jakarta.persistence.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.UUID;
+import java.util.List;
+
+@Entity
+@Table(name = "{{tableName}}")
+public class {{className}}Entity {
+
+{{#if hasDefaultId}}
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+{{/if}}
+
+{{#each attributes}}
+{{#if this.isId}}
+    @Id
+    {{#if this.generatedStrategy}}
+    @GeneratedValue(strategy = GenerationType.{{this.generatedStrategy}})
+    {{/if}}
+{{/if}}
+    @Column(name = "{{this.columnName}}"{{#if this.columnDefinition}}, columnDefinition = "{{this.columnDefinition}}"{{/if}}{{#unless this.nullable}}, nullable = false{{/unless}})
+    private {{this.javaType}} {{this.name}};
+
+{{/each}}
+{{#each associations}}
+    {{this.annotation}}{{#if this.mappedBy}}(mappedBy = "{{this.mappedBy}}"){{/if}}
+    {{#if this.joinColumn}}
+    @JoinColumn(name = "{{this.joinColumn}}")
+    {{/if}}
+    {{#if this.joinTable}}
+    @JoinTable(
+        name = "{{this.joinTable}}",
+        joinColumns = @JoinColumn(name = "{{this.joinColumn}}"),
+        inverseJoinColumns = @JoinColumn(name = "{{this.inverseJoinColumn}}")
+    )
+    {{/if}}
+    private {{this.javaType}} {{this.name}};
+
+{{/each}}
+    // Constructor vacío
+    public {{className}}Entity() {}
+
+    // Getters y Setters
+{{#if hasDefaultId}}
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+{{/if}}
+{{#each attributes}}
+    public {{this.javaType}} get{{this.capitalizedName}}() { return {{this.name}}; }
+    public void set{{this.capitalizedName}}({{this.javaType}} {{this.name}}) { this.{{this.name}} = {{this.name}}; }
+{{/each}}
+{{#each associations}}
+    public {{this.javaType}} get{{this.capitalizedName}}() { return {{this.name}}; }
+    public void set{{this.capitalizedName}}({{this.javaType}} {{this.name}}) { this.{{this.name}} = {{this.name}}; }
+{{/each}}
+}
