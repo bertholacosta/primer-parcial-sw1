@@ -1,7 +1,7 @@
 id: P4-001
 title: "Especificar interacción y comandos del editor"
 phase: 4
-status: ready
+status: done
 kind: specification
 owner_role: Kiro
 objective: "Definir comandos, precondiciones, resultados y errores para crear/editar clases, atributos y asociaciones."
@@ -31,3 +31,6 @@ deliverables:
   - docs/contracts/model-commands-v1.md
 links:
   - docs/contracts/domain-model-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
