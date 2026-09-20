@@ -7,14 +7,21 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { CanonicalDomainModel } from '../domain/model';
-import { modelToFlowNodes } from '../adapter/domainModelAdapter';
+import { modelToFlowNodes, type FlowNodeCallbacks } from '../adapter/domainModelAdapter';
 import { UmlClassNode } from './UmlClassNode';
+import type { CommandExecutionResult } from '../commands/attributeCommands';
 
-interface CaseWebCanvasProps {
+interface CaseWebCanvasProps extends FlowNodeCallbacks {
   model: CanonicalDomainModel;
+  lastCommandResult?: CommandExecutionResult | null;
 }
 
-export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({ model }) => {
+export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
+  model,
+  lastCommandResult,
+  onAddAttribute,
+  onUpdateAttribute,
+}) => {
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
       umlClass: UmlClassNode,
@@ -22,7 +29,15 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({ model }) => {
     []
   );
 
-  const nodes = useMemo(() => modelToFlowNodes(model), [model]);
+  const callbacks = useMemo(
+    () => ({
+      onAddAttribute,
+      onUpdateAttribute,
+    }),
+    [onAddAttribute, onUpdateAttribute]
+  );
+
+  const nodes = useMemo(() => modelToFlowNodes(model, callbacks), [model, callbacks]);
 
   return (
     <div
@@ -53,6 +68,33 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({ model }) => {
           {model.classes.length} {model.classes.length === 1 ? 'clase' : 'clases'} renderizadas
         </div>
       </header>
+
+      {/* Banner de resultado del último comando */}
+      {lastCommandResult && (
+        <div
+          data-testid="command-result-banner"
+          style={{
+            padding: '8px 20px',
+            fontSize: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: lastCommandResult.result === 'accepted' ? '#f0fdf4' : '#fef2f2',
+            borderBottom: `1px solid ${lastCommandResult.result === 'accepted' ? '#86efac' : '#fca5a5'}`,
+            color: lastCommandResult.result === 'accepted' ? '#166534' : '#991b1b',
+          }}
+        >
+          <span>
+            <strong>Comando {lastCommandResult.result === 'accepted' ? 'aplicado' : 'rechazado'}:</strong>{' '}
+            {lastCommandResult.errors && lastCommandResult.errors.length > 0
+              ? lastCommandResult.errors.map((e) => `[${e.code}] ${e.message}`).join(', ')
+              : `Versión del modelo: ${lastCommandResult.modelVersion}`}
+          </span>
+          <span style={{ fontSize: '11px', color: '#64748b' }}>
+            ID: {lastCommandResult.commandId.slice(0, 8)}...
+          </span>
+        </div>
+      )}
 
       {/* Vista de Canvas React Flow */}
       <main style={{ flex: 1, position: 'relative', minHeight: '400px' }}>

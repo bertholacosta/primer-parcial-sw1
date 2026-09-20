@@ -1,7 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { parseDomainModel } from './adapter/domainModelAdapter';
 import { CaseWebCanvas } from './components/CaseWebCanvas';
 import type { CanonicalDomainModel } from './domain/model';
+import {
+  executeAddAttribute,
+  executeUpdateAttribute,
+  type CommandExecutionResult,
+  type AddAttributeCommand,
+  type UpdateAttributeCommand,
+} from './commands/attributeCommands';
 
 // Fixture por defecto canónico incrustado para ejecución local/standalone
 export const DEFAULT_CANONICAL_FIXTURE = {
@@ -81,6 +88,7 @@ interface AppProps {
 export const App: React.FC<AppProps> = ({ initialModelData = DEFAULT_CANONICAL_FIXTURE }) => {
   const [model, setModel] = useState<CanonicalDomainModel | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastCommandResult, setLastCommandResult] = useState<CommandExecutionResult | null>(null);
 
   useEffect(() => {
     try {
@@ -92,6 +100,57 @@ export const App: React.FC<AppProps> = ({ initialModelData = DEFAULT_CANONICAL_F
       setModel(null);
     }
   }, [initialModelData]);
+
+  const handleAddAttribute = useCallback(
+    (classId: string, name: string, type: string, multiplicity: string) => {
+      if (!model) return;
+      const command: AddAttributeCommand = {
+        type: 'AddAttribute',
+        commandId: `cmd-add-${Date.now()}`,
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: {
+          attributeId: `attr-${Date.now()}`,
+          classId,
+          name,
+          type,
+          nullable: multiplicity === '0..1',
+          multiplicity,
+        },
+      };
+
+      const { updatedModel, result } = executeAddAttribute(model, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') {
+        setModel(updatedModel);
+      }
+    },
+    [model]
+  );
+
+  const handleUpdateAttribute = useCallback(
+    (classId: string, attributeId: string, newName: string) => {
+      if (!model) return;
+      const command: UpdateAttributeCommand = {
+        type: 'UpdateAttribute',
+        commandId: `cmd-upd-${Date.now()}`,
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: {
+          attributeId,
+          classId,
+          name: newName,
+        },
+      };
+
+      const { updatedModel, result } = executeUpdateAttribute(model, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') {
+        setModel(updatedModel);
+      }
+    },
+    [model]
+  );
 
   if (error) {
     return (
@@ -125,7 +184,14 @@ export const App: React.FC<AppProps> = ({ initialModelData = DEFAULT_CANONICAL_F
     );
   }
 
-  return <CaseWebCanvas model={model} />;
+  return (
+    <CaseWebCanvas
+      model={model}
+      lastCommandResult={lastCommandResult}
+      onAddAttribute={handleAddAttribute}
+      onUpdateAttribute={handleUpdateAttribute}
+    />
+  );
 };
 
 export default App;

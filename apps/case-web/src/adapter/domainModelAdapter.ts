@@ -13,6 +13,8 @@ export interface UmlClassNodeData {
   isAbstract: boolean;
   packageId?: string;
   attributes: CanonicalAttribute[];
+  onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string) => void;
+  onUpdateAttribute?: (classId: string, attributeId: string, newName: string) => void;
 }
 
 export type UmlClassFlowNode = Node<UmlClassNodeData, 'umlClass'>;
@@ -123,7 +125,15 @@ export function parseDomainModel(raw: unknown): CanonicalDomainModel {
  * Transforma un modelo canónico en nodos de React Flow (corte mínimo: renderizar clases y atributos).
  * Dispone las clases en una cuadrícula determinista sin lógica de dominio cableada.
  */
-export function modelToFlowNodes(model: CanonicalDomainModel): UmlClassFlowNode[] {
+export interface FlowNodeCallbacks {
+  onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string) => void;
+  onUpdateAttribute?: (classId: string, attributeId: string, newName: string) => void;
+}
+
+export function modelToFlowNodes(
+  model: CanonicalDomainModel,
+  callbacks?: FlowNodeCallbacks
+): UmlClassFlowNode[] {
   const columns = 2;
   const colSpacing = 320;
   const rowSpacing = 240;
@@ -147,6 +157,8 @@ export function modelToFlowNodes(model: CanonicalDomainModel): UmlClassFlowNode[
         isAbstract: Boolean(cls.isAbstract),
         packageId: cls.packageId,
         attributes: cls.attributes,
+        onAddAttribute: callbacks?.onAddAttribute,
+        onUpdateAttribute: callbacks?.onUpdateAttribute,
       },
     };
   });
