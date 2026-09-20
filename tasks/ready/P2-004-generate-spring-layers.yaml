@@ -1,7 +1,7 @@
 id: P2-004
 title: "Generar las cinco capas Spring y persistencia"
 phase: 2
-status: planned
+status: ready
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Agregar plantillas y reglas para Entity, DTO, Repository, Service y Controller con JPA/Hibernate y PostgreSQL."
