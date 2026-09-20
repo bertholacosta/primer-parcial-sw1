@@ -1,0 +1,5 @@
+# Los proyectos generados son artefactos golden reproducibles byte a byte:
+# el sha256 de generation-manifest.json cubre los bytes LF exactos emitidos
+# por el generador. Se fija LF para que el checkout en Windows (autocrlf)
+# no altere los hashes registrados.
+* text=lf

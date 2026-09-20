@@ -21,6 +21,9 @@ export const GeneratorErrorCode = {
   TEMPLATE_SET_NOT_FOUND: "TEMPLATE_SET_NOT_FOUND",
   NAME_COLLISION: "NAME_COLLISION",
   IO_ERROR: "IO_ERROR",
+  // Catálogo del contrato flutter-descriptor v1 §8.1 (errores en generación)
+  DESCRIPTOR_WRITE_ERROR: "DESCRIPTOR_WRITE_ERROR",
+  DESCRIPTOR_TYPE_MAPPING_ERROR: "DESCRIPTOR_TYPE_MAPPING_ERROR",
   // Extensiones pendientes de contrato
   INVALID_CONFIG: "INVALID_CONFIG",
   INVALID_OUTPUT_PATH: "INVALID_OUTPUT_PATH",

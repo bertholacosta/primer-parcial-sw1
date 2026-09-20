@@ -9,6 +9,12 @@ import { GeneratorError, GeneratorErrorCode } from "./errors.js";
 export interface PlannedFile {
   relativePath: string;
   content: string | (() => string);
+  /**
+   * Código de error emitido si la escritura de este fichero falla
+   * (p. ej. `DESCRIPTOR_WRITE_ERROR` del contrato flutter-descriptor §8.1).
+   * Por defecto `IO_ERROR` (§9.2).
+   */
+  writeErrorCode?: GeneratorErrorCode;
 }
 
 /** Normaliza una ruta relativa a formato POSIX (`a/b/c`), colapsando `.` y `..`. */

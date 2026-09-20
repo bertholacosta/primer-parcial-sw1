@@ -3,9 +3,9 @@
 Núcleo del generador determinista de Spring Boot (contrato
 `generator-input-output` v1, ADR-0002: Node.js 22 + TypeScript + Vitest, ESM).
 
-## Alcance implementado (P2-003)
+## Alcance implementado (P2-003, P2-004, P2-005)
 
-Pipeline seguro, sin contenido de capas todavía:
+Pipeline seguro de generación completa:
 
 1. **Lectura**: `domain-model.json` y fichero de configuración JSON.
 2. **Validación**: `contractVersion` del modelo (`UNSUPPORTED_MODEL_CONTRACT_VERSION`)
@@ -16,25 +16,27 @@ Pipeline seguro, sin contenido de capas todavía:
 4. **Escritura atómica**: staging + rename; ante cualquier error no queda
    salida parcial en `outputDir` (§9.1).
 
-Salida actual de una ejecución válida: `generation-manifest.json` conforme a
-§5.2 (`files` vacío hasta que existan artefactos de capa).
+Salida actual de una ejecución válida: proyecto Maven con las cinco capas por
+clase (`entity`, `dto`, `repository`, `service`, `controller`), `pom.xml`,
+`application.yml`, `Application.java`, `flutter-descriptor.json` conforme al
+contrato `flutter-descriptor` v1 y `generation-manifest.json` conforme a §5.2
+(cuya entrada `files` incluye el descriptor).
 
 ## Pendiente por diseño (tareas posteriores)
 
-- Contenido de las cinco capas (P2-004): el plan de rutas ya se calcula en
-  `src/artifact-plan.ts`; las plantillas `.hbs` y la resolución de
-  `templateSetId` (`TEMPLATE_SET_NOT_FOUND`) se añaden con los conjuntos de
-  plantillas versionados en `templates/spring-boot/`. Por ahora
-  `templateSetId` es un identificador obligatorio que solo se registra en el
-  manifiesto.
-- `flutter-descriptor.json` (P2-005, contrato `flutter-descriptor` v1).
+- Resolución de `templateSetId` (`TEMPLATE_SET_NOT_FOUND`): por ahora es un
+  identificador obligatorio que solo se registra en el manifiesto; las
+  plantillas se cargan desde `templates/spring-boot/`.
 
 ## Códigos de error
 
-Catálogo §9.2 del contrato más extensiones documentadas pendientes de revisión
-menor del contrato (§12.1): `INVALID_CONFIG` (configuración ilegible o campos
-obligatorios ausentes), `INVALID_OUTPUT_PATH` (ruta vacía o duplicada en el
-plan), `PATH_OUTSIDE_OUTPUT_DIR` (ruta absoluta o que escapa del destino) e
+Catálogo §9.2 del contrato, códigos del contrato `flutter-descriptor` v1 §8.1
+(`DESCRIPTOR_WRITE_ERROR` — fallo de escritura del descriptor;
+`DESCRIPTOR_TYPE_MAPPING_ERROR` — tipo de atributo sin mapeo `uiType`) más
+extensiones documentadas pendientes de revisión menor del contrato (§12.1):
+`INVALID_CONFIG` (configuración ilegible o campos obligatorios ausentes),
+`INVALID_OUTPUT_PATH` (ruta vacía o duplicada en el plan),
+`PATH_OUTSIDE_OUTPUT_DIR` (ruta absoluta o que escapa del destino) e
 `INTERNAL_ERROR` (excepción no catalogada).
 
 ## Comandos

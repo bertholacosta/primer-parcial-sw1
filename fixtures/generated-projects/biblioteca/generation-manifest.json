@@ -1,0 +1,70 @@
+{
+  "generatorContractVersion": "1",
+  "generatorVersion": "1.0.0",
+  "templateSetId": "spring-boot-jpa-v1",
+  "modelId": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+  "modelVersion": "1.0.0",
+  "modelContractVersion": "1",
+  "modelSha256": "d73089914b328bda5253583484fd66066123d769b6f40982a272c65902baf483",
+  "basePackage": "com.example.biblioteca",
+  "artifactId": "biblioteca",
+  "groupId": "com.example",
+  "files": [
+    {
+      "path": "flutter-descriptor.json",
+      "sha256": "234ab9beb59fb66c96cb4e15a183e3d14f724a5ba01946b630eb44c57911bfcf"
+    },
+    {
+      "path": "pom.xml",
+      "sha256": "c163d588dfdb2a1e65b62e7f98e5f2b12f1132206277d6f80d3dc2abef51631e"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/Application.java",
+      "sha256": "2a58bc26cf9e59a90d13be78fae275bb28ea06d3b1e210a1ba9ec8704d17751f"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/controller/AutorController.java",
+      "sha256": "61a09d5b7f0758e8ad2c3912669bf781d550c8095009645207c8324dc2e10008"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/controller/LibroController.java",
+      "sha256": "faa20bd176a11833190037800a4a4f0a7a3b3b171c83b6b560b2cd769c4a0721"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/dto/AutorDTO.java",
+      "sha256": "21bc1646ffb85395373bd0286d578edef29627cc3c6c5236627d2d8fcc5e84a8"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/dto/LibroDTO.java",
+      "sha256": "a970ef8e0c33ed90713069955b378d78f2a3a9e983b44350688cb54374259c1e"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/entity/AutorEntity.java",
+      "sha256": "f5effe4bf7ae7c645d32b3a9139b40e77d80cbaa86cba9ac937705834eb4ecb8"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/entity/LibroEntity.java",
+      "sha256": "7fcf0ab93a70301f3f82d0666b06daff9ec85b5bb3d377efa46e51af5e1326db"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/repository/AutorRepository.java",
+      "sha256": "c671fadf0da98d95bb25cb6694b45d07a6226686e270aa23a41d260a5c24b60f"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/repository/LibroRepository.java",
+      "sha256": "4f1443287c23b367949b3319b3bece8eb3c1daff7e0d40a1c0e07cf6e74149f2"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/service/AutorService.java",
+      "sha256": "b7c77cadf4825419eadebb0fe2f6f1c36c8817bce108a04be2495f406f7b3d03"
+    },
+    {
+      "path": "src/main/java/com/example/biblioteca/biblioteca/service/LibroService.java",
+      "sha256": "4dec478f19ac346e4191ef274680f13680a9d6195e372fab0950bb8c536bf238"
+    },
+    {
+      "path": "src/main/resources/application.yml",
+      "sha256": "986d436a08abb2212f5cf1737c0a4b2f5fbe2e8828eec73b50c1b36c8708484f"
+    }
+  ]
+}

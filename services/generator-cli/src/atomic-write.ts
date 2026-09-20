@@ -56,8 +56,16 @@ export function writePlanAtomically(outputDir: string, plan: PlannedFile[]): voi
   try {
     for (const file of plan) {
       const absolute = path.join(staging, file.relativePath);
-      fs.mkdirSync(path.dirname(absolute), { recursive: true });
-      fs.writeFileSync(absolute, resolveContent(file.content), "utf8");
+      try {
+        fs.mkdirSync(path.dirname(absolute), { recursive: true });
+        fs.writeFileSync(absolute, resolveContent(file.content), "utf8");
+      } catch (err) {
+        if (err instanceof GeneratorError) throw err;
+        throw new GeneratorError(
+          file.writeErrorCode ?? GeneratorErrorCode.IO_ERROR,
+          `Error de escritura en '${file.relativePath}': ${(err as Error).message}`,
+        );
+      }
     }
     if (fs.existsSync(target)) fs.rmdirSync(target);
     fs.renameSync(staging, target);

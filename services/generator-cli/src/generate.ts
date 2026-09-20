@@ -14,6 +14,7 @@ import {
   sha256Hex,
 } from "./model-io.js";
 import { planClassArtifactPaths, type PlannedArtifact } from "./artifact-plan.js";
+import { buildFlutterDescriptor, DESCRIPTOR_FILE_NAME } from "./flutter-descriptor.js";
 import { buildManifest } from "./manifest.js";
 import { buildWritePlan } from "./write-plan.js";
 import { ensureOutputDirAvailable, writePlanAtomically } from "./atomic-write.js";
@@ -55,12 +56,8 @@ export type GenerateResult = GenerateSuccess | GenerateFailure;
  *
  *   lectura del modelo → contractVersion → validación del validador
  *   canónico → validación de configuración → comprobación de outputDir →
- *   planificación ordenada → escritura atómica.
- *
- * Las cinco capas (P2-004) y el descriptor Flutter (P2-005) aún no generan
- * contenido: el plan de escritura contiene únicamente el manifiesto, por lo
- * que `files` del manifiesto queda vacío hasta que esas tareas añadan sus
- * artefactos.
+ *   planificación ordenada → renderizado de las cinco capas y del
+ *   descriptor Flutter → escritura atómica.
  */
 export function generate(input: GenerateInput): GenerateResult {
   try {
@@ -126,7 +123,18 @@ export function generate(input: GenerateInput): GenerateResult {
       }
     ];
 
-    const allFiles = [...artifactFiles, ...globalFiles];
+    const allFiles = [
+      ...artifactFiles,
+      ...globalFiles,
+      {
+        // Descriptor Flutter (contrato flutter-descriptor v1, §5.3 del
+        // contrato del generador). Un fallo de escritura de este fichero se
+        // reporta como DESCRIPTOR_WRITE_ERROR (§8.1).
+        relativePath: DESCRIPTOR_FILE_NAME,
+        writeErrorCode: GeneratorErrorCode.DESCRIPTOR_WRITE_ERROR,
+        content: () => buildFlutterDescriptor(model, config, modelSha256),
+      },
+    ];
 
     const plan = buildWritePlan(
       [
