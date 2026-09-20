@@ -1,7 +1,7 @@
 id: P1-004
 title: "Crear corpus de conformidad del modelo"
 phase: 1
-status: ready
+status: done
 kind: test
 owner_role: Devin CLI / SWE-2
 objective: "Materializar fixtures mínimos válidos e inválidos y verificar diagnósticos estables del validador."
@@ -33,3 +33,6 @@ deliverables:
   - packages/domain-validator/
 links:
   - docs/contracts/domain-model-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
