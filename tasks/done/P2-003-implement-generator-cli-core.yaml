@@ -1,7 +1,7 @@
 id: P2-003
 title: "Implementar núcleo seguro del generator CLI"
 phase: 2
-status: ready
+status: done
 kind: implementation
 owner_role: Devin
 objective: "Implementar lectura, validación, planificación ordenada y escritura atómica sin generar aún las cinco capas."
@@ -35,3 +35,6 @@ deliverables:
   - services/generator-cli/
 links:
   - docs/adr/0002-generator-implementation.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
