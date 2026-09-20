@@ -1,22 +1,33 @@
 id: P4-001
 title: "Especificar interacción y comandos del editor"
 phase: 4
-status: planned
+status: ready
 kind: specification
 owner_role: Kiro
 objective: "Definir comandos, precondiciones, resultados y errores para crear/editar clases, atributos y asociaciones."
-dependencies: [P1-004]
+dependencies:
+  - P1-004
 inputs:
-  files: [docs/contracts/domain-model-v1.md]
-  docs: [docs/ARCHITECTURE.md]
+  files:
+    - docs/contracts/domain-model-v1.md
+  docs:
+    - docs/ARCHITECTURE.md
 scope:
-  allowed_paths: [docs/contracts/model-commands-v1.md]
-  forbidden_paths: [apps/, services/, packages/, templates/, fixtures/]
+  allowed_paths:
+    - docs/contracts/model-commands-v1.md
+  forbidden_paths:
+    - apps/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/
 acceptance_criteria:
   - "Cada gesto del corte mínimo se traduce en un comando determinista con identidad y precondiciones."
   - "Errores no mutan el modelo y se incluyen ejemplos antes/después verificables."
 validation_commands:
   - "git diff --check -- docs/contracts/model-commands-v1.md"
   - "rg -n \"precondition|class|attribute|association|error\" docs/contracts/model-commands-v1.md"
-deliverables: [docs/contracts/model-commands-v1.md]
-links: [docs/contracts/domain-model-v1.md]
+deliverables:
+  - docs/contracts/model-commands-v1.md
+links:
+  - docs/contracts/domain-model-v1.md
