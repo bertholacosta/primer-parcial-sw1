@@ -1,0 +1,83 @@
+{
+  "descriptorContractVersion": "1",
+  "descriptorVersion": "1.0.0",
+  "sourceModelId": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+  "sourceModelVersion": "1.0.0",
+  "sourceModelContractVersion": "1",
+  "sourceModelSha256": "d73089914b328bda5253583484fd66066123d769b6f40982a272c65902baf483",
+  "generatorVersion": "1.0.0",
+  "classes": [
+    {
+      "id": "cls-01",
+      "name": "Libro",
+      "packageName": "biblioteca",
+      "isAbstract": false,
+      "description": null,
+      "attributes": [
+        {
+          "id": "attr-01",
+          "name": "titulo",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1",
+          "uiType": "textField",
+          "required": true,
+          "description": null
+        },
+        {
+          "id": "attr-02",
+          "name": "isbn",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1",
+          "uiType": "textField",
+          "required": true,
+          "description": null
+        },
+        {
+          "id": "attr-03",
+          "name": "fechaPublicacion",
+          "type": "Date",
+          "nullable": true,
+          "multiplicity": "0..1",
+          "uiType": "datePicker",
+          "required": false,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "cls-02",
+      "name": "Autor",
+      "packageName": "biblioteca",
+      "isAbstract": false,
+      "description": null,
+      "attributes": [
+        {
+          "id": "attr-04",
+          "name": "nombre",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1",
+          "uiType": "textField",
+          "required": true,
+          "description": null
+        }
+      ]
+    }
+  ],
+  "associations": [
+    {
+      "id": "assoc-01",
+      "name": "escritoPor",
+      "sourceClassId": "cls-01",
+      "targetClassId": "cls-02",
+      "sourceMultiplicity": "0..*",
+      "targetMultiplicity": "1..*",
+      "navigability": "bidirectional",
+      "relationType": "manyToMany",
+      "isLazyLoadable": true,
+      "description": null
+    }
+  ]
+}

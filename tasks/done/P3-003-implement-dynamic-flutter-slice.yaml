@@ -1,7 +1,7 @@
 id: P3-003
 title: "Implementar corte dinámico Flutter"
 phase: 3
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Cargar el descriptor mínimo y renderizar/editar una entidad sin pantallas codificadas por dominio."
@@ -32,3 +32,6 @@ deliverables:
   - apps/mobile-flutter/
 links:
   - docs/contracts/flutter-descriptor-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
