@@ -1,0 +1,24 @@
+{
+  "contractVersion": "1",
+  "id": "m-1",
+  "name": "Modelo",
+  "version": "1.0.0",
+  "packages": [],
+  "classes": [
+    {
+      "id": "cls-a",
+      "name": "ClaseA",
+      "attributes": []
+    }
+  ],
+  "associations": [
+    {
+      "id": "assoc-1",
+      "sourceClassId": "cls-a",
+      "targetClassId": "cls-a",
+      "sourceMultiplicity": "1",
+      "targetMultiplicity": "1",
+      "navigability": "unidirectional"
+    }
+  ]
+}

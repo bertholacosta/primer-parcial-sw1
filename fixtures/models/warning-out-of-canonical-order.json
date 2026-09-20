@@ -1,0 +1,20 @@
+{
+  "contractVersion": "1",
+  "id": "m-1",
+  "name": "Modelo",
+  "version": "1.0.0",
+  "packages": [],
+  "classes": [
+    {
+      "id": "cls-b",
+      "name": "B",
+      "attributes": []
+    },
+    {
+      "id": "cls-a",
+      "name": "A",
+      "attributes": []
+    }
+  ],
+  "associations": []
+}

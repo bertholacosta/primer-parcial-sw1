@@ -1,0 +1,31 @@
+{
+  "contractVersion": "1",
+  "id": "m-1",
+  "name": "Modelo",
+  "version": "1.0.0",
+  "packages": [
+    {
+      "id": "pkg-a",
+      "name": "a"
+    },
+    {
+      "id": "pkg-b",
+      "name": "b"
+    }
+  ],
+  "classes": [
+    {
+      "id": "cls-1",
+      "name": "Entidad",
+      "packageId": "pkg-a",
+      "attributes": []
+    },
+    {
+      "id": "cls-2",
+      "name": "Entidad",
+      "packageId": "pkg-b",
+      "attributes": []
+    }
+  ],
+  "associations": []
+}

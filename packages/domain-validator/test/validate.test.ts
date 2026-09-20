@@ -3,21 +3,8 @@ import { readFileSync } from "node:fs";
 import { validate } from "../src/index.js";
 
 function fixture(name: string): unknown {
-  const url = new URL(`./fixtures/${name}`, import.meta.url);
+  const url = new URL(`../../../fixtures/models/${name}`, import.meta.url);
   return JSON.parse(readFileSync(url, "utf8"));
-}
-
-function baseModel(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    contractVersion: "1",
-    id: "m-1",
-    name: "Modelo",
-    version: "1.0.0",
-    packages: [],
-    classes: [],
-    associations: [],
-    ...overrides,
-  };
 }
 
 describe("contrato domain-model v1 — ejemplos normativos §6", () => {
@@ -97,7 +84,7 @@ describe("contrato domain-model v1 — ejemplos normativos §6", () => {
 
 describe("restricciones adicionales del contrato", () => {
   it("rechaza contractVersion distinta de '1'", () => {
-    const result = validate(baseModel({ contractVersion: "2" }));
+    const result = validate(fixture("invalid-unsupported-contract-version.json"));
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toMatchObject({
       code: "UNSUPPORTED_CONTRACT_VERSION",
@@ -107,12 +94,7 @@ describe("restricciones adicionales del contrato", () => {
   });
 
   it("rechaza la ausencia de los arrays obligatorios", () => {
-    const result = validate({
-      contractVersion: "1",
-      id: "m-1",
-      name: "Modelo",
-      version: "1.0.0",
-    });
+    const result = validate(fixture("invalid-missing-arrays.json"));
     expect(result.valid).toBe(false);
     const paths = result.errors.map((e) => `${e.code}@${e.path}`);
     expect(paths).toContain("MISSING_REQUIRED_FIELD@$.packages");
@@ -121,13 +103,7 @@ describe("restricciones adicionales del contrato", () => {
   });
 
   it("rechaza un packageId de clase que no existe", () => {
-    const result = validate(
-      baseModel({
-        classes: [
-          { id: "cls-1", name: "Entidad", packageId: "pkg-x", attributes: [] },
-        ],
-      }),
-    );
+    const result = validate(fixture("invalid-unresolved-package-reference.json"));
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toMatchObject({
       code: "UNRESOLVED_REFERENCE",
@@ -136,86 +112,31 @@ describe("restricciones adicionales del contrato", () => {
   });
 
   it("rechaza ciclos en la jerarquía de paquetes", () => {
-    const result = validate(
-      baseModel({
-        packages: [
-          { id: "pkg-a", name: "a", parentId: "pkg-b" },
-          { id: "pkg-b", name: "b", parentId: "pkg-a" },
-        ],
-      }),
-    );
+    const result = validate(fixture("invalid-package-cycle.json"));
     expect(result.valid).toBe(false);
     expect(result.errors.map((e) => e.code)).toContain("PACKAGE_CYCLE");
   });
 
   it("rechaza auto-asociaciones", () => {
-    const result = validate(
-      baseModel({
-        classes: [{ id: "cls-a", name: "ClaseA", attributes: [] }],
-        associations: [
-          {
-            id: "assoc-1",
-            sourceClassId: "cls-a",
-            targetClassId: "cls-a",
-            sourceMultiplicity: "1",
-            targetMultiplicity: "1",
-            navigability: "unidirectional",
-          },
-        ],
-      }),
-    );
+    const result = validate(fixture("invalid-self-association.json"));
     expect(result.valid).toBe(false);
     expect(result.errors.map((e) => e.code)).toContain("SELF_ASSOCIATION");
   });
 
   it("rechaza ids duplicados en el documento", () => {
-    const result = validate(
-      baseModel({
-        packages: [{ id: "dup", name: "paquete" }],
-        classes: [{ id: "dup", name: "Entidad", attributes: [] }],
-      }),
-    );
+    const result = validate(fixture("invalid-duplicate-id.json"));
     expect(result.valid).toBe(false);
     expect(result.errors.map((e) => e.code)).toContain("DUPLICATE_ID");
   });
 
   it("permite el mismo nombre de clase en paquetes distintos", () => {
-    const result = validate(
-      baseModel({
-        packages: [
-          { id: "pkg-a", name: "a" },
-          { id: "pkg-b", name: "b" },
-        ],
-        classes: [
-          { id: "cls-1", name: "Entidad", packageId: "pkg-a", attributes: [] },
-          { id: "cls-2", name: "Entidad", packageId: "pkg-b", attributes: [] },
-        ],
-      }),
-    );
+    const result = validate(fixture("valid-duplicate-class-names-different-packages.json"));
     expect(result.errors).toEqual([]);
     expect(result.valid).toBe(true);
   });
 
   it("advierte sobre multiplicity '0..1' con nullable false", () => {
-    const result = validate(
-      baseModel({
-        classes: [
-          {
-            id: "cls-1",
-            name: "Entidad",
-            attributes: [
-              {
-                id: "attr-1",
-                name: "campo",
-                type: "Boolean",
-                nullable: false,
-                multiplicity: "0..1",
-              },
-            ],
-          },
-        ],
-      }),
-    );
+    const result = validate(fixture("warning-not-nullable-optional-conflict.json"));
     expect(result.valid).toBe(true);
     expect(result.warnings).toEqual([
       expect.objectContaining({
@@ -227,7 +148,7 @@ describe("restricciones adicionales del contrato", () => {
   });
 
   it("advierte sobre campos de nivel superior desconocidos sin bloquear", () => {
-    const result = validate(baseModel({ campoExtra: "x" }));
+    const result = validate(fixture("warning-unknown-top-level-field.json"));
     expect(result.valid).toBe(true);
     expect(result.warnings).toEqual([
       expect.objectContaining({ code: "UNKNOWN_FIELD", path: "$.campoExtra" }),
@@ -235,14 +156,7 @@ describe("restricciones adicionales del contrato", () => {
   });
 
   it("advierte cuando los arrays no siguen el orden canónico", () => {
-    const result = validate(
-      baseModel({
-        classes: [
-          { id: "cls-b", name: "B", attributes: [] },
-          { id: "cls-a", name: "A", attributes: [] },
-        ],
-      }),
-    );
+    const result = validate(fixture("warning-out-of-canonical-order.json"));
     expect(result.valid).toBe(true);
     expect(result.warnings).toEqual([
       expect.objectContaining({
@@ -253,11 +167,7 @@ describe("restricciones adicionales del contrato", () => {
   });
 
   it("rechaza nombres que no son identificadores válidos", () => {
-    const result = validate(
-      baseModel({
-        classes: [{ id: "cls-1", name: "1Entidad", attributes: [] }],
-      }),
-    );
+    const result = validate(fixture("invalid-invalid-identifier.json"));
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toMatchObject({
       code: "INVALID_IDENTIFIER",
@@ -266,25 +176,7 @@ describe("restricciones adicionales del contrato", () => {
   });
 
   it("rechaza multiplicidad fuera del conjunto permitido", () => {
-    const result = validate(
-      baseModel({
-        classes: [
-          {
-            id: "cls-1",
-            name: "Entidad",
-            attributes: [
-              {
-                id: "attr-1",
-                name: "campo",
-                type: "String",
-                nullable: false,
-                multiplicity: "many",
-              },
-            ],
-          },
-        ],
-      }),
-    );
+    const result = validate(fixture("invalid-invalid-multiplicity.json"));
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toMatchObject({
       code: "INVALID_MULTIPLICITY",
