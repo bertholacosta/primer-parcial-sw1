@@ -1,3 +1,50 @@
 # Generator CLI
 
-Orquesta validación y generación determinista. Su implementación depende del contrato `P2-001` y del ADR-0002; no hay runtime elegido todavía.
+Núcleo del generador determinista de Spring Boot (contrato
+`generator-input-output` v1, ADR-0002: Node.js 22 + TypeScript + Vitest, ESM).
+
+## Alcance implementado (P2-003)
+
+Pipeline seguro, sin contenido de capas todavía:
+
+1. **Lectura**: `domain-model.json` y fichero de configuración JSON.
+2. **Validación**: `contractVersion` del modelo (`UNSUPPORTED_MODEL_CONTRACT_VERSION`)
+   y validador canónico `domain-validator` (`INVALID_MODEL` con diagnósticos).
+3. **Planificación ordenada**: rutas de las cinco capas por clase según §6
+   (nombres Java, paquetes, desambiguación de colisiones → `NAME_COLLISION`) y
+   plan de escritura ordenado por ruta que rechaza rutas fuera del destino.
+4. **Escritura atómica**: staging + rename; ante cualquier error no queda
+   salida parcial en `outputDir` (§9.1).
+
+Salida actual de una ejecución válida: `generation-manifest.json` conforme a
+§5.2 (`files` vacío hasta que existan artefactos de capa).
+
+## Pendiente por diseño (tareas posteriores)
+
+- Contenido de las cinco capas (P2-004): el plan de rutas ya se calcula en
+  `src/artifact-plan.ts`; las plantillas `.hbs` y la resolución de
+  `templateSetId` (`TEMPLATE_SET_NOT_FOUND`) se añaden con los conjuntos de
+  plantillas versionados en `templates/spring-boot/`. Por ahora
+  `templateSetId` es un identificador obligatorio que solo se registra en el
+  manifiesto.
+- `flutter-descriptor.json` (P2-005, contrato `flutter-descriptor` v1).
+
+## Códigos de error
+
+Catálogo §9.2 del contrato más extensiones documentadas pendientes de revisión
+menor del contrato (§12.1): `INVALID_CONFIG` (configuración ilegible o campos
+obligatorios ausentes), `INVALID_OUTPUT_PATH` (ruta vacía o duplicada en el
+plan), `PATH_OUTSIDE_OUTPUT_DIR` (ruta absoluta o que escapa del destino) e
+`INTERNAL_ERROR` (excepción no catalogada).
+
+## Comandos
+
+```powershell
+npm install --prefix services/generator-cli
+npm run build --prefix services/generator-cli   # compila también domain-model y domain-validator
+npm run test --prefix services/generator-cli
+node services/generator-cli/dist/index.js --model <modelo.json> --output <dir> --config <config.json>
+```
+
+En error, el informe §9.3 se emite en `stderr` y en `generation-error.json`
+(directorio de trabajo); código de salida `1`. Argumentos inválidos: `2`.
