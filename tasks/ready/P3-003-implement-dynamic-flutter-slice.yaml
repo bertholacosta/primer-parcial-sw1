@@ -1,0 +1,34 @@
+id: P3-003
+title: "Implementar corte dinámico Flutter"
+phase: 3
+status: ready
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Cargar el descriptor mínimo y renderizar/editar una entidad sin pantallas codificadas por dominio."
+dependencies: [P3-002]
+inputs:
+  files:
+    - docs/contracts/flutter-descriptor-v1.md
+    - fixtures/generated-projects/
+  docs:
+    - docs/adr/0004-mobile-state-and-storage.md
+scope:
+  allowed_paths:
+    - apps/mobile-flutter/
+  forbidden_paths:
+    - apps/case-web/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/
+acceptance_criteria:
+  - "Android carga el descriptor del fixture y muestra campos según metadatos."
+  - "Versiones inválidas o no soportadas producen un error explícito y probado."
+validation_commands:
+  - "git diff --check -- apps/mobile-flutter"
+  - "Push-Location apps/mobile-flutter; flutter analyze; Pop-Location"
+  - "Push-Location apps/mobile-flutter; flutter test; Pop-Location"
+deliverables:
+  - apps/mobile-flutter/
+links:
+  - docs/contracts/flutter-descriptor-v1.md
