@@ -4,6 +4,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.List;
+{{#each dtoImports}}
+import {{this}};
+{{/each}}
 
 public class {{className}}DTO {
 
@@ -15,6 +18,9 @@ public class {{className}}DTO {
     private {{this.javaType}} {{this.name}};
 {{/each}}
 {{#each associations}}
+    {{#if this.inverse}}
+    @JsonIgnore
+    {{/if}}
     {{#if this.isCollection}}
     private List<{{this.baseJavaType}}DTO> {{this.name}};
     {{else}}

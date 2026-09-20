@@ -6,9 +6,13 @@ import {{packagePath}}.repository.{{className}}Repository;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 {{#if idImport}}
 import {{idImport}};
 {{/if}}
+{{#each serviceImports}}
+import {{this}};
+{{/each}}
 
 @Service
 public class {{className}}Service {
@@ -43,16 +47,49 @@ public class {{className}}Service {
         {{#each attributes}}
         dto.set{{this.capitalizedName}}(entity.get{{this.capitalizedName}}());
         {{/each}}
+        {{#each associations}}
+        {{#if this.isCollection}}
+        dto.set{{this.capitalizedName}}(entity.get{{this.capitalizedName}}() == null ? null : entity.get{{this.capitalizedName}}().stream().map(this::to{{this.baseJavaType}}DTOShallow).toList());
+        {{else}}
+        dto.set{{this.capitalizedName}}(entity.get{{this.capitalizedName}}() == null ? null : to{{this.baseJavaType}}DTOShallow(entity.get{{this.capitalizedName}}()));
+        {{/if}}
+        {{/each}}
         return dto;
     }
 
     private {{className}}Entity toEntity({{className}}DTO dto) {
         {{className}}Entity entity = new {{className}}Entity();
+        {{#if hasDefaultId}}
+        entity.setId(dto.getId());
+        {{/if}}
         {{#each attributes}}
-        {{#unless this.isId}}
         entity.set{{this.capitalizedName}}(dto.get{{this.capitalizedName}}());
-        {{/unless}}
+        {{/each}}
+        {{#each associations}}
+        {{#if this.isCollection}}
+        entity.set{{this.capitalizedName}}(dto.get{{this.capitalizedName}}() == null ? null : dto.get{{this.capitalizedName}}().stream().map(this::to{{this.baseJavaType}}EntityShallow).collect(Collectors.toList()));
+        {{else}}
+        entity.set{{this.capitalizedName}}(dto.get{{this.capitalizedName}}() == null ? null : to{{this.baseJavaType}}EntityShallow(dto.get{{this.capitalizedName}}()));
+        {{/if}}
         {{/each}}
         return entity;
     }
+{{#each relatedTypes}}
+
+    private {{this.className}}DTO to{{this.className}}DTOShallow({{this.className}}Entity entity) {
+        {{this.className}}DTO dto = new {{this.className}}DTO();
+        {{#each this.accessors}}
+        dto.set{{this}}(entity.get{{this}}());
+        {{/each}}
+        return dto;
+    }
+
+    private {{this.className}}Entity to{{this.className}}EntityShallow({{this.className}}DTO dto) {
+        {{this.className}}Entity entity = new {{this.className}}Entity();
+        {{#each this.accessors}}
+        entity.set{{this}}(dto.get{{this}}());
+        {{/each}}
+        return entity;
+    }
+{{/each}}
 }

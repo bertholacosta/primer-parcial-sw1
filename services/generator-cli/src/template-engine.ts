@@ -55,7 +55,12 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
   const associations = (model.associations ?? []).filter(a => a.sourceClassId === cls.id || (a.targetClassId === cls.id && a.navigability === "bidirectional")).map(a => {
     const isSource = a.sourceClassId === cls.id;
     const relatedClassId = isSource ? a.targetClassId : a.sourceClassId;
+    const relatedClass = model.classes.find(c => c.id === relatedClassId);
     const relatedClassName = classNames.get(relatedClassId) ?? "";
+    const relatedPackage = relatedClass
+      ? javaPackageForClass(relatedClass, model, config.basePackage)
+      : packagePath;
+    const otherPackage = relatedPackage !== packagePath;
 
     // Mapeo de anotaciones (Simplificado para cumplir contrato)
     const srcMult = a.sourceMultiplicity;
@@ -118,9 +123,42 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
       joinColumn,
       joinTable,
       inverseJoinColumn,
-      isCollection
+      isCollection,
+      inverse: !isSource,
+      entityImport: otherPackage ? `${relatedPackage}.entity.${relatedClassName}Entity` : null,
+      dtoImport: otherPackage ? `${relatedPackage}.dto.${relatedClassName}DTO` : null,
+      serviceEntityImport: `${relatedPackage}.entity.${relatedClassName}Entity`,
+      serviceDtoImport: `${relatedPackage}.dto.${relatedClassName}DTO`,
+      relatedClassId,
+      relatedClass,
     };
   });
+
+  const nonNull = (xs: (string | null)[]): string[] =>
+    xs.filter((x): x is string => x !== null);
+
+  const entityImports = [...new Set(nonNull(associations.map(x => x.entityImport)))].sort();
+  const dtoImports = [...new Set([
+    ...nonNull(associations.map(x => x.dtoImport)),
+    ...(associations.some(x => x.inverse) ? ["com.fasterxml.jackson.annotation.JsonIgnore"] : []),
+  ])].sort();
+  const serviceImports = [...new Set(associations.flatMap(x => [x.serviceEntityImport, x.serviceDtoImport]))].sort();
+
+  const seenRelated = new Set<string>();
+  const relatedTypes = [];
+  for (const assoc of associations) {
+    if (seenRelated.has(assoc.relatedClassId)) continue;
+    seenRelated.add(assoc.relatedClassId);
+    const relAttrs = assoc.relatedClass?.attributes ?? [];
+    const relHasDefaultId = !relAttrs.some(at => at.name === "id");
+    relatedTypes.push({
+      className: assoc.baseJavaType,
+      accessors: [
+        ...(relHasDefaultId ? ["Id"] : []),
+        ...relAttrs.map(at => toUpperCamelCase(at.name)),
+      ],
+    });
+  }
 
   return {
     packagePath,
@@ -131,7 +169,11 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
     idJavaType,
     idImport,
     attributes,
-    associations
+    associations,
+    entityImports,
+    dtoImports,
+    serviceImports,
+    relatedTypes,
   };
 }
 
