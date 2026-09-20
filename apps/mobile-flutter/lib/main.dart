@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'models/descriptor.dart';
+import 'models/offline_operation.dart';
 import 'state/descriptor_state.dart';
+import 'state/offline_queue.dart';
 import 'widgets/dynamic_form.dart';
 
 void main() {
@@ -50,6 +52,7 @@ class _DynamicDescriptorHomeScreenState
     if (widget.autoLoad) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(descriptorProvider.notifier).loadFromAsset(widget.assetPath);
+        ref.read(offlineQueueProvider.notifier).initializeFromStorage();
       });
     }
   }
@@ -57,11 +60,24 @@ class _DynamicDescriptorHomeScreenState
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(descriptorProvider);
+    final queue = ref.watch(offlineQueueProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dynamic Model Slice'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: Badge(
+                key: const Key('badge_offline_queue'),
+                label: Text('${queue.pendingCount}'),
+                child: const Icon(Icons.cloud_queue),
+              ),
+            ),
+          ),
+        ],
       ),
       body: switch (state) {
         DescriptorInitial() || DescriptorLoading() => const Center(
@@ -146,7 +162,7 @@ class _DynamicDescriptorHomeScreenState
             ),
           ),
         DescriptorReady(:final descriptor, :final isStale, :final staleReason) =>
-          _buildReadyContent(descriptor, isStale, staleReason),
+          _buildReadyContent(descriptor, isStale, staleReason, queue),
       },
     );
   }
@@ -155,6 +171,7 @@ class _DynamicDescriptorHomeScreenState
     DescriptorRoot descriptor,
     bool isStale,
     String? staleReason,
+    OfflineQueueState queue,
   ) {
     final activeClass = _selectedClass ??
         (descriptor.classes.isNotEmpty ? descriptor.classes.first : null);
@@ -226,16 +243,24 @@ class _DynamicDescriptorHomeScreenState
             DynamicEntityForm(
               key: ValueKey(activeClass.id),
               classDescriptor: activeClass,
-              onSave: (values) {
+              onSave: (values) async {
                 setState(() {
                   _lastSavedEntity = values;
                 });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    key: const Key('snackbar_saved'),
-                    content: Text('${activeClass.name} saved successfully.'),
-                  ),
-                );
+                final op = await ref.read(offlineQueueProvider.notifier).enqueue(
+                      type: OperationType.create,
+                      entityClassId: activeClass.id,
+                      payload: values,
+                    );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      key: const Key('snackbar_saved'),
+                      content: Text(
+                          '${activeClass.name} saved and enqueued offline (op: ${op.operationId.substring(0, 8)}).'),
+                    ),
+                  );
+                }
               },
             ),
             if (_lastSavedEntity != null) ...[
@@ -258,6 +283,31 @@ class _DynamicDescriptorHomeScreenState
                 ),
               ),
             ],
+          ],
+          if (queue.operations.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Text(
+              'Offline Queue (${queue.pendingCount} pending / ${queue.confirmedCount} confirmed):',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            ...queue.operations.map((op) => ListTile(
+                  dense: true,
+                  leading: Icon(
+                    op.status == OperationStatus.confirmed
+                        ? Icons.check_circle
+                        : Icons.hourglass_top,
+                    color: op.status == OperationStatus.confirmed
+                        ? Colors.green
+                        : Colors.orange,
+                  ),
+                  title: Text(
+                    '${op.operationType.name.toUpperCase()} ${op.entityClassId}',
+                  ),
+                  subtitle: Text(
+                    'Op: ${op.operationId.substring(0, 8)} | LocalId: ${op.localId.substring(0, 8)} | Status: ${op.status.name}',
+                  ),
+                )),
           ],
         ],
       ),

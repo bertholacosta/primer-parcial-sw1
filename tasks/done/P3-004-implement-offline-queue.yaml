@@ -1,7 +1,7 @@
 id: P3-004
 title: "Implementar persistencia y cola offline mínima"
 phase: 3
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Persistir metadatos y una operación local, conservarla sin red y reintentarla de forma idempotente."
@@ -33,3 +33,6 @@ deliverables:
   - apps/mobile-flutter/
 links:
   - docs/contracts/mobile-offline-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
