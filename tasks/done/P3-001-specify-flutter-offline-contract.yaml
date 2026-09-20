@@ -1,7 +1,7 @@
 id: P3-001
 title: "Especificar runtime Flutter y semántica offline"
 phase: 3
-status: active
+status: done
 kind: specification
 owner_role: Kiro
 objective: "Completar el contrato de consumo del descriptor, compatibilidad, edición local y cola offline mínima."
@@ -21,3 +21,6 @@ validation_commands:
   - "rg -n \"offline|version|idempoten|retry|conflict\" docs/contracts/flutter-descriptor-v1.md docs/contracts/mobile-offline-v1.md"
 deliverables: [docs/contracts/flutter-descriptor-v1.md, docs/contracts/mobile-offline-v1.md]
 links: [docs/adr/0004-mobile-state-and-storage.md]
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
