@@ -17,6 +17,6 @@ acceptance_criteria:
   - "La configuración generada usa JPA/Hibernate y PostgreSQL y dos ejecuciones son equivalentes."
 validation_commands:
   - "git diff --check -- services/generator-cli templates/spring-boot"
-  - "Set-Location services/generator-cli; npm run test"
+  - "Set-Location services/generator-cli; npm ci; npm run test"
 deliverables: [services/generator-cli/, templates/spring-boot/]
 links: [docs/contracts/generator-input-output-v1.md]
