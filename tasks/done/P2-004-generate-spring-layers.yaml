@@ -1,7 +1,7 @@
 id: P2-004
 title: "Generar las cinco capas Spring y persistencia"
 phase: 2
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Agregar plantillas y reglas para Entity, DTO, Repository, Service y Controller con JPA/Hibernate y PostgreSQL."
@@ -33,3 +33,6 @@ deliverables:
   - templates/spring-boot/
 links:
   - docs/contracts/generator-input-output-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
