@@ -29,7 +29,7 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
   const classNames = resolveJavaClassNames(model);
   const className = classNames.get(cls.id) ?? "";
   const packagePath = javaPackageForClass(cls, model, config.basePackage);
-  const tableName = toSnakeCase(className);
+  const tableName = toSnakeCase(cls.name);
   const restPath = restPathForClassName(className);
 
   const idAttr = cls.attributes?.find(a => a.name === "id");

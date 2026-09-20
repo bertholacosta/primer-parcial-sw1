@@ -147,7 +147,6 @@ export function generate(input: GenerateInput): GenerateResult {
       warnings: validation.warnings,
     };
   } catch (err) {
-    console.error("GENERATE ERROR:", err);
     if (err instanceof GeneratorError) {
       return { outcome: "failed", errors: [err.toEntry()] };
     }
