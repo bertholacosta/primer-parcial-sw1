@@ -1,7 +1,7 @@
 id: P3-001
 title: "Especificar runtime Flutter y semántica offline"
 phase: 3
-status: planned
+status: ready
 kind: specification
 owner_role: Kiro
 objective: "Completar el contrato de consumo del descriptor, compatibilidad, edición local y cola offline mínima."
