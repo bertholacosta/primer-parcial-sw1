@@ -386,3 +386,98 @@ El runtime Flutter debe ignorar y preservar campos no declarados en este contrat
 | Q2 | ¿El runtime Flutter debe soportar descriptores stale en modo degradado o rechazarlos siempre? | Afecta a la política de `DESCRIPTOR_MODEL_MISMATCH`. |
 | Q3 | ¿El descriptor se entrega embebido en el paquete Flutter o se descarga en runtime desde el servidor? | Afecta a ADR-0004 y al ciclo de actualización del descriptor. |
 | Q4 | ¿Se requiere un campo de orden de presentación (`displayOrder`) en `AttributeDescriptor` para controlar el orden de campos en formularios? | Si sí, se añade como campo opcional en v1 o se introduce en v2. |
+
+
+---
+
+## 14. Estados de ciclo de vida del descriptor en runtime Flutter
+
+### 14.1 Máquina de estados del descriptor
+
+El runtime Flutter gestiona el descriptor mediante los siguientes estados bien definidos. Cada estado determina qué UI se puede mostrar y qué acciones están permitidas.
+
+| Estado | Identificador | Descripción |
+|---|---|---|
+| Cargando | `loading` | El descriptor se está obteniendo (red o almacenamiento local). No se renderiza UI dinámica aún. |
+| Listo | `ready` | El descriptor se cargó, se verificó la `descriptorContractVersion` y todos los campos obligatorios están presentes. La UI dinámica completa está disponible. |
+| Versión incompatible | `error_contract_mismatch` | `descriptorContractVersion` no coincide con la versión que soporta el runtime. Corresponde al error `DESCRIPTOR_CONTRACT_VERSION_MISMATCH` (§8.2). |
+| Campo requerido ausente | `error_missing_field` | Falta al menos un campo obligatorio del documento raíz o de un descriptor anidado. Corresponde a `DESCRIPTOR_MISSING_REQUIRED_FIELD` (§8.2). |
+| Desactualizado | `stale` | El descriptor se cargó correctamente pero `sourceModelSha256` no coincide con el modelo activo en el servidor. Corresponde a `DESCRIPTOR_MODEL_MISMATCH` (§8.2). El runtime puede operar en modo degradado (ver §14.3). |
+| Sin descriptor | `unavailable` | No existe descriptor almacenado localmente y no hay conectividad para descargarlo. Se aplica el renderizado mínimo de emergencia (ver §14.3). |
+
+**Transiciones válidas:**
+
+```
+         [inicio]
+             |
+             v
+         loading
+          /    \
+         v      v
+       ready   error_contract_mismatch
+         |      |
+         |      v
+         |   [bloquear UI dinámica; mostrar mensaje de error]
+         |
+         +---> stale
+         |       |
+         |       v
+         |   [modo degradado: UI con datos locales, sin sincronización]
+         |
+         +---> error_missing_field
+         |       |
+         |       v
+         |   [bloquear UI dinámica; mostrar mensaje de error]
+         |
+         +---> unavailable
+                 |
+                 v
+         [renderizado mínimo de emergencia]
+```
+
+### 14.2 Comportamiento requerido por estado
+
+| Estado | Renderizado UI dinámica | Edición local | Sincronización | Mensaje al usuario |
+|---|---|---|---|---|
+| `loading` | No | No | No | Indicador de progreso |
+| `ready` | Completo | Sí | Sí | Ninguno (operación normal) |
+| `error_contract_mismatch` | No | No | No | Error bloqueante: solicitar actualización de la app |
+| `error_missing_field` | No | No | No | Error bloqueante: descriptor corrupto, solicitar regeneración |
+| `stale` | Parcial (datos locales) | Sí (cola offline) | No (hasta resolver) | Advertencia no bloqueante: el modelo cambió |
+| `unavailable` | Mínimo de emergencia (ver §14.4) | Sí (cola offline) | No | Aviso informativo: sin conexión |
+
+### 14.3 Modo degradado (`stale`)
+
+Cuando el estado es `stale`, el runtime opera con el descriptor almacenado localmente bajo las siguientes restricciones:
+
+1. Las operaciones de edición se encolan en la cola offline (ver `mobile-offline-v1.md`).
+2. No se solicita una nueva sincronización hasta que el usuario lo confirme explícitamente o se restablezca la conectividad.
+3. El runtime no descarta el descriptor stale automáticamente; solo lo reemplaza cuando recibe un descriptor nuevo con `descriptorContractVersion` válida y `sourceModelSha256` verificado.
+4. El estado `stale` no impide el renderizado de los widgets ya conocidos; solo impide asumir que el modelo subyacente no ha cambiado.
+
+### 14.4 Renderizado mínimo garantizado por `uiType`
+
+Independientemente del estado del descriptor (incluyendo `unavailable` y `stale`), el runtime debe ser capaz de renderizar una representación de emergencia para cada `uiType`. La representación mínima no precisa lógica de validación avanzada; solo debe permitir al usuario ver e introducir datos sin pérdida.
+
+| `uiType` | Representación mínima garantizada | Validación mínima |
+|---|---|---|
+| `textField` | Campo de texto de una línea | Ninguna (aceptar cualquier cadena) |
+| `textList` | Campo de texto multilínea o lista de entradas de texto | Ninguna |
+| `integerField` | Campo de texto numérico (teclado numérico) | Rechazar caracteres no numéricos |
+| `decimalField` | Campo de texto numérico con punto decimal | Rechazar caracteres no numéricos excepto separador decimal |
+| `checkbox` | Control de alternancia booleana (checkbox o switch) | Ninguna |
+| `datePicker` | Campo de texto con formato `YYYY-MM-DD` | Formato de fecha básico |
+| `dateTimePicker` | Campo de texto con formato `YYYY-MM-DDTHH:MM` | Formato de fecha-hora básico |
+| `uuidField` | Campo de texto de solo lectura (no se edita en UI) | Ninguna (el runtime genera el UUID) |
+
+**Invariante de renderizado mínimo:** el runtime Flutter no debe mostrar una pantalla en blanco ni lanzar una excepción no controlada ante ningún valor de `uiType` declarado en este contrato. Si el runtime recibe un `uiType` desconocido (campo añadido en versión futura, política ignore-unknown de §12), debe renderizar un `textField` genérico como fallback.
+
+### 14.5 Versión incompatible — protocolo de bloqueo
+
+Cuando el estado es `error_contract_mismatch`:
+
+1. El runtime **no intenta** renderizar UI dinámica con el descriptor incompatible.
+2. El runtime **no elimina** el descriptor almacenado localmente; lo conserva para diagnóstico.
+3. Se muestra al usuario un mensaje no omitible que indica que la versión de la aplicación no es compatible con el modelo activo y que debe actualizarse.
+4. Las operaciones de edición local **no se encolan** mientras el runtime está en `error_contract_mismatch`; la cola offline permanece intacta pero bloqueada para nuevas entradas.
+5. Si el runtime detecta que el servidor ofrece un descriptor con `descriptorContractVersion` compatible, puede intentar descargarlo y transicionar a `loading` → `ready`.
