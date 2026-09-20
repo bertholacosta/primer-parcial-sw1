@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture: 05-error-self-association/input.xmi
+  Propósito: XMI con una auto-asociación (sourceClassId == targetClassId),
+             prohibida en el corte mínimo v1. La conversión debe abortar
+             con error SELF_ASSOCIATION_NOT_SUPPORTED.
+-->
+<xmi:XMI xmi:version="2.1"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001">
+
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="16.0" exporterID="1558"/>
+
+  <uml:Model xmi:id="MODEL_05" name="Organizacion" xmi:type="uml:Model">
+
+    <packagedElement xmi:type="uml:Package" xmi:id="PKG_05" name="organizacion">
+
+      <packagedElement xmi:type="uml:Class" xmi:id="CLS_40" name="Nodo" isAbstract="false">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_40" name="etiqueta" type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_40" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_40" value="1"/>
+        </ownedAttribute>
+      </packagedElement>
+
+      <!--
+        Auto-asociación: Nodo —— Nodo (self-loop).
+        sourceClassId y targetClassId apuntan ambos a CLS_40.
+      -->
+      <packagedElement xmi:type="uml:Association"
+                       xmi:id="ASSOC_SELF"
+                       name="tieneHijos">
+        <memberEnd xmi:idref="END_SELF_SRC"/>
+        <memberEnd xmi:idref="END_SELF_TGT"/>
+        <ownedEnd xmi:type="uml:Property" xmi:id="END_SELF_SRC" type="CLS_40">
+          <lowerValue xmi:type="uml:LiteralInteger"  xmi:id="LV_SS" value="0"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_SS" value="1"/>
+        </ownedEnd>
+        <ownedEnd xmi:type="uml:Property" xmi:id="END_SELF_TGT" type="CLS_40">
+          <lowerValue xmi:type="uml:LiteralInteger"  xmi:id="LV_ST" value="0"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_ST" value="*"/>
+        </ownedEnd>
+      </packagedElement>
+
+    </packagedElement>
+
+  </uml:Model>
+</xmi:XMI>

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture: 06-round-trip/expected-xmi-export.xmi
+  Propósito: XMI esperado al exportar canonical-input.json.
+             Sirve como referencia de la dirección canónico → XMI.
+  Perfil aplicable: docs/contracts/xmi-profile-v1.md §6 (mapeo bidireccional)
+  Nota: los atributos xmi:id se preservan del canónico (ver Q3 del contrato).
+-->
+<xmi:XMI xmi:version="2.1"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001">
+
+  <uml:Model xmi:id="MODEL_06" name="Biblioteca" xmi:type="uml:Model">
+
+    <packagedElement xmi:type="uml:Package" xmi:id="PKG_06" name="biblioteca">
+
+      <packagedElement xmi:type="uml:Class"
+                       xmi:id="CLS_50"
+                       name="Libro"
+                       isAbstract="false">
+        <ownedComment xmi:type="uml:Comment" xmi:id="CMT_CLS_50">
+          <body>Entidad que representa un libro del catálogo.</body>
+        </ownedComment>
+        <ownedAttribute xmi:type="uml:Property"
+                        xmi:id="ATTR_50"
+                        name="titulo"
+                        type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_ATTR_50_lo" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_ATTR_50_hi" value="1"/>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property"
+                        xmi:id="ATTR_51"
+                        name="anioPublicacion"
+                        type="Integer">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_ATTR_51_lo" value="0"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_ATTR_51_hi" value="1"/>
+        </ownedAttribute>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class"
+                       xmi:id="CLS_51"
+                       name="Autor"
+                       isAbstract="false">
+        <ownedAttribute xmi:type="uml:Property"
+                        xmi:id="ATTR_52"
+                        name="nombre"
+                        type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_ATTR_52_lo" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_ATTR_52_hi" value="1"/>
+        </ownedAttribute>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Association"
+                       xmi:id="ASSOC_06"
+                       name="escritoPor">
+        <memberEnd xmi:idref="END_ASSOC_06_SRC"/>
+        <memberEnd xmi:idref="END_ASSOC_06_TGT"/>
+        <ownedEnd xmi:type="uml:Property" xmi:id="END_ASSOC_06_SRC" type="CLS_50">
+          <lowerValue xmi:type="uml:LiteralInteger"  xmi:id="LV_A06_SRC" value="0"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_A06_SRC" value="*"/>
+        </ownedEnd>
+        <ownedEnd xmi:type="uml:Property" xmi:id="END_ASSOC_06_TGT" type="CLS_51">
+          <lowerValue xmi:type="uml:LiteralInteger"  xmi:id="LV_A06_TGT" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_A06_TGT" value="*"/>
+        </ownedEnd>
+      </packagedElement>
+
+    </packagedElement>
+
+  </uml:Model>
+</xmi:XMI>

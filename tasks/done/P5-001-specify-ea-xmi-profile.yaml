@@ -1,7 +1,7 @@
 id: P5-001
 title: "Definir perfil XMI de Enterprise Architect"
 phase: 5
-status: ready
+status: done
 kind: specification
 owner_role: Kiro
 objective: "Definir versiones y subconjunto UML/XMI interoperable, con mapeo bidireccional al modelo canónico."
@@ -33,3 +33,6 @@ deliverables:
   - fixtures/xmi/
 links:
   - docs/contracts/domain-model-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"

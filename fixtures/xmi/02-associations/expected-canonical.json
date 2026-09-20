@@ -1,0 +1,100 @@
+{
+  "contractVersion": "1",
+  "id": "MODEL_02",
+  "name": "Tienda",
+  "version": "1.0.0",
+  "packages": [
+    {
+      "id": "PKG_02",
+      "name": "tienda"
+    }
+  ],
+  "classes": [
+    {
+      "id": "CLS_10",
+      "name": "Cliente",
+      "packageId": "PKG_02",
+      "isAbstract": false,
+      "attributes": [
+        {
+          "id": "ATTR_10",
+          "name": "nombre",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1"
+        },
+        {
+          "id": "ATTR_11",
+          "name": "email",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1"
+        }
+      ]
+    },
+    {
+      "id": "CLS_11",
+      "name": "Pedido",
+      "packageId": "PKG_02",
+      "isAbstract": false,
+      "attributes": [
+        {
+          "id": "ATTR_12",
+          "name": "fecha",
+          "type": "DateTime",
+          "nullable": false,
+          "multiplicity": "1"
+        },
+        {
+          "id": "ATTR_13",
+          "name": "total",
+          "type": "Double",
+          "nullable": false,
+          "multiplicity": "1"
+        }
+      ]
+    },
+    {
+      "id": "CLS_12",
+      "name": "Producto",
+      "packageId": "PKG_02",
+      "isAbstract": false,
+      "attributes": [
+        {
+          "id": "ATTR_14",
+          "name": "descripcion",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1"
+        },
+        {
+          "id": "ATTR_15",
+          "name": "precio",
+          "type": "Double",
+          "nullable": false,
+          "multiplicity": "1"
+        }
+      ]
+    }
+  ],
+  "associations": [
+    {
+      "id": "ASSOC_01",
+      "name": "realizadoPor",
+      "sourceClassId": "CLS_11",
+      "targetClassId": "CLS_10",
+      "sourceMultiplicity": "0..*",
+      "targetMultiplicity": "1",
+      "navigability": "bidirectional"
+    },
+    {
+      "id": "ASSOC_02",
+      "name": "contiene",
+      "sourceClassId": "CLS_11",
+      "targetClassId": "CLS_12",
+      "sourceMultiplicity": "1..*",
+      "targetMultiplicity": "0..*",
+      "navigability": "unidirectional"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "outcome": "error",
+  "canonicalModel": null,
+  "diagnostics": [
+    {
+      "code": "UNKNOWN_TYPE",
+      "severity": "ERROR",
+      "path": "uml:Model[@xmi:id='MODEL_04'] / packagedElement[@xmi:id='PKG_04'] / packagedElement[@xmi:id='CLS_30'] / ownedAttribute[@xmi:id='ATTR_31']",
+      "message": "Tipo 'BigDecimal' no reconocido en el perfil XMI v1. Ruta: clase 'Factura' / atributo 'total'. Tipos soportados: String, Integer, Long, Double, Boolean, Date, DateTime, UUID.",
+      "element": {
+        "xmiId": "ATTR_31",
+        "className": "Factura",
+        "attributeName": "total",
+        "typeFound": "BigDecimal"
+      }
+    }
+  ]
+}

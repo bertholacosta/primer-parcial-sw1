@@ -1,0 +1,59 @@
+{
+  "contractVersion": "1",
+  "id": "MODEL_01",
+  "name": "Biblioteca",
+  "version": "1.0.0",
+  "packages": [
+    {
+      "id": "PKG_01",
+      "name": "biblioteca"
+    }
+  ],
+  "classes": [
+    {
+      "id": "CLS_01",
+      "name": "Libro",
+      "packageId": "PKG_01",
+      "isAbstract": false,
+      "attributes": [
+        {
+          "id": "ATTR_01",
+          "name": "titulo",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1"
+        },
+        {
+          "id": "ATTR_02",
+          "name": "isbn",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1"
+        },
+        {
+          "id": "ATTR_03",
+          "name": "fechaPublicacion",
+          "type": "Date",
+          "nullable": true,
+          "multiplicity": "0..1"
+        }
+      ]
+    },
+    {
+      "id": "CLS_02",
+      "name": "Autor",
+      "packageId": "PKG_01",
+      "isAbstract": false,
+      "attributes": [
+        {
+          "id": "ATTR_04",
+          "name": "nombre",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1"
+        }
+      ]
+    }
+  ],
+  "associations": []
+}

@@ -1,0 +1,18 @@
+{
+  "outcome": "error",
+  "canonicalModel": null,
+  "diagnostics": [
+    {
+      "code": "SELF_ASSOCIATION_NOT_SUPPORTED",
+      "severity": "ERROR",
+      "path": "uml:Model[@xmi:id='MODEL_05'] / packagedElement[@xmi:id='PKG_05'] / packagedElement[@xmi:id='ASSOC_SELF']",
+      "message": "Auto-asociación no permitida en el corte mínimo v1. La asociación 'tieneHijos' (ASSOC_SELF) tiene sourceClassId y targetClassId apuntando a la misma clase 'Nodo' (CLS_40).",
+      "element": {
+        "xmiId": "ASSOC_SELF",
+        "associationName": "tieneHijos",
+        "classId": "CLS_40",
+        "className": "Nodo"
+      }
+    }
+  ]
+}

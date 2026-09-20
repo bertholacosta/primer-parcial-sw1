@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture: 02-associations/input.xmi
+  Propósito: XMI con una asociación bidireccional (Pedido *—1 Cliente)
+             y una asociación unidireccional (Pedido *—* Producto).
+  Perfil aplicable: docs/contracts/xmi-profile-v1.md §3.5
+-->
+<xmi:XMI xmi:version="2.1"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001">
+
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="16.0" exporterID="1558"/>
+
+  <uml:Model xmi:id="MODEL_02" name="Tienda" xmi:type="uml:Model">
+
+    <packagedElement xmi:type="uml:Package" xmi:id="PKG_02" name="tienda">
+
+      <packagedElement xmi:type="uml:Class" xmi:id="CLS_10" name="Cliente" isAbstract="false">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_10" name="nombre" type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_10" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_10" value="1"/>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_11" name="email" type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_11" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_11" value="1"/>
+        </ownedAttribute>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="CLS_11" name="Pedido" isAbstract="false">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_12" name="fecha" type="DateTime">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_12" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_12" value="1"/>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_13" name="total" type="Double">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_13" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_13" value="1"/>
+        </ownedAttribute>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class" xmi:id="CLS_12" name="Producto" isAbstract="false">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_14" name="descripcion" type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_14" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_14" value="1"/>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_15" name="precio" type="Double">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_15" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_15" value="1"/>
+        </ownedAttribute>
+      </packagedElement>
+
+      <!--
+        Asociación bidireccional: Pedido (0..*) —— (1) Cliente
+        Ambos extremos navegables (isNavigable ausente → true).
+      -->
+      <packagedElement xmi:type="uml:Association"
+                       xmi:id="ASSOC_01"
+                       name="realizadoPor">
+        <memberEnd xmi:idref="END_01_SRC"/>
+        <memberEnd xmi:idref="END_01_TGT"/>
+        <ownedEnd xmi:type="uml:Property" xmi:id="END_01_SRC" type="CLS_11">
+          <lowerValue xmi:type="uml:LiteralInteger"  xmi:id="LV_A1S" value="0"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_A1S" value="*"/>
+        </ownedEnd>
+        <ownedEnd xmi:type="uml:Property" xmi:id="END_01_TGT" type="CLS_10">
+          <lowerValue xmi:type="uml:LiteralInteger"  xmi:id="LV_A1T" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_A1T" value="1"/>
+        </ownedEnd>
+      </packagedElement>
+
+      <!--
+        Asociación unidireccional: Pedido (1..*) ——> (*) Producto
+        Extremo destino con isNavigable="false" en el sentido inverso.
+      -->
+      <packagedElement xmi:type="uml:Association"
+                       xmi:id="ASSOC_02"
+                       name="contiene">
+        <memberEnd xmi:idref="END_02_SRC"/>
+        <memberEnd xmi:idref="END_02_TGT"/>
+        <ownedEnd xmi:type="uml:Property" xmi:id="END_02_SRC" type="CLS_11">
+          <lowerValue xmi:type="uml:LiteralInteger"  xmi:id="LV_A2S" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_A2S" value="*"/>
+        </ownedEnd>
+        <ownedEnd xmi:type="uml:Property" xmi:id="END_02_TGT" type="CLS_12"
+                  isNavigable="false">
+          <lowerValue xmi:type="uml:LiteralInteger"  xmi:id="LV_A2T" value="0"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_A2T" value="*"/>
+        </ownedEnd>
+      </packagedElement>
+
+    </packagedElement>
+
+  </uml:Model>
+</xmi:XMI>

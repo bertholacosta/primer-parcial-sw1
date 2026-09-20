@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture: 03-ignored-elements/input.xmi
+  Propósito: XMI con extensiones EA propietarias, herencia, operación de clase,
+             ownedComment HTML y estereotipo aplicado. Verifica que todos los
+             elementos del §4 del perfil se descartan sin error.
+  Pérdidas esperadas: herencia, operación, extensión EA, HTML de comentario,
+                      estereotipo, visibilidad.
+-->
+<xmi:XMI xmi:version="2.1"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001">
+
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="15.2" exporterID="1558"/>
+
+  <uml:Model xmi:id="MODEL_03" name="Inventario" xmi:type="uml:Model">
+
+    <packagedElement xmi:type="uml:Package" xmi:id="PKG_03" name="inventario"
+                     visibility="public">
+
+      <!--
+        Clase base (abstracta). Tiene:
+          - visibilidad (ignorada)
+          - isLeaf (ignorado)
+          - ownedComment con texto plano → se mapea a description
+          - ownedOperation (ignorada)
+      -->
+      <packagedElement xmi:type="uml:Class"
+                       xmi:id="CLS_20"
+                       name="EntidadBase"
+                       isAbstract="true"
+                       visibility="public"
+                       isLeaf="false">
+        <ownedComment xmi:type="uml:Comment" xmi:id="CMT_01">
+          <body>Clase base abstracta para todas las entidades del inventario.</body>
+        </ownedComment>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_20" name="id" type="UUID">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_20" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_20" value="1"/>
+        </ownedAttribute>
+        <!-- Operación de clase — ignorada según §4 -->
+        <ownedOperation xmi:type="uml:Operation" xmi:id="OP_01" name="validar"
+                        visibility="public"/>
+      </packagedElement>
+
+      <!--
+        Clase concreta. Tiene:
+          - appliedStereotype (ignorado)
+          - generalization hacia EntidadBase (ignorada)
+          - ownedComment con HTML (descartado con advertencia)
+      -->
+      <packagedElement xmi:type="uml:Class"
+                       xmi:id="CLS_21"
+                       name="Articulo"
+                       isAbstract="false"
+                       visibility="public">
+        <ownedComment xmi:type="uml:Comment" xmi:id="CMT_02">
+          <body>&lt;html&gt;&lt;b&gt;Artículo de inventario&lt;/b&gt;&lt;/html&gt;</body>
+        </ownedComment>
+        <!-- Herencia — ignorada según §4 -->
+        <generalization xmi:type="uml:Generalization" xmi:id="GEN_01"
+                        general="CLS_20"/>
+        <!-- Estereotipo aplicado — ignorado según §4 -->
+        <appliedStereotype xmi:idref="STEREO_01"/>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_21" name="codigo" type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_21" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_21" value="1"/>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_22" name="stock" type="Integer">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_22" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_22" value="1"/>
+        </ownedAttribute>
+        <!-- Valor por defecto — ignorado según §4 -->
+        <ownedAttribute xmi:type="uml:Property" xmi:id="ATTR_23" name="activo" type="Boolean">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_23" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_23" value="1"/>
+          <defaultValue xmi:type="uml:LiteralBoolean" xmi:id="DV_01" value="true"/>
+        </ownedAttribute>
+      </packagedElement>
+
+    </packagedElement>
+
+    <!-- Extensión propietaria EA — ignorada completa según §4 -->
+    <xmi:Extension extender="Enterprise Architect">
+      <diagrams>
+        <diagram xmi:id="DGM_01" name="Diagrama de clases">
+          <model package="PKG_03"/>
+        </diagram>
+      </diagrams>
+      <elements>
+        <element xmi:idref="CLS_21" scope="public">
+          <style value="BackColor=-1;BorderColor=-1;BorderWidth=-1;FontColor=-1;"/>
+          <appearance position="x=100;y=200;cx=150;cy=80;"/>
+        </element>
+      </elements>
+    </xmi:Extension>
+
+  </uml:Model>
+</xmi:XMI>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fixture: 01-minimal-import/input.xmi
+  Propósito: XMI mínimo con un paquete, dos clases y atributos escalares.
+             Exportado desde Enterprise Architect 16.0 (simulado/anonimizado).
+  Perfil aplicable: docs/contracts/xmi-profile-v1.md §2, §3.1–§3.4
+  Elementos ignorados: ninguno en este fixture.
+-->
+<xmi:XMI xmi:version="2.1"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20131001">
+
+  <xmi:Documentation exporter="Enterprise Architect"
+                     exporterVersion="16.0"
+                     exporterID="1558"/>
+
+  <uml:Model xmi:id="MODEL_01" name="Biblioteca" xmi:type="uml:Model">
+
+    <packagedElement xmi:type="uml:Package"
+                     xmi:id="PKG_01"
+                     name="biblioteca">
+
+      <packagedElement xmi:type="uml:Class"
+                       xmi:id="CLS_01"
+                       name="Libro"
+                       isAbstract="false">
+        <ownedAttribute xmi:type="uml:Property"
+                        xmi:id="ATTR_01"
+                        name="titulo"
+                        type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_01" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_01" value="1"/>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property"
+                        xmi:id="ATTR_02"
+                        name="isbn"
+                        type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_02" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_02" value="1"/>
+        </ownedAttribute>
+        <ownedAttribute xmi:type="uml:Property"
+                        xmi:id="ATTR_03"
+                        name="fechaPublicacion"
+                        type="Date">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_03" value="0"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_03" value="1"/>
+        </ownedAttribute>
+      </packagedElement>
+
+      <packagedElement xmi:type="uml:Class"
+                       xmi:id="CLS_02"
+                       name="Autor"
+                       isAbstract="false">
+        <ownedAttribute xmi:type="uml:Property"
+                        xmi:id="ATTR_04"
+                        name="nombre"
+                        type="String">
+          <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_04" value="1"/>
+          <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_04" value="1"/>
+        </ownedAttribute>
+      </packagedElement>
+
+    </packagedElement>
+
+  </uml:Model>
+</xmi:XMI>

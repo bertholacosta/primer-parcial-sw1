@@ -1,0 +1,60 @@
+{
+  "contractVersion": "1",
+  "id": "MODEL_03",
+  "name": "Inventario",
+  "version": "1.0.0",
+  "packages": [
+    {
+      "id": "PKG_03",
+      "name": "inventario"
+    }
+  ],
+  "classes": [
+    {
+      "id": "CLS_20",
+      "name": "EntidadBase",
+      "packageId": "PKG_03",
+      "isAbstract": true,
+      "description": "Clase base abstracta para todas las entidades del inventario.",
+      "attributes": [
+        {
+          "id": "ATTR_20",
+          "name": "id",
+          "type": "UUID",
+          "nullable": false,
+          "multiplicity": "1"
+        }
+      ]
+    },
+    {
+      "id": "CLS_21",
+      "name": "Articulo",
+      "packageId": "PKG_03",
+      "isAbstract": false,
+      "attributes": [
+        {
+          "id": "ATTR_21",
+          "name": "codigo",
+          "type": "String",
+          "nullable": false,
+          "multiplicity": "1"
+        },
+        {
+          "id": "ATTR_22",
+          "name": "stock",
+          "type": "Integer",
+          "nullable": false,
+          "multiplicity": "1"
+        },
+        {
+          "id": "ATTR_23",
+          "name": "activo",
+          "type": "Boolean",
+          "nullable": false,
+          "multiplicity": "1"
+        }
+      ]
+    }
+  ],
+  "associations": []
+}
