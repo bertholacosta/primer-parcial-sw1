@@ -1,0 +1,9 @@
+{
+  "modelPath": "fixtures/models/valid-minimal.json",
+  "outputDir": "out/biblioteca",
+  "basePackage": "com.example.biblioteca",
+  "artifactId": "biblioteca",
+  "groupId": "com.example",
+  "generatorVersion": "1.0.0",
+  "templateSetId": "spring-boot-jpa-v1"
+}
