@@ -1,0 +1,23 @@
+{
+  "contractVersion": "1",
+  "id": "aaa",
+  "name": "Modelo",
+  "version": "1.0.0",
+  "packages": [],
+  "classes": [
+    {
+      "id": "cls-x",
+      "name": "Entidad",
+      "attributes": [
+        {
+          "id": "attr-x",
+          "name": "campo",
+          "type": "BigDecimal",
+          "nullable": false,
+          "multiplicity": "1"
+        }
+      ]
+    }
+  ],
+  "associations": []
+}

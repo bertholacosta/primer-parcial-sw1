@@ -1,0 +1,24 @@
+{
+  "name": "domain-validator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Validador determinista del modelo canónico (contrato domain-model v1). ADR-0006.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "domain-validate": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node --eval \"fs.cpSync('src/schema', 'dist/schema', { recursive: true })\"",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ajv": "8.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  }
+}

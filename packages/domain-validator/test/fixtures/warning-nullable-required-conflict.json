@@ -1,0 +1,23 @@
+{
+  "contractVersion": "1",
+  "id": "ddd",
+  "name": "Modelo",
+  "version": "1.0.0",
+  "packages": [],
+  "classes": [
+    {
+      "id": "cls-1",
+      "name": "Entidad",
+      "attributes": [
+        {
+          "id": "attr-1",
+          "name": "campo",
+          "type": "String",
+          "nullable": true,
+          "multiplicity": "1"
+        }
+      ]
+    }
+  ],
+  "associations": []
+}

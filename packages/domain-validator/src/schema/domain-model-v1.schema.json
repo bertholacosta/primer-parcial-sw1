@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:canon:domain-model:v1",
+  "title": "Domain Model v1",
+  "description": "Esquema estructural del contrato domain-model v1.0.0 (docs/contracts/domain-model-v1.md). Las reglas semánticas (unicidad, referencias, ciclos, coherencia nullable/multiplicity) se verifican en la segunda fase del validador.",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "id",
+    "name",
+    "version",
+    "packages",
+    "classes",
+    "associations"
+  ],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "1" },
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "description": { "type": "string" },
+    "packages": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/package" }
+    },
+    "classes": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/class" }
+    },
+    "associations": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/association" }
+    }
+  },
+  "definitions": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "multiplicity": {
+      "type": "string",
+      "enum": ["1", "0..1", "1..*", "0..*"]
+    },
+    "attributeType": {
+      "type": "string",
+      "enum": ["String", "Integer", "Long", "Double", "Boolean", "Date", "DateTime", "UUID"]
+    },
+    "package": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "$ref": "#/definitions/identifier" },
+        "parentId": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "class": {
+      "type": "object",
+      "required": ["id", "name", "attributes"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "$ref": "#/definitions/identifier" },
+        "packageId": { "type": "string" },
+        "isAbstract": { "type": "boolean" },
+        "description": { "type": "string" },
+        "attributes": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/attribute" }
+        }
+      }
+    },
+    "attribute": {
+      "type": "object",
+      "required": ["id", "name", "type", "nullable", "multiplicity"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "$ref": "#/definitions/identifier" },
+        "type": { "$ref": "#/definitions/attributeType" },
+        "nullable": { "type": "boolean" },
+        "multiplicity": { "$ref": "#/definitions/multiplicity" },
+        "description": { "type": "string" }
+      }
+    },
+    "association": {
+      "type": "object",
+      "required": [
+        "id",
+        "sourceClassId",
+        "targetClassId",
+        "sourceMultiplicity",
+        "targetMultiplicity",
+        "navigability"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "sourceClassId": { "type": "string", "minLength": 1 },
+        "targetClassId": { "type": "string", "minLength": 1 },
+        "sourceMultiplicity": { "$ref": "#/definitions/multiplicity" },
+        "targetMultiplicity": { "$ref": "#/definitions/multiplicity" },
+        "navigability": { "type": "string", "enum": ["unidirectional", "bidirectional"] },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

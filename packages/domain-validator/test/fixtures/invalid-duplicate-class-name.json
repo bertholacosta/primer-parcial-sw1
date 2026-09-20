@@ -1,0 +1,12 @@
+{
+  "contractVersion": "1",
+  "id": "ccc",
+  "name": "Modelo",
+  "version": "1.0.0",
+  "packages": [{ "id": "pkg-a", "name": "paquete" }],
+  "classes": [
+    { "id": "cls-1", "name": "Entidad", "packageId": "pkg-a", "attributes": [] },
+    { "id": "cls-2", "name": "Entidad", "packageId": "pkg-a", "attributes": [] }
+  ],
+  "associations": []
+}
