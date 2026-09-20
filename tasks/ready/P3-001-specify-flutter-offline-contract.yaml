@@ -10,7 +10,8 @@ inputs:
   files: [docs/contracts/flutter-descriptor-v1.md, docs/contracts/domain-model-v1.md]
   docs: [docs/ARCHITECTURE.md]
 scope:
-  allowed_paths: [docs/contracts/]
+  allowed_paths:
+    - docs/contracts/
   forbidden_paths: [apps/, services/, packages/, templates/, fixtures/]
 acceptance_criteria:
   - "Define estados de carga/error, versión incompatible y renderizado mínimo por tipo."
