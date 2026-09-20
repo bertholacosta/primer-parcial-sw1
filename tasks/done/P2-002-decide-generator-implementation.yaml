@@ -1,7 +1,7 @@
 id: P2-002
 title: "Resolver ADR del generador"
 phase: 2
-status: ready
+status: done
 kind: adr
 owner_role: Kiro
 objective: "Comparar y recomendar lenguaje, runtime y mecanismo de plantillas para cumplir P2-001."
@@ -32,3 +32,6 @@ deliverables:
   - docs/adr/0002-generator-implementation.md
 links:
   - docs/contracts/generator-input-output-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
