@@ -171,3 +171,82 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
     expect(screen.getByTestId('semantic-item-Libro').textContent).not.toContain('123Invalido!');
   });
 });
+
+describe('CaseWeb Visual Association Commands (P4-005)', () => {
+  it('renderiza la asociación del fixture en la lista accesible con identidad y multiplicidades', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    const assocList = screen.getByTestId('semantic-association-list');
+    expect(assocList).toBeInTheDocument();
+
+    const assocItem = screen.getByTestId('semantic-assoc-assoc-01');
+    expect(assocItem.textContent).toContain('escritoPor');
+    expect(assocItem.textContent).toContain('Libro');
+    expect(assocItem.textContent).toContain('Autor');
+    expect(assocItem.textContent).toContain('[0..*]');
+    expect(assocItem.textContent).toContain('[1..*]');
+    expect(assocItem.textContent).toContain('bidirectional');
+  });
+
+  it('crea una asociación válida desde la barra de herramientas y actualiza modelo y vista', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    fireEvent.click(screen.getByTestId('btn-add-association'));
+
+    fireEvent.change(screen.getByTestId('assoc-name-input'), {
+      target: { value: 'escribe' },
+    });
+    // Origen: Autor (cls-02), Destino: Libro (cls-01)
+    fireEvent.change(screen.getByTestId('assoc-source-select'), {
+      target: { value: 'cls-02' },
+    });
+    fireEvent.change(screen.getByTestId('assoc-source-mult-select'), {
+      target: { value: '1..*' },
+    });
+    fireEvent.change(screen.getByTestId('assoc-target-select'), {
+      target: { value: 'cls-01' },
+    });
+    fireEvent.change(screen.getByTestId('assoc-target-mult-select'), {
+      target: { value: '0..*' },
+    });
+    fireEvent.change(screen.getByTestId('assoc-navigability-select'), {
+      target: { value: 'bidirectional' },
+    });
+
+    fireEvent.click(screen.getByTestId('confirm-add-association'));
+
+    // Banner de aceptación con la nueva versión del modelo
+    const banner = screen.getByTestId('command-result-banner');
+    expect(banner.textContent).toContain('Comando aplicado');
+    expect(banner.textContent).toContain('Versión del modelo: 1.0.1');
+
+    // La vista accesible refleja la nueva asociación con sus extremos y multiplicidades
+    const assocList = screen.getByTestId('semantic-association-list');
+    expect(assocList.textContent).toContain('escribe');
+    expect(assocList.textContent).toContain('Autor [1..*] → Libro [0..*] (bidirectional)');
+  });
+
+  it('rechaza la creación cuando origen y destino son la misma clase y no muta el estado', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    fireEvent.click(screen.getByTestId('btn-add-association'));
+
+    // Origen y destino = Libro (auto-asociación no permitida en v1)
+    fireEvent.change(screen.getByTestId('assoc-source-select'), {
+      target: { value: 'cls-01' },
+    });
+    fireEvent.change(screen.getByTestId('assoc-target-select'), {
+      target: { value: 'cls-01' },
+    });
+
+    fireEvent.click(screen.getByTestId('confirm-add-association'));
+
+    const banner = screen.getByTestId('command-result-banner');
+    expect(banner.textContent).toContain('Comando rechazado');
+    expect(banner.textContent).toContain('SELF_ASSOCIATION_NOT_ALLOWED');
+
+    // Solo sigue existiendo la asociación del fixture
+    const assocList = screen.getByTestId('semantic-association-list');
+    expect(assocList.querySelectorAll('li')).toHaveLength(1);
+  });
+});

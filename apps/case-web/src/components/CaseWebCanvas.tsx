@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -7,13 +7,25 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { CanonicalDomainModel } from '../domain/model';
-import { modelToFlowNodes, type FlowNodeCallbacks } from '../adapter/domainModelAdapter';
+import {
+  modelToFlowNodes,
+  modelToFlowEdges,
+  type FlowNodeCallbacks,
+} from '../adapter/domainModelAdapter';
 import { UmlClassNode } from './UmlClassNode';
-import type { CommandExecutionResult } from '../commands/attributeCommands';
+import {
+  ALLOWED_MULTIPLICITIES,
+  type CommandExecutionResult,
+} from '../commands/attributeCommands';
+import {
+  ALLOWED_NAVIGABILITIES,
+  type CreateAssociationInput,
+} from '../commands/associationCommands';
 
 interface CaseWebCanvasProps extends FlowNodeCallbacks {
   model: CanonicalDomainModel;
   lastCommandResult?: CommandExecutionResult | null;
+  onCreateAssociation?: (input: CreateAssociationInput) => void;
 }
 
 export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
@@ -21,6 +33,7 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
   lastCommandResult,
   onAddAttribute,
   onUpdateAttribute,
+  onCreateAssociation,
 }) => {
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
@@ -28,6 +41,38 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
     }),
     []
   );
+
+  const [isAddingAssociation, setIsAddingAssociation] = useState(false);
+  const [assocName, setAssocName] = useState('');
+  const [assocSourceId, setAssocSourceId] = useState('');
+  const [assocTargetId, setAssocTargetId] = useState('');
+  const [assocSourceMult, setAssocSourceMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
+  const [assocTargetMult, setAssocTargetMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
+  const [assocNavigability, setAssocNavigability] = useState<string>(ALLOWED_NAVIGABILITIES[0]);
+
+  const handleStartAddAssociation = () => {
+    setAssocName('');
+    setAssocSourceId(model.classes[0]?.id ?? '');
+    setAssocTargetId(model.classes[1]?.id ?? model.classes[0]?.id ?? '');
+    setAssocSourceMult(ALLOWED_MULTIPLICITIES[0]);
+    setAssocTargetMult(ALLOWED_MULTIPLICITIES[0]);
+    setAssocNavigability(ALLOWED_NAVIGABILITIES[0]);
+    setIsAddingAssociation(true);
+  };
+
+  const handleConfirmAddAssociation = () => {
+    if (onCreateAssociation) {
+      onCreateAssociation({
+        name: assocName.trim() ? assocName.trim() : undefined,
+        sourceClassId: assocSourceId,
+        targetClassId: assocTargetId,
+        sourceMultiplicity: assocSourceMult,
+        targetMultiplicity: assocTargetMult,
+        navigability: assocNavigability,
+      });
+    }
+    setIsAddingAssociation(false);
+  };
 
   const callbacks = useMemo(
     () => ({
@@ -38,6 +83,13 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
   );
 
   const nodes = useMemo(() => modelToFlowNodes(model, callbacks), [model, callbacks]);
+  const edges = useMemo(() => modelToFlowEdges(model), [model]);
+
+  const classNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    model.classes.forEach((c) => map.set(c.id, c.name));
+    return map;
+  }, [model.classes]);
 
   return (
     <div
@@ -68,6 +120,135 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
           {model.classes.length} {model.classes.length === 1 ? 'clase' : 'clases'} renderizadas
         </div>
       </header>
+
+      {/* Barra de herramientas: creación de asociaciones mediante comando */}
+      <div
+        data-testid="association-toolbar"
+        style={{
+          padding: '8px 20px',
+          background: '#f8fafc',
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexWrap: 'wrap',
+          fontSize: '12px',
+        }}
+      >
+        {isAddingAssociation ? (
+          <>
+            <input
+              data-testid="assoc-name-input"
+              placeholder="nombreAsociacion (opcional)"
+              value={assocName}
+              onChange={(e) => setAssocName(e.target.value)}
+              style={{ fontSize: '12px', padding: '3px 6px' }}
+            />
+            <select
+              data-testid="assoc-source-select"
+              aria-label="Clase origen"
+              value={assocSourceId}
+              onChange={(e) => setAssocSourceId(e.target.value)}
+              style={{ fontSize: '12px', padding: '3px' }}
+            >
+              {model.classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="assoc-source-mult-select"
+              aria-label="Multiplicidad origen"
+              value={assocSourceMult}
+              onChange={(e) => setAssocSourceMult(e.target.value)}
+              style={{ fontSize: '12px', padding: '3px' }}
+            >
+              {ALLOWED_MULTIPLICITIES.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <span aria-hidden="true">→</span>
+            <select
+              data-testid="assoc-target-select"
+              aria-label="Clase destino"
+              value={assocTargetId}
+              onChange={(e) => setAssocTargetId(e.target.value)}
+              style={{ fontSize: '12px', padding: '3px' }}
+            >
+              {model.classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="assoc-target-mult-select"
+              aria-label="Multiplicidad destino"
+              value={assocTargetMult}
+              onChange={(e) => setAssocTargetMult(e.target.value)}
+              style={{ fontSize: '12px', padding: '3px' }}
+            >
+              {ALLOWED_MULTIPLICITIES.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="assoc-navigability-select"
+              aria-label="Navegabilidad"
+              value={assocNavigability}
+              onChange={(e) => setAssocNavigability(e.target.value)}
+              style={{ fontSize: '12px', padding: '3px' }}
+            >
+              {ALLOWED_NAVIGABILITIES.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <button
+              data-testid="confirm-add-association"
+              onClick={handleConfirmAddAssociation}
+              style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
+            >
+              Crear
+            </button>
+            <button
+              data-testid="cancel-add-association"
+              onClick={() => setIsAddingAssociation(false)}
+              style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <button
+            data-testid="btn-add-association"
+            onClick={handleStartAddAssociation}
+            disabled={model.classes.length < 2}
+            title={
+              model.classes.length < 2
+                ? 'Se requieren al menos dos clases para crear una asociación'
+                : 'Crear asociación entre dos clases'
+            }
+            style={{
+              background: '#e2e8f0',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '4px 10px',
+              fontSize: '12px',
+              cursor: model.classes.length < 2 ? 'not-allowed' : 'pointer',
+              color: '#334155',
+            }}
+          >
+            + Asociación
+          </button>
+        )}
+      </div>
 
       {/* Banner de resultado del último comando */}
       {lastCommandResult && (
@@ -100,7 +281,7 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
       <main style={{ flex: 1, position: 'relative', minHeight: '400px' }}>
         <ReactFlow
           nodes={nodes}
-          edges={[]}
+          edges={edges}
           nodeTypes={nodeTypes}
           fitView
           nodesFocusable={true}
@@ -140,6 +321,24 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
             </li>
           ))}
         </ul>
+        {model.associations.length > 0 && (
+          <>
+            <h2 style={{ fontSize: '13px', margin: '8px 0 4px 0', color: '#334155' }}>
+              Asociaciones:
+            </h2>
+            <ul data-testid="semantic-association-list" style={{ margin: 0, paddingLeft: '20px' }}>
+              {model.associations.map((assoc) => (
+                <li key={assoc.id} data-testid={`semantic-assoc-${assoc.id}`}>
+                  {assoc.name ? `${assoc.name}: ` : ''}
+                  {classNameById.get(assoc.sourceClassId) ?? assoc.sourceClassId} [
+                  {assoc.sourceMultiplicity}] →{' '}
+                  {classNameById.get(assoc.targetClassId) ?? assoc.targetClassId} [
+                  {assoc.targetMultiplicity}] ({assoc.navigability})
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
     </div>
   );

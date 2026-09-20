@@ -9,6 +9,11 @@ import {
   type AddAttributeCommand,
   type UpdateAttributeCommand,
 } from './commands/attributeCommands';
+import {
+  executeCreateAssociation,
+  type CreateAssociationCommand,
+  type CreateAssociationInput,
+} from './commands/associationCommands';
 
 // Fixture por defecto canónico incrustado para ejecución local/standalone
 export const DEFAULT_CANONICAL_FIXTURE = {
@@ -152,6 +157,35 @@ export const App: React.FC<AppProps> = ({ initialModelData = DEFAULT_CANONICAL_F
     [model]
   );
 
+  const handleCreateAssociation = useCallback(
+    (input: CreateAssociationInput) => {
+      if (!model) return;
+      const command: CreateAssociationCommand = {
+        type: 'CreateAssociation',
+        commandId: `cmd-assoc-${Date.now()}`,
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: {
+          id: `assoc-${Date.now()}`,
+          name: input.name,
+          sourceClassId: input.sourceClassId,
+          targetClassId: input.targetClassId,
+          sourceMultiplicity: input.sourceMultiplicity,
+          targetMultiplicity: input.targetMultiplicity,
+          navigability: input.navigability,
+          description: input.description,
+        },
+      };
+
+      const { updatedModel, result } = executeCreateAssociation(model, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') {
+        setModel(updatedModel);
+      }
+    },
+    [model]
+  );
+
   if (error) {
     return (
       <div
@@ -190,6 +224,7 @@ export const App: React.FC<AppProps> = ({ initialModelData = DEFAULT_CANONICAL_F
       lastCommandResult={lastCommandResult}
       onAddAttribute={handleAddAttribute}
       onUpdateAttribute={handleUpdateAttribute}
+      onCreateAssociation={handleCreateAssociation}
     />
   );
 };

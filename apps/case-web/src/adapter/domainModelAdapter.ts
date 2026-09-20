@@ -4,7 +4,7 @@ import {
   CanonicalAttribute,
   DomainModelContractError,
 } from '../domain/model';
-import type { Node } from '@xyflow/react';
+import { MarkerType, type Node, type Edge } from '@xyflow/react';
 
 export interface UmlClassNodeData {
   [key: string]: unknown;
@@ -162,4 +162,34 @@ export function modelToFlowNodes(
       },
     };
   });
+}
+
+/**
+ * Transforma las asociaciones del modelo canónico en aristas de React Flow.
+ * La etiqueta muestra el nombre (si existe) y las multiplicidades de ambos extremos;
+ * las asociaciones unidireccionales llevan flecha en el extremo destino.
+ */
+export function modelToFlowEdges(model: CanonicalDomainModel): Edge[] {
+  return model.associations.map((assoc) => ({
+    id: assoc.id,
+    source: assoc.sourceClassId,
+    target: assoc.targetClassId,
+    label: assoc.name
+      ? `${assoc.name}  [${assoc.sourceMultiplicity} → ${assoc.targetMultiplicity}]`
+      : `[${assoc.sourceMultiplicity} → ${assoc.targetMultiplicity}]`,
+    labelBgPadding: [4, 2] as [number, number],
+    labelBgBorderRadius: 4,
+    labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.85 },
+    style: { stroke: '#475569', strokeWidth: 1.5 },
+    markerEnd:
+      assoc.navigability === 'unidirectional'
+        ? { type: MarkerType.ArrowClosed, color: '#475569' }
+        : undefined,
+    data: {
+      name: assoc.name,
+      sourceMultiplicity: assoc.sourceMultiplicity,
+      targetMultiplicity: assoc.targetMultiplicity,
+      navigability: assoc.navigability,
+    },
+  }));
 }

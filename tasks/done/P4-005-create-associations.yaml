@@ -1,7 +1,7 @@
 id: P4-005
 title: "Crear asociaciones mediante comandos"
 phase: 4
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Agregar creación visual de una asociación entre dos clases mediante un comando validado."
@@ -31,3 +31,6 @@ deliverables:
   - apps/case-web/
 links:
   - docs/contracts/model-commands-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
