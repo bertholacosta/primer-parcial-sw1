@@ -1,7 +1,7 @@
 id: P3-002
 title: "Resolver ADR de estado y almacenamiento móvil"
 phase: 3
-status: ready
+status: done
 kind: adr
 owner_role: Kiro
 objective: "Comparar y seleccionar, con aprobación, la estrategia Flutter de estado, persistencia, migración y cola offline."
@@ -32,3 +32,6 @@ deliverables:
   - docs/adr/0004-mobile-state-and-storage.md
 links:
   - docs/contracts/mobile-offline-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
