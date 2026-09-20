@@ -1,7 +1,7 @@
 id: P2-005
 title: "Compilar fixture generado y emitir descriptor Flutter"
 phase: 2
-status: planned
+status: ready
 kind: test
 owner_role: Devin CLI / SWE-2
 objective: "Generar desde el fixture canónico, compilar el proyecto resultante y verificar el descriptor Flutter versionado."
