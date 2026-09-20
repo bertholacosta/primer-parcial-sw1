@@ -121,7 +121,7 @@ describe("núcleo del generador — salida exitosa y reproducibilidad", () => {
     const result = run(fixturePath("valid-minimal.json"), out) as GenerateSuccess;
     expect(result.outcome).toBe("succeeded");
     expect(result.filesWritten).toContain("generation-manifest.json");
-    expect(result.filesWritten).toHaveLength(13);
+    expect(result.filesWritten).toHaveLength(14);
     expect(result.plannedArtifacts).toHaveLength(10);
 
     const manifest = JSON.parse(
@@ -137,7 +137,7 @@ describe("núcleo del generador — salida exitosa y reproducibilidad", () => {
     expect(manifest.basePackage).toBe("com.example.biblioteca");
     expect(manifest.artifactId).toBe("biblioteca");
     expect(manifest.groupId).toBe("com.example");
-    expect(manifest.files).toHaveLength(12);
+    expect(manifest.files).toHaveLength(13);
 
     const autorPath = path.join(out, "src/main/java/com/example/biblioteca/biblioteca/entity/AutorEntity.java");
     expect(fs.existsSync(autorPath)).toBe(true);

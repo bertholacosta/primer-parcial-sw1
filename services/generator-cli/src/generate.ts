@@ -108,6 +108,7 @@ export function generate(input: GenerateInput): GenerateResult {
     const globalContext = {
       groupId: config.groupId,
       artifactId: config.artifactId,
+      basePackage: config.basePackage,
     };
 
     const globalFiles = [
@@ -118,6 +119,10 @@ export function generate(input: GenerateInput): GenerateResult {
       {
         relativePath: "src/main/resources/application.yml",
         content: () => engine.render("application", globalContext)
+      },
+      {
+        relativePath: `src/main/java/${config.basePackage.replace(/\./g, "/")}/Application.java`,
+        content: () => engine.render("applicationClass", globalContext)
       }
     ];
 

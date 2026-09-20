@@ -1,0 +1,8 @@
+{
+  "outputDir": ".",
+  "basePackage": "com.example.biblioteca",
+  "artifactId": "biblioteca-api",
+  "groupId": "com.example",
+  "generatorVersion": "1.0.0",
+  "templateSetId": "spring-boot-v1"
+}

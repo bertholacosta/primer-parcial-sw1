@@ -192,10 +192,11 @@ export function getTemplateEngine(templateDir: string) {
     controller: Handlebars.compile(fs.readFileSync(path.join(templateDir, "controller.hbs"), "utf-8"), { noEscape: true }),
     pom: Handlebars.compile(fs.readFileSync(path.join(templateDir, "pom.hbs"), "utf-8"), { noEscape: true }),
     application: Handlebars.compile(fs.readFileSync(path.join(templateDir, "application.hbs"), "utf-8"), { noEscape: true }),
+    applicationClass: Handlebars.compile(fs.readFileSync(path.join(templateDir, "applicationClass.hbs"), "utf-8"), { noEscape: true }),
   };
 
   return {
-    render(layer: "entity" | "dto" | "repository" | "service" | "controller" | "pom" | "application", context: Record<string, unknown>): string {
+    render(layer: "entity" | "dto" | "repository" | "service" | "controller" | "pom" | "application" | "applicationClass", context: Record<string, unknown>): string {
       return templates[layer](context);
     }
   };
