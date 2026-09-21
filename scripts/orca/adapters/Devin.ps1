@@ -69,8 +69,9 @@ function New-DevinInvocation {
         [string]$SessionId
     )
 
+    $permissionMode = if ($env:DEVIN_PERMISSION_MODE) { $env:DEVIN_PERMISSION_MODE } else { 'dangerous' }
     $arguments = @(
-        '--permission-mode', 'accept-edits',
+        '--permission-mode', $permissionMode,
         '--respect-workspace-trust', 'false',
         '--prompt-file', $PromptPath,
         '--export', (Join-Path $RunDirectory 'devin-session.json')
