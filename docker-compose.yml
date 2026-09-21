@@ -1,0 +1,24 @@
+# PostgreSQL de desarrollo para model-server.
+# Uso: docker compose up -d   →   DATABASE_URL=postgres://postgres:postgres@localhost:5432/case
+# Solo desarrollo local: credenciales triviales y sin TLS.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: case-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: case
+    ports:
+      - "5432:5432"
+    volumes:
+      - case-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d case"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  case-pgdata:
