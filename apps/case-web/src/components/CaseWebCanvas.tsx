@@ -228,9 +228,16 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
 
   /* ---------------- Movimiento libre y borrado ---------------- */
 
-  const handleNodeDragStop = useCallback((_e: MouseEvent | TouchEvent, node: Node) => {
-    setPositions((prev) => ({ ...prev, [node.id]: node.position }));
-  }, []);
+  const handleNodeDrag = useCallback(
+    (_e: MouseEvent | TouchEvent, _node: Node, dragged: Node[]) => {
+      setPositions((prev) => {
+        const next = { ...prev };
+        for (const n of dragged) next[n.id] = n.position;
+        return next;
+      });
+    },
+    []
+  );
 
   const handleNodesDelete = useCallback(
     (deleted: Node[]) => {
@@ -449,7 +456,8 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onConnect={editable ? handleConnect : undefined}
-            onNodeDragStop={handleNodeDragStop}
+            onNodeDrag={handleNodeDrag}
+            onNodeDragStop={handleNodeDrag}
             onNodesDelete={editable ? handleNodesDelete : undefined}
             onEdgesDelete={editable ? handleEdgesDelete : undefined}
             aria-label="Diagrama UML de clases"
