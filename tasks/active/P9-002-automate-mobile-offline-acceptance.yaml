@@ -1,7 +1,7 @@
 id: P9-002
 title: "Automatizar aceptación móvil y offline"
 phase: 9
-status: ready
+status: active
 kind: test
 owner_role: Devin CLI / SWE-2
 objective: "Automatizar carga dinámica, edición, reinicio sin red y reintento idempotente en Android."

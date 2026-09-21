@@ -52,12 +52,31 @@ pipeline degrada al parser determinista sin perder el escenario.
   T1–T5 de ADR-0005: propuestas validadas, evidenciadas y confirmables,
   presupuesto de latencia (< 5 s) y cero mutación sin confirmación.
 
+## Aceptación móvil y offline (P9-002)
+
+Escenario automatizado de `mobile-offline` v1 sin intervención manual:
+carga dinámica del descriptor versionado → edición en el formulario
+dinámico → reinicio sin red (la operación `pending` y el snapshot del
+descriptor sobreviven en `FileOfflineStorage`) → reintento idempotente
+(mismo `operationId`, sin duplicados ni reenvíos tras `confirmed`).
+
+- `test/mobile_offline_acceptance_test.dart` — la prueba reproduce el
+  escenario completo y emite evidencia machine-readable en
+  `build/mobile-offline-acceptance/evidence.json` (ignorada por git):
+  descriptor usado (`sourceModelSha256`), línea de tiempo de
+  conectividad, entregas de transporte y contadores de duplicados.
+- `scripts/validate-mobile-offline.ps1` — compuerta que ejecuta la
+  prueba y valida la evidencia. Con `-WithDevice` añade una etapa adb:
+  compila e instala el APK, activa modo avión y fuerza un reinicio en
+  frío de la app sin red.
+
 ## Validación
 
 ```powershell
 git diff --check -- apps/mobile-flutter
 Push-Location apps/mobile-flutter; flutter analyze; Pop-Location
 Push-Location apps/mobile-flutter; flutter test; Pop-Location
+pwsh -File scripts/validate-mobile-offline.ps1
 ```
 
 Compuertas en dispositivo/emulador (ADR-0005, modo avión):
