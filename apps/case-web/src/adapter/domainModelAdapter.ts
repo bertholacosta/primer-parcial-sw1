@@ -210,6 +210,7 @@ export function modelToFlowNodes(
 export function modelToFlowEdges(model: CanonicalDomainModel): Edge[] {
   return model.associations.map((assoc) => ({
     id: assoc.id,
+    type: 'straight',
     source: assoc.sourceClassId,
     target: assoc.targetClassId,
     label: assoc.name

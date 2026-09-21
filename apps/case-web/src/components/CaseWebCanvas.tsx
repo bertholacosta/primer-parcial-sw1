@@ -5,6 +5,7 @@ import {
   Background,
   Controls,
   useReactFlow,
+  ConnectionLineType,
   type NodeTypes,
   type Connection,
   type Node,
@@ -430,6 +431,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             fitView
             nodesFocusable={true}
             edgesFocusable={false}
+            connectionLineType={ConnectionLineType.Straight}
             nodesConnectable={editable}
             nodesDraggable={true}
             elementsSelectable={true}
