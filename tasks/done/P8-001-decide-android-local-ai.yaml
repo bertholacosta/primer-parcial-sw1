@@ -1,7 +1,7 @@
 id: P8-001
 title: "Resolver ADR de voz e IA local Android"
 phase: 8
-status: ready
+status: done
 kind: adr
 owner_role: Antigravity
 objective: "Comparar y recomendar runtimes/modelos offline para voz e interpretación local en el dispositivo objetivo."
@@ -32,3 +32,6 @@ deliverables:
   - docs/adr/0005-android-local-ai.md
 links:
   - docs/contracts/multimodal-proposals-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
