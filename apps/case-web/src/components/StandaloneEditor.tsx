@@ -11,14 +11,25 @@ import {
 } from '../commands/attributeCommands';
 import {
   executeCreateAssociation,
+  executeDeleteAssociation,
   type CreateAssociationCommand,
+  type DeleteAssociationCommand,
   type CreateAssociationInput,
 } from '../commands/associationCommands';
 import {
   executeCreateClass,
+  executeRenameClass,
+  executeDeleteClass,
+  executeCreatePackage,
+  executeDeletePackage,
   type CreateClassCommand,
+  type RenameClassCommand,
+  type DeleteClassCommand,
+  type CreatePackageCommand,
+  type DeletePackageCommand,
   type CreateClassInput,
 } from '../commands/classCommands';
+import type { CreatePackageInput } from './CaseWebCanvas';
 
 // Fixture por defecto canónico incrustado para ejecución local/standalone
 export const DEFAULT_CANONICAL_FIXTURE = {
@@ -174,7 +185,7 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
         modelId: model.id,
         modelVersion: model.version,
         payload: {
-          classId: `cls-${Date.now()}`,
+          classId: input.classId,
           name: input.name,
           packageId: input.packageId,
           isAbstract: input.isAbstract,
@@ -219,6 +230,91 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
     [model]
   );
 
+  const handleRenameClass = useCallback(
+    (classId: string, newName: string) => {
+      if (!model) return;
+      const command: RenameClassCommand = {
+        type: 'RenameClass',
+        commandId: `cmd-ren-${Date.now()}`,
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: { classId, newName },
+      };
+      const { updatedModel, result } = executeRenameClass(model, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') setModel(updatedModel);
+    },
+    [model]
+  );
+
+  const handleDeleteClass = useCallback(
+    (classId: string) => {
+      if (!model) return;
+      const command: DeleteClassCommand = {
+        type: 'DeleteClass',
+        commandId: `cmd-del-${Date.now()}`,
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: { classId },
+      };
+      const { updatedModel, result } = executeDeleteClass(model, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') setModel(updatedModel);
+    },
+    [model]
+  );
+
+  const handleCreatePackage = useCallback(
+    (input: CreatePackageInput) => {
+      if (!model) return;
+      const command: CreatePackageCommand = {
+        type: 'CreatePackage',
+        commandId: `cmd-pkg-${Date.now()}`,
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: { packageId: input.packageId, name: input.name },
+      };
+      const { updatedModel, result } = executeCreatePackage(model, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') setModel(updatedModel);
+    },
+    [model]
+  );
+
+  const handleDeletePackage = useCallback(
+    (packageId: string) => {
+      if (!model) return;
+      const command: DeletePackageCommand = {
+        type: 'DeletePackage',
+        commandId: `cmd-delpkg-${Date.now()}`,
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: { packageId },
+      };
+      const { updatedModel, result } = executeDeletePackage(model, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') setModel(updatedModel);
+    },
+    [model]
+  );
+
+  const handleDeleteAssociation = useCallback(
+    (associationId: string) => {
+      if (!model) return;
+      const command: DeleteAssociationCommand = {
+        type: 'DeleteAssociation',
+        commandId: `cmd-delassoc-${Date.now()}`,
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: { associationId },
+      };
+      const { updatedModel, result } = executeDeleteAssociation(model, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') setModel(updatedModel);
+    },
+    [model]
+  );
+
   if (error) {
     return (
       <div
@@ -259,6 +355,11 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
       onUpdateAttribute={handleUpdateAttribute}
       onCreateAssociation={handleCreateAssociation}
       onCreateClass={handleCreateClass}
+      onRenameClass={handleRenameClass}
+      onDeleteClass={handleDeleteClass}
+      onCreatePackage={handleCreatePackage}
+      onDeletePackage={handleDeletePackage}
+      onDeleteAssociation={handleDeleteAssociation}
     />
   );
 };

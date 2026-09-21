@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
+import { ReactFlowProvider } from '@xyflow/react';
 import { describe, it, expect } from 'vitest';
 import { App, DEFAULT_CANONICAL_FIXTURE } from '../App';
 import { UmlClassNode } from '../components/UmlClassNode';
@@ -68,7 +69,11 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
       },
     };
 
-    render(<UmlClassNode {...(mockNode as any)} />);
+    render(
+      <ReactFlowProvider>
+        <UmlClassNode {...(mockNode as any)} />
+      </ReactFlowProvider>
+    );
 
     // Figura ARIA
     const figure = screen.getByRole('figure');
@@ -95,7 +100,11 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
       },
     };
 
-    render(<UmlClassNode {...(abstractNode as any)} />);
+    render(
+      <ReactFlowProvider>
+        <UmlClassNode {...(abstractNode as any)} />
+      </ReactFlowProvider>
+    );
 
     expect(screen.getByTestId('abstract-tag')).toHaveTextContent('«abstract»');
     expect(screen.getByText('(sin atributos)')).toBeInTheDocument();
@@ -251,37 +260,45 @@ describe('CaseWeb Visual Association Commands (P4-005)', () => {
   });
 });
 
-describe('CaseWeb CreateClass Command', () => {
-  it('crea una clase desde la barra de herramientas y la refleja en la vista', () => {
+describe('CaseWeb Palette & CreateClass Command', () => {
+  it('crea una clase desde la paleta y la refleja en la vista', () => {
     render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
 
-    fireEvent.click(screen.getByTestId('btn-add-class'));
-    fireEvent.change(screen.getByTestId('class-name-input'), {
-      target: { value: 'Prestamo' },
-    });
-    fireEvent.click(screen.getByTestId('confirm-add-class'));
+    fireEvent.click(screen.getByTestId('palette-item-class'));
 
     const banner = screen.getByTestId('command-result-banner');
     expect(banner.textContent).toContain('Comando aplicado');
     expect(banner.textContent).toContain('Versión del modelo: 1.0.1');
 
-    expect(screen.getByTestId('semantic-item-Prestamo')).toBeInTheDocument();
     expect(screen.getByText(/3 clases renderizadas/i)).toBeInTheDocument();
   });
 
-  it('rechaza un nombre duplicado en el mismo ámbito sin mutar el modelo', () => {
+  it('renombra una clase con doble clic sobre el nombre', () => {
     render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
 
-    fireEvent.click(screen.getByTestId('btn-add-class'));
-    fireEvent.change(screen.getByTestId('class-name-input'), {
-      target: { value: 'Libro' },
-    });
-    fireEvent.click(screen.getByTestId('confirm-add-class'));
+    fireEvent.doubleClick(screen.getByTestId('class-name-Libro'));
+    const input = screen.getByTestId('rename-class-input-cls-01');
+    fireEvent.change(input, { target: { value: 'Ejemplar' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    const banner = screen.getByTestId('command-result-banner');
+    expect(banner.textContent).toContain('Comando aplicado');
+    expect(screen.getByTestId('semantic-item-Ejemplar')).toBeInTheDocument();
+  });
+
+  it('rechaza un renombrado a nombre duplicado en el mismo ámbito sin mutar el modelo', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    fireEvent.doubleClick(screen.getByTestId('class-name-Libro'));
+    const input = screen.getByTestId('rename-class-input-cls-01');
+    fireEvent.change(input, { target: { value: 'Autor' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
 
     const banner = screen.getByTestId('command-result-banner');
     expect(banner.textContent).toContain('Comando rechazado');
     expect(banner.textContent).toContain('DUPLICATE_CLASS_NAME');
 
-    expect(screen.getByText(/2 clases renderizadas/i)).toBeInTheDocument();
+    expect(screen.getByTestId('semantic-item-Libro')).toBeInTheDocument();
+    expect(screen.getByTestId('semantic-item-Autor')).toBeInTheDocument();
   });
 });

@@ -85,7 +85,10 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
     const model = parseDomainModel(DEFAULT_CANONICAL_FIXTURE);
     const nodes = modelToFlowNodes(model);
 
-    expect(nodes).toHaveLength(2);
+    // 2 clases + 1 paquete del fixture
+    expect(nodes).toHaveLength(3);
+    expect(nodes.filter((n) => n.type === 'umlClass')).toHaveLength(2);
+    expect(nodes.filter((n) => n.type === 'umlPackage')).toHaveLength(1);
 
     const libroNode = nodes.find((n) => n.id === 'cls-01');
     expect(libroNode).toBeDefined();
@@ -127,10 +130,11 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
 
     const parsed = parseDomainModel(customModel);
     const nodes = modelToFlowNodes(parsed);
+    const classNodes = nodes.filter((n) => n.type === 'umlClass');
 
-    expect(nodes).toHaveLength(1);
-    expect(nodes[0].data.name).toBe('Paciente');
-    expect(nodes[0].data.isAbstract).toBe(true);
-    expect(nodes[0].data.attributes[0].name).toBe('historiaClinica');
+    expect(classNodes).toHaveLength(1);
+    expect(classNodes[0].data.name).toBe('Paciente');
+    expect(classNodes[0].data.isAbstract).toBe(true);
+    expect(classNodes[0].data.attributes[0].name).toBe('historiaClinica');
   });
 });

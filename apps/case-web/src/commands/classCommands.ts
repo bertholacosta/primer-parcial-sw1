@@ -18,10 +18,39 @@ export interface CreateClassPayload {
 export type CreateClassCommand = BaseCommand<'CreateClass', CreateClassPayload>;
 
 export interface CreateClassInput {
+  /** Id generado por el emisor (el canvas lo necesita para anclar la posición de drop). */
+  classId: string;
   name: string;
   packageId?: string;
   isAbstract?: boolean;
 }
+
+export interface RenameClassPayload {
+  classId: string;
+  newName: string;
+}
+
+export type RenameClassCommand = BaseCommand<'RenameClass', RenameClassPayload>;
+
+export interface DeleteClassPayload {
+  classId: string;
+}
+
+export type DeleteClassCommand = BaseCommand<'DeleteClass', DeleteClassPayload>;
+
+export interface CreatePackagePayload {
+  packageId: string;
+  name: string;
+  description?: string;
+}
+
+export type CreatePackageCommand = BaseCommand<'CreatePackage', CreatePackagePayload>;
+
+export interface DeletePackagePayload {
+  packageId: string;
+}
+
+export type DeletePackageCommand = BaseCommand<'DeletePackage', DeletePackagePayload>;
 
 /**
  * Procesa un comando CreateClass verificando las precondiciones del contrato
@@ -121,4 +150,149 @@ export function executeCreateClass(
     updatedModel,
     result: { result: 'accepted', commandId, modelVersion: nextVersion },
   };
+}
+
+/** Renombra una clase: precondiciones de unicidad de nombre en el ámbito y formato. */
+export function executeRenameClass(
+  model: CanonicalDomainModel,
+  command: RenameClassCommand
+): { updatedModel: CanonicalDomainModel; result: CommandExecutionResult } {
+  const errors: CommandError[] = [];
+  const { payload, commandId, modelVersion, modelId } = command;
+
+  if (model.id !== modelId) {
+    errors.push({ code: 'MODEL_NOT_FOUND', message: `El modelo con id '${modelId}' no coincide con el modelo actual '${model.id}'.`, severity: 'ERROR', path: '$.modelId' });
+  }
+  if (model.version !== modelVersion) {
+    errors.push({ code: 'CONCURRENT_MODIFICATION', message: `Versión del modelo esperada '${modelVersion}', pero la actual es '${model.version}'.`, severity: 'ERROR', path: '$.modelVersion' });
+  }
+  const target = model.classes.find((c) => c.id === payload.classId);
+  if (!target) {
+    errors.push({ code: 'CLASS_NOT_FOUND', message: `No existe la clase con id '${payload.classId}'.`, severity: 'ERROR', path: '$.payload.classId' });
+  } else if (
+    model.classes.some(
+      (c) => c.id !== payload.classId && c.name === payload.newName && (c.packageId ?? null) === (target.packageId ?? null)
+    )
+  ) {
+    errors.push({ code: 'DUPLICATE_CLASS_NAME', message: `Ya existe otra clase con nombre '${payload.newName}' en el mismo ámbito de paquete.`, severity: 'ERROR', path: '$.payload.newName' });
+  }
+  if (!IDENTIFIER_PATTERN.test(payload.newName)) {
+    errors.push({ code: 'INVALID_NAME_FORMAT', message: `El nombre '${payload.newName}' no cumple con el patrón [A-Za-z_][A-Za-z0-9_]*.`, severity: 'ERROR', path: '$.payload.newName' });
+  }
+  if (errors.length > 0) {
+    return { updatedModel: model, result: { result: 'rejected', commandId, modelVersion: model.version, errors } };
+  }
+
+  const nextVersion = incrementPatchVersion(model.version);
+  const updatedModel: CanonicalDomainModel = {
+    ...model,
+    version: nextVersion,
+    classes: model.classes.map((c) => (c.id === payload.classId ? { ...c, name: payload.newName } : c)),
+  };
+  return { updatedModel, result: { result: 'accepted', commandId, modelVersion: nextVersion } };
+}
+
+/** Elimina una clase y todas las asociaciones que la referencian. */
+export function executeDeleteClass(
+  model: CanonicalDomainModel,
+  command: DeleteClassCommand
+): { updatedModel: CanonicalDomainModel; result: CommandExecutionResult } {
+  const errors: CommandError[] = [];
+  const { payload, commandId, modelVersion, modelId } = command;
+
+  if (model.id !== modelId) {
+    errors.push({ code: 'MODEL_NOT_FOUND', message: `El modelo con id '${modelId}' no coincide con el modelo actual '${model.id}'.`, severity: 'ERROR', path: '$.modelId' });
+  }
+  if (model.version !== modelVersion) {
+    errors.push({ code: 'CONCURRENT_MODIFICATION', message: `Versión del modelo esperada '${modelVersion}', pero la actual es '${model.version}'.`, severity: 'ERROR', path: '$.modelVersion' });
+  }
+  if (!model.classes.some((c) => c.id === payload.classId)) {
+    errors.push({ code: 'CLASS_NOT_FOUND', message: `No existe la clase con id '${payload.classId}'.`, severity: 'ERROR', path: '$.payload.classId' });
+  }
+  if (errors.length > 0) {
+    return { updatedModel: model, result: { result: 'rejected', commandId, modelVersion: model.version, errors } };
+  }
+
+  const nextVersion = incrementPatchVersion(model.version);
+  const updatedModel: CanonicalDomainModel = {
+    ...model,
+    version: nextVersion,
+    classes: model.classes.filter((c) => c.id !== payload.classId),
+    associations: model.associations.filter(
+      (a) => a.sourceClassId !== payload.classId && a.targetClassId !== payload.classId
+    ),
+  };
+  return { updatedModel, result: { result: 'accepted', commandId, modelVersion: nextVersion } };
+}
+
+/** Crea un paquete UML de primer nivel. */
+export function executeCreatePackage(
+  model: CanonicalDomainModel,
+  command: CreatePackageCommand
+): { updatedModel: CanonicalDomainModel; result: CommandExecutionResult } {
+  const errors: CommandError[] = [];
+  const { payload, commandId, modelVersion, modelId } = command;
+
+  if (model.id !== modelId) {
+    errors.push({ code: 'MODEL_NOT_FOUND', message: `El modelo con id '${modelId}' no coincide con el modelo actual '${model.id}'.`, severity: 'ERROR', path: '$.modelId' });
+  }
+  if (model.version !== modelVersion) {
+    errors.push({ code: 'CONCURRENT_MODIFICATION', message: `Versión del modelo esperada '${modelVersion}', pero la actual es '${model.version}'.`, severity: 'ERROR', path: '$.modelVersion' });
+  }
+  if (model.packages.some((p) => p.id === payload.packageId)) {
+    errors.push({ code: 'DUPLICATE_ID', message: `Ya existe un paquete con id '${payload.packageId}'.`, severity: 'ERROR', path: '$.payload.packageId' });
+  }
+  if (model.packages.some((p) => p.name === payload.name && !p.parentId)) {
+    errors.push({ code: 'DUPLICATE_PACKAGE_NAME', message: `Ya existe un paquete con nombre '${payload.name}' en el nivel raíz.`, severity: 'ERROR', path: '$.payload.name' });
+  }
+  if (!IDENTIFIER_PATTERN.test(payload.name)) {
+    errors.push({ code: 'INVALID_NAME_FORMAT', message: `El nombre '${payload.name}' no cumple con el patrón [A-Za-z_][A-Za-z0-9_]*.`, severity: 'ERROR', path: '$.payload.name' });
+  }
+  if (errors.length > 0) {
+    return { updatedModel: model, result: { result: 'rejected', commandId, modelVersion: model.version, errors } };
+  }
+
+  const nextVersion = incrementPatchVersion(model.version);
+  const updatedModel: CanonicalDomainModel = {
+    ...model,
+    version: nextVersion,
+    packages: [...model.packages, { id: payload.packageId, name: payload.name, description: payload.description }],
+  };
+  return { updatedModel, result: { result: 'accepted', commandId, modelVersion: nextVersion } };
+}
+
+/** Elimina un paquete vacío (sin clases ni subpaquetes). */
+export function executeDeletePackage(
+  model: CanonicalDomainModel,
+  command: DeletePackageCommand
+): { updatedModel: CanonicalDomainModel; result: CommandExecutionResult } {
+  const errors: CommandError[] = [];
+  const { payload, commandId, modelVersion, modelId } = command;
+
+  if (model.id !== modelId) {
+    errors.push({ code: 'MODEL_NOT_FOUND', message: `El modelo con id '${modelId}' no coincide con el modelo actual '${model.id}'.`, severity: 'ERROR', path: '$.modelId' });
+  }
+  if (model.version !== modelVersion) {
+    errors.push({ code: 'CONCURRENT_MODIFICATION', message: `Versión del modelo esperada '${modelVersion}', pero la actual es '${model.version}'.`, severity: 'ERROR', path: '$.modelVersion' });
+  }
+  if (!model.packages.some((p) => p.id === payload.packageId)) {
+    errors.push({ code: 'PACKAGE_NOT_FOUND', message: `No existe el paquete con id '${payload.packageId}'.`, severity: 'ERROR', path: '$.payload.packageId' });
+  }
+  if (model.classes.some((c) => c.packageId === payload.packageId)) {
+    errors.push({ code: 'PACKAGE_NOT_EMPTY', message: `El paquete contiene clases; reasigna o elimina las clases primero.`, severity: 'ERROR', path: '$.payload.packageId' });
+  }
+  if (model.packages.some((p) => p.parentId === payload.packageId)) {
+    errors.push({ code: 'PACKAGE_HAS_CHILDREN', message: `El paquete contiene subpaquetes; elimínalos primero.`, severity: 'ERROR', path: '$.payload.packageId' });
+  }
+  if (errors.length > 0) {
+    return { updatedModel: model, result: { result: 'rejected', commandId, modelVersion: model.version, errors } };
+  }
+
+  const nextVersion = incrementPatchVersion(model.version);
+  const updatedModel: CanonicalDomainModel = {
+    ...model,
+    version: nextVersion,
+    packages: model.packages.filter((p) => p.id !== payload.packageId),
+  };
+  return { updatedModel, result: { result: 'accepted', commandId, modelVersion: nextVersion } };
 }

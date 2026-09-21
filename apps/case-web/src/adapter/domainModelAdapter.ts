@@ -16,9 +16,24 @@ export interface UmlClassNodeData {
   readOnly?: boolean;
   onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string) => void;
   onUpdateAttribute?: (classId: string, attributeId: string, newName: string) => void;
+  onRenameClass?: (classId: string, newName: string) => void;
 }
 
 export type UmlClassFlowNode = Node<UmlClassNodeData, 'umlClass'>;
+
+export interface UmlPackageNodeData {
+  [key: string]: unknown;
+  id: string;
+  name: string;
+  readOnly?: boolean;
+}
+
+export type UmlPackageFlowNode = Node<UmlPackageNodeData, 'umlPackage'>;
+
+export type AnyFlowNode = UmlClassFlowNode | UmlPackageFlowNode;
+
+/** Posiciones visuales por id de elemento; el modelo canónico es solo semántico. */
+export type LayoutPositions = Record<string, { x: number; y: number }>;
 
 /**
  * Parsea y valida un documento de modelo de dominio canónico según docs/contracts/domain-model-v1.md.
@@ -130,29 +145,32 @@ export interface FlowNodeCallbacks {
   readOnly?: boolean;
   onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string) => void;
   onUpdateAttribute?: (classId: string, attributeId: string, newName: string) => void;
+  onRenameClass?: (classId: string, newName: string) => void;
 }
 
 export function modelToFlowNodes(
   model: CanonicalDomainModel,
-  callbacks?: FlowNodeCallbacks
-): UmlClassFlowNode[] {
+  callbacks?: FlowNodeCallbacks,
+  positions: LayoutPositions = {}
+): AnyFlowNode[] {
   const columns = 2;
   const colSpacing = 320;
   const rowSpacing = 240;
   const startX = 60;
   const startY = 60;
 
-  return model.classes.map((cls, index) => {
+  const classNodes: UmlClassFlowNode[] = model.classes.map((cls, index) => {
     const col = index % columns;
     const row = Math.floor(index / columns);
+    const fallback = {
+      x: startX + col * colSpacing,
+      y: startY + row * rowSpacing,
+    };
 
     return {
       id: cls.id,
-      type: 'umlClass',
-      position: {
-        x: startX + col * colSpacing,
-        y: startY + row * rowSpacing,
-      },
+      type: 'umlClass' as const,
+      position: positions[cls.id] ?? fallback,
       data: {
         id: cls.id,
         name: cls.name,
@@ -162,9 +180,26 @@ export function modelToFlowNodes(
         readOnly: callbacks?.readOnly,
         onAddAttribute: callbacks?.readOnly ? undefined : callbacks?.onAddAttribute,
         onUpdateAttribute: callbacks?.readOnly ? undefined : callbacks?.onUpdateAttribute,
+        onRenameClass: callbacks?.readOnly ? undefined : callbacks?.onRenameClass,
       },
     };
   });
+
+  const packageNodes: UmlPackageFlowNode[] = model.packages.map((pkg, index) => ({
+    id: pkg.id,
+    type: 'umlPackage' as const,
+    position: positions[pkg.id] ?? {
+      x: startX + index * 260,
+      y: startY - 140,
+    },
+    data: {
+      id: pkg.id,
+      name: pkg.name,
+      readOnly: callbacks?.readOnly,
+    },
+  }));
+
+  return [...packageNodes, ...classNodes];
 }
 
 /**

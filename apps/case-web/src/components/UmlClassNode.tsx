@@ -1,9 +1,18 @@
 import React, { useState } from 'react';
-import type { NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { UmlClassFlowNode } from '../adapter/domainModelAdapter';
+
+const handleStyle: React.CSSProperties = {
+  width: 8,
+  height: 8,
+  background: '#0284c7',
+  border: '1px solid #ffffff',
+};
 
 export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data }) => {
   const [isAdding, setIsAdding] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
   const [newAttrName, setNewAttrName] = useState('');
   const [newAttrType, setNewAttrType] = useState('String');
   const [editingAttrId, setEditingAttrId] = useState<string | null>(null);
@@ -21,6 +30,20 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data }) =>
     }
     setIsAdding(false);
     setNewAttrName('');
+  };
+
+  const handleStartRename = () => {
+    if (data.readOnly || !data.onRenameClass) return;
+    setRenameValue(data.name);
+    setIsRenaming(true);
+  };
+
+  const handleConfirmRename = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== data.name && data.onRenameClass) {
+      data.onRenameClass(data.id, trimmed);
+    }
+    setIsRenaming(false);
   };
 
   const handleStartEdit = (attrId: string, currentName: string) => {
@@ -74,16 +97,34 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data }) =>
             &laquo;abstract&raquo;
           </div>
         )}
-        <div
-          data-testid={`class-name-${data.name}`}
-          style={{
-            fontWeight: 700,
-            fontSize: '14px',
-            fontStyle: data.isAbstract ? 'italic' : 'normal',
-          }}
-        >
-          {data.name}
-        </div>
+        {isRenaming ? (
+          <input
+            data-testid={`rename-class-input-${data.id}`}
+            value={renameValue}
+            autoFocus
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={handleConfirmRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleConfirmRename();
+              if (e.key === 'Escape') setIsRenaming(false);
+            }}
+            style={{ fontSize: '14px', fontWeight: 700, textAlign: 'center', width: '90%', padding: '1px 4px' }}
+          />
+        ) : (
+          <div
+            data-testid={`class-name-${data.name}`}
+            onDoubleClick={handleStartRename}
+            title={data.readOnly ? undefined : 'Doble clic para renombrar'}
+            style={{
+              fontWeight: 700,
+              fontSize: '14px',
+              fontStyle: data.isAbstract ? 'italic' : 'normal',
+              cursor: data.readOnly || !data.onRenameClass ? 'default' : 'text',
+            }}
+          >
+            {data.name}
+          </div>
+        )}
       </div>
 
       {/* Compartimento de Atributos */}
@@ -172,6 +213,20 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data }) =>
           </div>
         )}
       </div>
+
+      {/* Handles de conexión en los cuatro lados (interacción estilo Apollon) */}
+      {!data.readOnly && (
+        <>
+          <Handle type="source" position={Position.Top} id="top" style={handleStyle} />
+          <Handle type="source" position={Position.Right} id="right" style={handleStyle} />
+          <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
+          <Handle type="source" position={Position.Left} id="left" style={handleStyle} />
+          <Handle type="target" position={Position.Top} id="top-t" style={{ ...handleStyle, background: '#94a3b8' }} />
+          <Handle type="target" position={Position.Right} id="right-t" style={{ ...handleStyle, background: '#94a3b8' }} />
+          <Handle type="target" position={Position.Bottom} id="bottom-t" style={{ ...handleStyle, background: '#94a3b8' }} />
+          <Handle type="target" position={Position.Left} id="left-t" style={{ ...handleStyle, background: '#94a3b8' }} />
+        </>
+      )}
 
       {/* Pie para agregar atributo mediante comando */}
       <div

@@ -17,6 +17,7 @@ import type { CanonicalDomainModel } from '../domain/model';
 import type { CommandExecutionResult } from '../commands/attributeCommands';
 import type { CreateAssociationInput } from '../commands/associationCommands';
 import type { CreateClassInput } from '../commands/classCommands';
+import type { CreatePackageInput } from './CaseWebCanvas';
 import type { ParticipantRole } from 'collaboration-protocol';
 
 interface DiagramSessionViewProps {
@@ -180,11 +181,46 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
   const handleCreateClass = useCallback(
     (input: CreateClassInput) => {
       submit('CreateClass', {
-        id: `cls-${crypto.randomUUID()}`,
+        id: input.classId,
         name: input.name,
         packageId: input.packageId,
         isAbstract: input.isAbstract,
       });
+    },
+    [submit]
+  );
+
+  const handleRenameClass = useCallback(
+    (classId: string, newName: string) => {
+      submit('RenameClass', { classId, newName });
+    },
+    [submit]
+  );
+
+  const handleDeleteClass = useCallback(
+    (classId: string) => {
+      submit('DeleteClass', { classId });
+    },
+    [submit]
+  );
+
+  const handleCreatePackage = useCallback(
+    (input: CreatePackageInput) => {
+      submit('CreatePackage', { id: input.packageId, name: input.name });
+    },
+    [submit]
+  );
+
+  const handleDeletePackage = useCallback(
+    (packageId: string) => {
+      submit('DeletePackage', { packageId });
+    },
+    [submit]
+  );
+
+  const handleDeleteAssociation = useCallback(
+    (associationId: string) => {
+      submit('DeleteAssociation', { associationId });
     },
     [submit]
   );
@@ -258,6 +294,11 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
             onUpdateAttribute={readOnly ? undefined : handleUpdateAttribute}
             onCreateAssociation={readOnly ? undefined : handleCreateAssociation}
             onCreateClass={readOnly ? undefined : handleCreateClass}
+            onRenameClass={readOnly ? undefined : handleRenameClass}
+            onDeleteClass={readOnly ? undefined : handleDeleteClass}
+            onCreatePackage={readOnly ? undefined : handleCreatePackage}
+            onDeletePackage={readOnly ? undefined : handleDeletePackage}
+            onDeleteAssociation={readOnly ? undefined : handleDeleteAssociation}
           />
         ) : (
           <div data-testid="session-loading" style={{ padding: '24px', fontFamily: 'sans-serif', fontSize: '13px', color: '#64748b' }}>

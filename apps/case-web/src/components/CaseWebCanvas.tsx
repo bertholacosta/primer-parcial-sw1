@@ -1,9 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
+  useReactFlow,
   type NodeTypes,
+  type Connection,
+  type Node,
+  type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { CanonicalDomainModel } from '../domain/model';
@@ -11,8 +16,10 @@ import {
   modelToFlowNodes,
   modelToFlowEdges,
   type FlowNodeCallbacks,
+  type LayoutPositions,
 } from '../adapter/domainModelAdapter';
 import { UmlClassNode } from './UmlClassNode';
+import { UmlPackageNode } from './UmlPackageNode';
 import {
   ALLOWED_MULTIPLICITIES,
   type CommandExecutionResult,
@@ -31,96 +38,90 @@ export interface CollaborationBarInfo {
   pendingCount: number;
 }
 
-interface CaseWebCanvasProps extends FlowNodeCallbacks {
+export interface CreatePackageInput {
+  packageId: string;
+  name: string;
+}
+
+export interface CaseWebCanvasProps extends FlowNodeCallbacks {
   model: CanonicalDomainModel;
   lastCommandResult?: CommandExecutionResult | null;
   collaboration?: CollaborationBarInfo;
   onCreateAssociation?: (input: CreateAssociationInput) => void;
   onCreateClass?: (input: CreateClassInput) => void;
+  onRenameClass?: (classId: string, newName: string) => void;
+  onDeleteClass?: (classId: string) => void;
+  onCreatePackage?: (input: CreatePackageInput) => void;
+  onDeletePackage?: (packageId: string) => void;
+  onDeleteAssociation?: (associationId: string) => void;
 }
 
-export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
+type PaletteKind = 'class' | 'abstract-class' | 'package';
+
+const PALETTE_ITEMS: { kind: PaletteKind; label: string; hint: string }[] = [
+  { kind: 'class', label: 'Clase', hint: 'Arrastra al lienzo para crear' },
+  { kind: 'abstract-class', label: 'Clase abstracta', hint: 'Arrastra al lienzo para crear' },
+  { kind: 'package', label: 'Paquete', hint: 'Arrastra al lienzo para crear' },
+];
+
+const PALETTE_DRAG_TYPE = 'application/x-case-palette-item';
+
+interface PendingConnection {
+  sourceClassId: string;
+  targetClassId: string;
+}
+
+let paletteCounter = 0;
+const nextName = (prefix: string) => `${prefix}${++paletteCounter}`;
+
+const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   model,
   lastCommandResult,
   collaboration,
   readOnly,
   onAddAttribute,
   onUpdateAttribute,
+  onRenameClass,
+  onDeleteClass,
   onCreateAssociation,
   onCreateClass,
+  onCreatePackage,
+  onDeletePackage,
+  onDeleteAssociation,
 }) => {
+  const { screenToFlowPosition } = useReactFlow();
+  const flowWrapper = useRef<HTMLDivElement>(null);
+
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
       umlClass: UmlClassNode,
+      umlPackage: UmlPackageNode,
     }),
     []
   );
 
-  const [isAddingClass, setIsAddingClass] = useState(false);
-  const [className, setClassName] = useState('');
-  const [classPackageId, setClassPackageId] = useState('');
-  const [classIsAbstract, setClassIsAbstract] = useState(false);
-  const [isAddingAssociation, setIsAddingAssociation] = useState(false);
+  // Posiciones visuales (layout) por id; no forman parte del modelo canónico.
+  const [positions, setPositions] = useState<LayoutPositions>({});
+
+  const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [assocName, setAssocName] = useState('');
-  const [assocSourceId, setAssocSourceId] = useState('');
-  const [assocTargetId, setAssocTargetId] = useState('');
   const [assocSourceMult, setAssocSourceMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
   const [assocTargetMult, setAssocTargetMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
   const [assocNavigability, setAssocNavigability] = useState<string>(ALLOWED_NAVIGABILITIES[0]);
 
-  const handleStartAddClass = () => {
-    setClassName('');
-    setClassPackageId(model.packages[0]?.id ?? '');
-    setClassIsAbstract(false);
-    setIsAddingClass(true);
-    setIsAddingAssociation(false);
-  };
-
-  const handleConfirmAddClass = () => {
-    if (onCreateClass) {
-      onCreateClass({
-        name: className.trim(),
-        packageId: classPackageId || undefined,
-        isAbstract: classIsAbstract,
-      });
-    }
-    setIsAddingClass(false);
-  };
-
-  const handleStartAddAssociation = () => {
-    setAssocName('');
-    setAssocSourceId(model.classes[0]?.id ?? '');
-    setAssocTargetId(model.classes[1]?.id ?? model.classes[0]?.id ?? '');
-    setAssocSourceMult(ALLOWED_MULTIPLICITIES[0]);
-    setAssocTargetMult(ALLOWED_MULTIPLICITIES[0]);
-    setAssocNavigability(ALLOWED_NAVIGABILITIES[0]);
-    setIsAddingAssociation(true);
-  };
-
-  const handleConfirmAddAssociation = () => {
-    if (onCreateAssociation) {
-      onCreateAssociation({
-        name: assocName.trim() ? assocName.trim() : undefined,
-        sourceClassId: assocSourceId,
-        targetClassId: assocTargetId,
-        sourceMultiplicity: assocSourceMult,
-        targetMultiplicity: assocTargetMult,
-        navigability: assocNavigability,
-      });
-    }
-    setIsAddingAssociation(false);
-  };
+  // Ids de nodos eliminados en el ciclo actual: sus aristas se eliminan en
+  // cascada dentro del propio comando DeleteClass; no emitir DeleteAssociation.
+  const deletedNodeIds = useRef<Set<string>>(new Set());
 
   const callbacks = useMemo(
-    () => ({
-      readOnly,
-      onAddAttribute,
-      onUpdateAttribute,
-    }),
-    [readOnly, onAddAttribute, onUpdateAttribute]
+    () => ({ readOnly, onAddAttribute, onUpdateAttribute, onRenameClass }),
+    [readOnly, onAddAttribute, onUpdateAttribute, onRenameClass]
   );
 
-  const nodes = useMemo(() => modelToFlowNodes(model, callbacks), [model, callbacks]);
+  const nodes = useMemo(
+    () => modelToFlowNodes(model, callbacks, positions),
+    [model, callbacks, positions]
+  );
   const edges = useMemo(() => modelToFlowEdges(model), [model]);
 
   const classNameById = useMemo(() => {
@@ -128,6 +129,122 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
     model.classes.forEach((c) => map.set(c.id, c.name));
     return map;
   }, [model.classes]);
+
+  /* ---------------- Paleta drag & drop (estilo Apollon) ---------------- */
+
+  const createPaletteItem = useCallback(
+    (kind: PaletteKind, position: { x: number; y: number }) => {
+      if (kind === 'package') {
+        if (!onCreatePackage) return;
+        const packageId = `pkg-${crypto.randomUUID()}`;
+        setPositions((prev) => ({ ...prev, [packageId]: position }));
+        onCreatePackage({ packageId, name: nextName('Paquete') });
+        return;
+      }
+      if (!onCreateClass) return;
+      const classId = `cls-${crypto.randomUUID()}`;
+      setPositions((prev) => ({ ...prev, [classId]: position }));
+      onCreateClass({
+        classId,
+        name: nextName(kind === 'abstract-class' ? 'ClaseAbstracta' : 'Clase'),
+        packageId: model.packages[0]?.id,
+        isAbstract: kind === 'abstract-class',
+      });
+    },
+    [onCreateClass, onCreatePackage, model.packages]
+  );
+
+  const handlePaletteDragStart = (kind: PaletteKind) => (e: React.DragEvent) => {
+    e.dataTransfer.setData(PALETTE_DRAG_TYPE, kind);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  /** Alternativa accesible al drag: clic crea el elemento en la siguiente celda libre. */
+  const handlePaletteClick = (kind: PaletteKind) => () => {
+    const index = Object.keys(positions).length;
+    createPaletteItem(kind, { x: 80 + (index % 3) * 320, y: 80 + Math.floor(index / 3) * 260 });
+  };
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes(PALETTE_DRAG_TYPE)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      const kind = e.dataTransfer.getData(PALETTE_DRAG_TYPE) as PaletteKind | '';
+      if (!kind) return;
+      e.preventDefault();
+      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+
+      createPaletteItem(kind, position);
+    },
+    [screenToFlowPosition, createPaletteItem]
+  );
+
+  /* ---------------- Conexión por arrastre → popover ---------------- */
+
+  const openAssociationPopover = useCallback((sourceClassId: string, targetClassId: string) => {
+    setAssocName('');
+    setAssocSourceMult(ALLOWED_MULTIPLICITIES[0]);
+    setAssocTargetMult(ALLOWED_MULTIPLICITIES[0]);
+    setAssocNavigability(ALLOWED_NAVIGABILITIES[0]);
+    setPendingConnection({ sourceClassId, targetClassId });
+  }, []);
+
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      openAssociationPopover(connection.source, connection.target);
+    },
+    [openAssociationPopover]
+  );
+
+  const handleConfirmConnection = () => {
+    if (pendingConnection && onCreateAssociation) {
+      onCreateAssociation({
+        name: assocName.trim() ? assocName.trim() : undefined,
+        sourceClassId: pendingConnection.sourceClassId,
+        targetClassId: pendingConnection.targetClassId,
+        sourceMultiplicity: assocSourceMult,
+        targetMultiplicity: assocTargetMult,
+        navigability: assocNavigability,
+      });
+    }
+    setPendingConnection(null);
+  };
+
+  /* ---------------- Movimiento libre y borrado ---------------- */
+
+  const handleNodeDragStop = useCallback((_e: MouseEvent | TouchEvent, node: Node) => {
+    setPositions((prev) => ({ ...prev, [node.id]: node.position }));
+  }, []);
+
+  const handleNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      deleted.forEach((n) => deletedNodeIds.current.add(n.id));
+      for (const n of deleted) {
+        if (n.type === 'umlPackage') onDeletePackage?.(n.id);
+        else onDeleteClass?.(n.id);
+      }
+    },
+    [onDeleteClass, onDeletePackage]
+  );
+
+  const handleEdgesDelete = useCallback(
+    (deleted: Edge[]) => {
+      for (const e of deleted) {
+        if (deletedNodeIds.current.has(e.source) || deletedNodeIds.current.has(e.target)) continue;
+        onDeleteAssociation?.(e.id);
+      }
+      deletedNodeIds.current.clear();
+    },
+    [onDeleteAssociation]
+  );
+
+  const editable = !readOnly;
 
   return (
     <div
@@ -195,209 +312,6 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
         </div>
       )}
 
-      {/* Barra de herramientas: creación de clases y asociaciones mediante comando */}
-      {!readOnly && (onCreateClass || onCreateAssociation) && (
-      <div
-        data-testid="association-toolbar"
-        style={{
-          padding: '8px 20px',
-          background: '#f8fafc',
-          borderBottom: '1px solid #e2e8f0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          flexWrap: 'wrap',
-          fontSize: '12px',
-        }}
-      >
-        {isAddingClass ? (
-          <>
-            <input
-              data-testid="class-name-input"
-              placeholder="NombreDeClase"
-              value={className}
-              onChange={(e) => setClassName(e.target.value)}
-              style={{ fontSize: '12px', padding: '3px 6px' }}
-            />
-            {model.packages.length > 0 && (
-              <select
-                data-testid="class-package-select"
-                aria-label="Paquete"
-                value={classPackageId}
-                onChange={(e) => setClassPackageId(e.target.value)}
-                style={{ fontSize: '12px', padding: '3px' }}
-              >
-                <option value="">(sin paquete)</option>
-                {model.packages.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <input
-                type="checkbox"
-                data-testid="class-abstract-checkbox"
-                checked={classIsAbstract}
-                onChange={(e) => setClassIsAbstract(e.target.checked)}
-              />
-              abstracta
-            </label>
-            <button
-              data-testid="confirm-add-class"
-              onClick={handleConfirmAddClass}
-              disabled={!className.trim()}
-              style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
-            >
-              Crear
-            </button>
-            <button
-              data-testid="cancel-add-class"
-              onClick={() => setIsAddingClass(false)}
-              style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
-            >
-              Cancelar
-            </button>
-          </>
-        ) : isAddingAssociation ? (
-          <>
-            <input
-              data-testid="assoc-name-input"
-              placeholder="nombreAsociacion (opcional)"
-              value={assocName}
-              onChange={(e) => setAssocName(e.target.value)}
-              style={{ fontSize: '12px', padding: '3px 6px' }}
-            />
-            <select
-              data-testid="assoc-source-select"
-              aria-label="Clase origen"
-              value={assocSourceId}
-              onChange={(e) => setAssocSourceId(e.target.value)}
-              style={{ fontSize: '12px', padding: '3px' }}
-            >
-              {model.classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select
-              data-testid="assoc-source-mult-select"
-              aria-label="Multiplicidad origen"
-              value={assocSourceMult}
-              onChange={(e) => setAssocSourceMult(e.target.value)}
-              style={{ fontSize: '12px', padding: '3px' }}
-            >
-              {ALLOWED_MULTIPLICITIES.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-            <span aria-hidden="true">→</span>
-            <select
-              data-testid="assoc-target-select"
-              aria-label="Clase destino"
-              value={assocTargetId}
-              onChange={(e) => setAssocTargetId(e.target.value)}
-              style={{ fontSize: '12px', padding: '3px' }}
-            >
-              {model.classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select
-              data-testid="assoc-target-mult-select"
-              aria-label="Multiplicidad destino"
-              value={assocTargetMult}
-              onChange={(e) => setAssocTargetMult(e.target.value)}
-              style={{ fontSize: '12px', padding: '3px' }}
-            >
-              {ALLOWED_MULTIPLICITIES.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-            <select
-              data-testid="assoc-navigability-select"
-              aria-label="Navegabilidad"
-              value={assocNavigability}
-              onChange={(e) => setAssocNavigability(e.target.value)}
-              style={{ fontSize: '12px', padding: '3px' }}
-            >
-              {ALLOWED_NAVIGABILITIES.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-            <button
-              data-testid="confirm-add-association"
-              onClick={handleConfirmAddAssociation}
-              style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
-            >
-              Crear
-            </button>
-            <button
-              data-testid="cancel-add-association"
-              onClick={() => setIsAddingAssociation(false)}
-              style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
-            >
-              Cancelar
-            </button>
-          </>
-        ) : (
-          <>
-          {onCreateClass && (
-          <button
-            data-testid="btn-add-class"
-            onClick={handleStartAddClass}
-            title="Crear una nueva clase en el diagrama"
-            style={{
-              background: '#dbeafe',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '4px 10px',
-              fontSize: '12px',
-              cursor: 'pointer',
-              color: '#1e40af',
-            }}
-          >
-            + Clase
-          </button>
-          )}
-          {onCreateAssociation && (
-          <button
-            data-testid="btn-add-association"
-            onClick={handleStartAddAssociation}
-            disabled={model.classes.length < 2}
-            title={
-              model.classes.length < 2
-                ? 'Se requieren al menos dos clases para crear una asociación'
-                : 'Crear asociación entre dos clases'
-            }
-            style={{
-              background: '#e2e8f0',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '4px 10px',
-              fontSize: '12px',
-              cursor: model.classes.length < 2 ? 'not-allowed' : 'pointer',
-              color: '#334155',
-            }}
-          >
-            + Asociación
-          </button>
-          )}
-          </>
-        )}
-      </div>
-      )}
-
       {/* Banner de resultado del último comando */}
       {lastCommandResult && (
         <div
@@ -425,20 +339,221 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
         </div>
       )}
 
-      {/* Vista de Canvas React Flow */}
-      <main style={{ flex: 1, position: 'relative', minHeight: '400px' }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          fitView
-          nodesFocusable={true}
-          edgesFocusable={false}
-          aria-label="Diagrama UML de clases"
-        >
-          <Background color="#cbd5e1" gap={16} />
-          <Controls />
-        </ReactFlow>
+      {/* Zona principal: paleta + lienzo */}
+      <main style={{ flex: 1, position: 'relative', minHeight: '400px', display: 'flex' }}>
+        {editable && (onCreateClass || onCreatePackage) && (
+          <aside
+            data-testid="element-palette"
+            aria-label="Paleta de elementos UML"
+            style={{
+              width: '140px',
+              flexShrink: 0,
+              background: '#f8fafc',
+              borderRight: '1px solid #e2e8f0',
+              padding: '10px 8px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px' }}>
+              Elementos
+            </div>
+            {PALETTE_ITEMS.map((item) => (
+              <div
+                key={item.kind}
+                data-testid={`palette-item-${item.kind}`}
+                draggable
+                onDragStart={handlePaletteDragStart(item.kind)}
+                onClick={handlePaletteClick(item.kind)}
+                title={item.hint}
+                style={{
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '6px',
+                  background: '#ffffff',
+                  padding: '8px 6px',
+                  fontSize: '12px',
+                  textAlign: 'center',
+                  cursor: 'grab',
+                  color: '#0f172a',
+                  userSelect: 'none',
+                }}
+              >
+                {item.kind === 'abstract-class' ? (
+                  <em>{item.label}</em>
+                ) : item.kind === 'package' ? (
+                  <span>&#128193; {item.label}</span>
+                ) : (
+                  item.label
+                )}
+              </div>
+            ))}
+            {onCreateAssociation && (
+              <button
+                data-testid="btn-add-association"
+                onClick={() =>
+                  openAssociationPopover(
+                    model.classes[0]?.id ?? '',
+                    model.classes[1]?.id ?? model.classes[0]?.id ?? ''
+                  )
+                }
+                disabled={model.classes.length < 2}
+                title={
+                  model.classes.length < 2
+                    ? 'Se requieren al menos dos clases para crear una asociación'
+                    : 'Crear asociación eligiendo origen y destino'
+                }
+                style={{
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '6px',
+                  background: '#ffffff',
+                  padding: '8px 6px',
+                  fontSize: '12px',
+                  cursor: model.classes.length < 2 ? 'not-allowed' : 'pointer',
+                  color: '#334155',
+                }}
+              >
+                ↔ Asociación
+              </button>
+            )}
+            <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', lineHeight: 1.4 }}>
+              Arrastra elementos al lienzo. Arrastra entre nodos para asociar. Doble clic renombra. Supr elimina lo seleccionado.
+            </div>
+          </aside>
+        )}
+
+        <div ref={flowWrapper} style={{ flex: 1, position: 'relative' }}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            fitView
+            nodesFocusable={true}
+            edgesFocusable={false}
+            nodesConnectable={editable}
+            nodesDraggable={true}
+            elementsSelectable={true}
+            deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onConnect={editable ? handleConnect : undefined}
+            onNodeDragStop={handleNodeDragStop}
+            onNodesDelete={editable ? handleNodesDelete : undefined}
+            onEdgesDelete={editable ? handleEdgesDelete : undefined}
+            aria-label="Diagrama UML de clases"
+          >
+            <Background color="#cbd5e1" gap={16} />
+            <Controls />
+          </ReactFlow>
+
+          {/* Popover de configuración de asociación (estilo Apollon) */}
+          {pendingConnection && (
+            <div
+              data-testid="association-popover"
+              role="dialog"
+              aria-label="Configurar asociación"
+              style={{
+                position: 'absolute',
+                top: '16px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 20,
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                flexWrap: 'wrap',
+                fontSize: '12px',
+              }}
+            >
+              <input
+                data-testid="assoc-name-input"
+                placeholder="nombreAsociacion (opcional)"
+                value={assocName}
+                onChange={(e) => setAssocName(e.target.value)}
+                style={{ fontSize: '12px', padding: '3px 6px' }}
+              />
+              <select
+                data-testid="assoc-source-select"
+                aria-label="Clase origen"
+                value={pendingConnection.sourceClassId}
+                onChange={(e) =>
+                  setPendingConnection((p) => (p ? { ...p, sourceClassId: e.target.value } : p))
+                }
+                style={{ fontSize: '12px', padding: '3px' }}
+              >
+                {model.classes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <select
+                data-testid="assoc-source-mult-select"
+                aria-label="Multiplicidad origen"
+                value={assocSourceMult}
+                onChange={(e) => setAssocSourceMult(e.target.value)}
+                style={{ fontSize: '12px', padding: '3px' }}
+              >
+                {ALLOWED_MULTIPLICITIES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <span aria-hidden="true">→</span>
+              <select
+                data-testid="assoc-target-select"
+                aria-label="Clase destino"
+                value={pendingConnection.targetClassId}
+                onChange={(e) =>
+                  setPendingConnection((p) => (p ? { ...p, targetClassId: e.target.value } : p))
+                }
+                style={{ fontSize: '12px', padding: '3px' }}
+              >
+                {model.classes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <select
+                data-testid="assoc-target-mult-select"
+                aria-label="Multiplicidad destino"
+                value={assocTargetMult}
+                onChange={(e) => setAssocTargetMult(e.target.value)}
+                style={{ fontSize: '12px', padding: '3px' }}
+              >
+                {ALLOWED_MULTIPLICITIES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <select
+                data-testid="assoc-navigability-select"
+                aria-label="Navegabilidad"
+                value={assocNavigability}
+                onChange={(e) => setAssocNavigability(e.target.value)}
+                style={{ fontSize: '12px', padding: '3px' }}
+              >
+                {ALLOWED_NAVIGABILITIES.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <button
+                data-testid="confirm-add-association"
+                onClick={handleConfirmConnection}
+                style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px' }}
+              >
+                Crear
+              </button>
+              <button
+                data-testid="cancel-add-association"
+                onClick={() => setPendingConnection(null)}
+                style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+        </div>
       </main>
 
       {/* Tabla semántica accesible alternativa (ADR-0001 §Accesibilidad WCAG 2.1 AA) */}
@@ -491,3 +606,9 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
     </div>
   );
 };
+
+export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = (props) => (
+  <ReactFlowProvider>
+    <CaseWebCanvasInner {...props} />
+  </ReactFlowProvider>
+);

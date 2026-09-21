@@ -22,6 +22,12 @@ export interface CreateAssociationPayload {
 
 export type CreateAssociationCommand = BaseCommand<'CreateAssociation', CreateAssociationPayload>;
 
+export interface DeleteAssociationPayload {
+  associationId: string;
+}
+
+export type DeleteAssociationCommand = BaseCommand<'DeleteAssociation', DeleteAssociationPayload>;
+
 /**
  * Datos de entrada para la creación visual de una asociación desde el editor.
  * El identificador de la asociación lo genera el emisor del comando.
@@ -177,4 +183,34 @@ export function executeCreateAssociation(
       modelVersion: nextVersion,
     },
   };
+}
+
+/** Elimina una asociación existente del modelo. */
+export function executeDeleteAssociation(
+  model: CanonicalDomainModel,
+  command: DeleteAssociationCommand
+): { updatedModel: CanonicalDomainModel; result: CommandExecutionResult } {
+  const errors: CommandError[] = [];
+  const { payload, commandId, modelVersion, modelId } = command;
+
+  if (model.id !== modelId) {
+    errors.push({ code: 'MODEL_NOT_FOUND', message: `El modelo con id '${modelId}' no coincide con el modelo actual '${model.id}'.`, severity: 'ERROR', path: '$.modelId' });
+  }
+  if (model.version !== modelVersion) {
+    errors.push({ code: 'CONCURRENT_MODIFICATION', message: `Versión del modelo esperada '${modelVersion}', pero la actual es '${model.version}'.`, severity: 'ERROR', path: '$.modelVersion' });
+  }
+  if (!model.associations.some((a) => a.id === payload.associationId)) {
+    errors.push({ code: 'ASSOCIATION_NOT_FOUND', message: `No existe la asociación con id '${payload.associationId}'.`, severity: 'ERROR', path: '$.payload.associationId' });
+  }
+  if (errors.length > 0) {
+    return { updatedModel: model, result: { result: 'rejected', commandId, modelVersion: model.version, errors } };
+  }
+
+  const nextVersion = incrementPatchVersion(model.version);
+  const updatedModel: CanonicalDomainModel = {
+    ...model,
+    version: nextVersion,
+    associations: model.associations.filter((a) => a.id !== payload.associationId),
+  };
+  return { updatedModel, result: { result: 'accepted', commandId, modelVersion: nextVersion } };
 }
