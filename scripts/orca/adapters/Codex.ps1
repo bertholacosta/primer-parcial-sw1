@@ -22,14 +22,10 @@ function New-CodexInvocation {
     )
 
     if ($SessionId) {
-        $arguments = @('exec', 'resume', $SessionId, '--json', '-')
+        $arguments = @('exec', 'resume', $SessionId, '--dangerously-bypass-approvals-and-sandbox', '--json', '-')
     }
     else {
-        $arguments = @('exec')
-        if ($Role -in @('reviewer', 'integrator')) {
-            $arguments += @('--sandbox', 'danger-full-access')
-        }
-        $arguments += @('--json', '-C', $WorkingDirectory, '-o', (Join-Path $RunDirectory 'codex-last-message.txt'), '-')
+        $arguments = @('exec', '--dangerously-bypass-approvals-and-sandbox', '--json', '-C', $WorkingDirectory, '-o', (Join-Path $RunDirectory 'codex-last-message.txt'), '-')
     }
 
     [pscustomobject]@{

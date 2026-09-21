@@ -1,7 +1,7 @@
 id: P9-004
 title: "Endurecer entrega reproducible del examen"
 phase: 9
-status: planned
+status: ready
 kind: documentation
 owner_role: Codex / GPT-5.6 Sol
 objective: "Verificar desde limpio, documentar operación y cerrar riesgos sin ampliar alcance ni refactorizar."
@@ -17,6 +17,6 @@ acceptance_criteria:
   - "Riesgos residuales, limitaciones y demostración del examen son explícitos y aprobados."
 validation_commands:
   - "git diff --check"
-  - "GATE: ejecutar matriz final compuesta por P9-001, P9-002 y P9-003"
+  - "pwsh -NoProfile -File scripts/validate-exam-matrix.ps1"
 deliverables: [docs/, scripts/, README.md]
 links: [docs/PROJECT.md, docs/ROADMAP.md]

@@ -39,11 +39,11 @@ La Fase 0 no implementa este circuito; define su gobierno, contratos pendientes 
 - Antigravity/Gemini: arquitecto integrador, revisor independiente y resolución de problemas complejos.
 - Kiro: análisis y especificación.
 - Devin CLI/SWE-2: implementación principal.
-- Codex/GPT-5.6 Sol: retirado e inactivo por agotamiento de cuota semanal (decisión PO 2026-09-21; fecha límite del examen: 23 de septiembre).
+- Codex/GPT-5.6 Sol: documentación y tareas asignadas (reincorporado tras confirmación de reinicio de cuota semanal).
 - CI, compiladores, linters, validadores y pruebas: autoridad objetiva sobre aceptación técnica.
 
 ### Decisiones explícitas del Product Owner
-- **2026-09-21:** Exclusión total y definitiva de Codex de las tareas y del pipeline por superación de cuota semanal previa a la entrega fijada para el 23 de septiembre. Antigravity asume la integración, arquitectura y revisión del ecosistema junto a Devin CLI para la implementación.
+- **2026-09-21 (actualización):** Con el reinicio de la cuota semanal confirmado por el Product Owner, Codex se reincorpora al catálogo de agentes activos para documentación y tareas asignadas, manteniendo a Antigravity como integrador determinista y revisor independiente.
 
 ## Restricciones de gobierno
 

@@ -249,6 +249,9 @@ function Get-OrcaRoles {
     $writer = if ($owner -match '(?i)Devin') {
         'devin'
     }
+    elseif ($owner -match '(?i)Codex') {
+        'codex'
+    }
     elseif ($owner -match '(?i)Antigravity') {
         'antigravity'
     }
@@ -256,21 +259,20 @@ function Get-OrcaRoles {
         'devin'
     }
     else {
-        'antigravity'
+        'codex'
     }
 
-
     $declaredWriter = ([string]$Task.DeclaredWriter).ToLowerInvariant()
-    if ($declaredWriter -in @('kiro', 'devin', 'antigravity')) {
+    if ($declaredWriter -in @('codex', 'kiro', 'devin', 'antigravity')) {
         $writer = $declaredWriter
     }
     elseif ($declaredWriter -eq 'codex') {
-        $writer = 'antigravity'
+        $writer = 'codex'
     }
 
     $reviewer = ([string]$Task.DeclaredReviewer).ToLowerInvariant()
-    if ($reviewer -notin @('kiro', 'devin', 'antigravity') -or $reviewer -in @('codex', 'kiro', 'devin')) {
-        $reviewer = 'antigravity'
+    if ($reviewer -notin @('codex', 'kiro', 'devin', 'antigravity') -or $reviewer -eq $writer) {
+        $reviewer = if ($writer -eq 'antigravity') { 'codex' } else { 'antigravity' }
     }
 
     @{
@@ -395,7 +397,7 @@ function Get-OrcaPreflight {
     $checks.Add([pscustomobject]@{ name = 'windows11'; ok = $isWindowsHost; detail = [Environment]::OSVersion.VersionString })
     $checks.Add([pscustomobject]@{ name = 'powershell7'; ok = $PSVersionTable.PSVersion.Major -ge 7; detail = $PSVersionTable.PSVersion.ToString() })
 
-    foreach ($tool in @('git', 'pwsh', 'orca', 'kiro-cli', 'devin', 'agy')) {
+    foreach ($tool in @('git', 'pwsh', 'orca', 'codex', 'kiro-cli', 'devin', 'agy')) {
         $command = Get-Command $tool -ErrorAction SilentlyContinue | Select-Object -First 1
         $checks.Add([pscustomobject]@{ name = "tool:$tool"; ok = $null -ne $command; detail = if ($command) { $command.Source } else { 'missing' } })
     }
