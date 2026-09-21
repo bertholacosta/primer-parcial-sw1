@@ -49,6 +49,7 @@ try {
 
     function Get-TreeInventory([string]$Root, [string[]]$ExcludeDirs = @()) {
         $inventory = @{}
+        $textExtensions = @(".java", ".json", ".xml", ".yml", ".yaml", ".md", ".txt", ".properties")
         Get-ChildItem -Path $Root -Recurse -File | ForEach-Object {
             $relative = $_.FullName.Substring((Resolve-Path $Root).Path.Length + 1) -replace '\\', '/'
             $skip = $false
@@ -56,7 +57,15 @@ try {
                 if ($relative.StartsWith("$dir/")) { $skip = $true; break }
             }
             if (-not $skip) {
-                $inventory[$relative] = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+                if ($textExtensions -contains $_.Extension.ToLowerInvariant()) {
+                    $raw = [IO.File]::ReadAllText($_.FullName) -replace "\r\n", "`n"
+                    $bytes = [Text.Encoding]::UTF8.GetBytes($raw)
+                    $hasher = [Security.Cryptography.SHA256]::Create()
+                    $hashBytes = $hasher.ComputeHash($bytes)
+                    $inventory[$relative] = [BitConverter]::ToString($hashBytes).Replace('-', '').ToLowerInvariant()
+                } else {
+                    $inventory[$relative] = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+                }
             }
         }
         return $inventory

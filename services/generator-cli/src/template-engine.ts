@@ -182,17 +182,21 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
   };
 }
 
+function readTemplate(filePath: string): string {
+  return fs.readFileSync(filePath, "utf-8").replace(/\r\n/g, "\n");
+}
+
 // Compilamos las plantillas sincrónicamente en carga (fail-fast)
 export function getTemplateEngine(templateDir: string) {
   const templates = {
-    entity: Handlebars.compile(fs.readFileSync(path.join(templateDir, "entity.hbs"), "utf-8"), { noEscape: true }),
-    dto: Handlebars.compile(fs.readFileSync(path.join(templateDir, "dto.hbs"), "utf-8"), { noEscape: true }),
-    repository: Handlebars.compile(fs.readFileSync(path.join(templateDir, "repository.hbs"), "utf-8"), { noEscape: true }),
-    service: Handlebars.compile(fs.readFileSync(path.join(templateDir, "service.hbs"), "utf-8"), { noEscape: true }),
-    controller: Handlebars.compile(fs.readFileSync(path.join(templateDir, "controller.hbs"), "utf-8"), { noEscape: true }),
-    pom: Handlebars.compile(fs.readFileSync(path.join(templateDir, "pom.hbs"), "utf-8"), { noEscape: true }),
-    application: Handlebars.compile(fs.readFileSync(path.join(templateDir, "application.hbs"), "utf-8"), { noEscape: true }),
-    applicationClass: Handlebars.compile(fs.readFileSync(path.join(templateDir, "applicationClass.hbs"), "utf-8"), { noEscape: true }),
+    entity: Handlebars.compile(readTemplate(path.join(templateDir, "entity.hbs")), { noEscape: true }),
+    dto: Handlebars.compile(readTemplate(path.join(templateDir, "dto.hbs")), { noEscape: true }),
+    repository: Handlebars.compile(readTemplate(path.join(templateDir, "repository.hbs")), { noEscape: true }),
+    service: Handlebars.compile(readTemplate(path.join(templateDir, "service.hbs")), { noEscape: true }),
+    controller: Handlebars.compile(readTemplate(path.join(templateDir, "controller.hbs")), { noEscape: true }),
+    pom: Handlebars.compile(readTemplate(path.join(templateDir, "pom.hbs")), { noEscape: true }),
+    application: Handlebars.compile(readTemplate(path.join(templateDir, "application.hbs")), { noEscape: true }),
+    applicationClass: Handlebars.compile(readTemplate(path.join(templateDir, "applicationClass.hbs")), { noEscape: true }),
   };
 
   return {
