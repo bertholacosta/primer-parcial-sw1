@@ -1,22 +1,34 @@
 id: P6-001
 title: "Especificar protocolo de colaboración"
 phase: 6
-status: planned
+status: ready
 kind: specification
 owner_role: Kiro
 objective: "Definir sobre model-commands identidad, orden, idempotencia, autorización, concurrencia, reconexión y snapshots."
-dependencies: [P4-001]
+dependencies:
+  - P4-001
 inputs:
-  files: [docs/contracts/model-commands-v1.md, docs/contracts/mobile-offline-v1.md]
-  docs: [packages/collaboration-protocol/README.md]
+  files:
+    - docs/contracts/model-commands-v1.md
+    - docs/contracts/mobile-offline-v1.md
+  docs:
+    - packages/collaboration-protocol/README.md
 scope:
-  allowed_paths: [docs/contracts/collaboration-protocol-v1.md]
-  forbidden_paths: [apps/, services/, packages/, templates/, fixtures/]
+  allowed_paths:
+    - docs/contracts/collaboration-protocol-v1.md
+  forbidden_paths:
+    - apps/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/
 acceptance_criteria:
   - "Define mensajes y transiciones tecnológicamente neutrales para dos clientes."
   - "Incluye trazas de concurrencia/reconexión con estado final esperado e invariantes."
 validation_commands:
   - "git diff --check -- docs/contracts/collaboration-protocol-v1.md"
   - "rg -n \"idempoten|order|concurr|reconnect|snapshot\" docs/contracts/collaboration-protocol-v1.md"
-deliverables: [docs/contracts/collaboration-protocol-v1.md]
-links: [docs/adr/0003-realtime-collaboration.md]
+deliverables:
+  - docs/contracts/collaboration-protocol-v1.md
+links:
+  - docs/adr/0003-realtime-collaboration.md
