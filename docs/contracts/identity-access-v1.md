@@ -1,9 +1,9 @@
 # Contrato de identidad, acceso y compartición — `identity-access` v1
 
 - **Versión del contrato:** 1.0.0
-- **Estado:** proposed
+- **Estado:** accepted
 - **Fecha:** 2026-09-21
-- **Autoridad requerida:** Product Owner
+- **Autoridad:** Product Owner (aprobación explícita del 2026-09-21)
 - **Depende de:** `docs/contracts/domain-model-v1.md`, `docs/contracts/collaboration-protocol-v1.md`
 - **Relacionado con:** `docs/adr/0008-identity-access-and-persistent-collaboration.md`
 
@@ -211,4 +211,4 @@ Todos los rechazos son libres de efectos salvo la revocación de familia exigida
 
 Los consumidores deben ignorar campos desconocidos que no amplíen permisos. Añadir campos opcionales o nuevos códigos de error específicos es compatible dentro de v1. Cambiar roles, elevar capacidades, exponer secretos, modificar idempotencia o reutilizar códigos con otra semántica requiere v2 y ADR aceptado.
 
-Este documento permanece `proposed` hasta que el Product Owner registre su aprobación explícita. Ninguna implementación dependiente puede declarar conformidad definitiva mientras el contrato no esté `accepted`.
+Este contrato fue aprobado explícitamente por el Product Owner el 2026-09-21. Los cambios incompatibles requieren una nueva versión y la decisión arquitectónica correspondiente.

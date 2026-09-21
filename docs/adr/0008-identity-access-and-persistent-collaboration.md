@@ -1,6 +1,6 @@
 # ADR-0008: identidad, acceso y colaboración persistente
 
-- **Estado:** `proposed`
+- **Estado:** `accepted`
 - **Decisor:** Product Owner
 - **Fecha:** 2026-09-21
 - **Autor:** Devin
@@ -20,7 +20,7 @@ Para el alcance propuesto se registran estas decisiones:
 2. Cada diagrama distingue propietario, editor y lector.
 3. Un diagrama puede compartirse por invitación a un correo o mediante enlace revocable.
 4. Varios usuarios autorizados pueden construir el mismo diagrama simultáneamente.
-5. Este ADR permanece `proposed` hasta recibir aprobación explícita del Product Owner.
+5. El Product Owner aprobó explícitamente este ADR el 2026-09-21.
 
 ## 3. Contexto
 
@@ -259,12 +259,13 @@ git diff --check -- docs/adr/0008-identity-access-and-persistent-collaboration.m
 rg -n "Estado|Alternativas|Argon2id|owner|editor|viewer|PostgreSQL|WebSocket|STOMP|OpLog|Validación" docs/adr/0008-identity-access-and-persistent-collaboration.md
 ```
 
-## 12. Aprobación requerida
+## 12. Aprobación del Product Owner
 
-Para pasar a `accepted`, el Product Owner debe confirmar expresamente:
+El Product Owner aprobó explícitamente el 2026-09-21:
 
-1. `model-server` será el backend autoritativo de identidad y colaboración.
-2. Se aprueba access JWT más refresh token opaco rotatorio.
-3. Se aprueban los roles propietario, editor y lector y su traducción al protocolo.
-4. Los enlaces compartibles exigirán login antes de crear membresía.
-5. La primera entrega usa una sola instancia escritora por diagrama.
+1. `model-server` como backend autoritativo de identidad y colaboración.
+2. Access JWT más refresh token opaco rotatorio.
+3. Los roles propietario, editor y lector y su traducción al protocolo.
+4. Login obligatorio antes de crear membresía mediante enlace compartible.
+5. Una sola instancia escritora por diagrama en la primera entrega.
+6. `identity-access` v1.0.0 como contrato aceptado para las implementaciones P10.
