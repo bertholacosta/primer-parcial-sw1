@@ -1,7 +1,7 @@
 id: P6-001
 title: "Especificar protocolo de colaboración"
 phase: 6
-status: ready
+status: done
 kind: specification
 owner_role: Kiro
 objective: "Definir sobre model-commands identidad, orden, idempotencia, autorización, concurrencia, reconexión y snapshots."
@@ -32,3 +32,6 @@ deliverables:
   - docs/contracts/collaboration-protocol-v1.md
 links:
   - docs/adr/0003-realtime-collaboration.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
