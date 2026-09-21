@@ -213,8 +213,10 @@ describe('modelToFlowEdges — proyección de asociaciones al canvas', () => {
     expect(edge.data?.sourceMultiplicity).toBe('0..*');
     expect(edge.data?.targetMultiplicity).toBe('1..*');
     expect(edge.data?.navigability).toBe('bidirectional');
-    expect(edge.data?.name).toBe('escritoPor');
-    expect(edge.type).toBe('umlAssociation');
+    expect(edge.type).toBe('straight');
+    expect(edge.label).toContain('escritoPor');
+    expect(edge.label).toContain('0..*');
+    expect(edge.label).toContain('1..*');
   });
 
   it('incluye flecha de destino solo en asociaciones unidireccionales', () => {

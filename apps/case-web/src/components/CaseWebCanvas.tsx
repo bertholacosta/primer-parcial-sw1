@@ -7,7 +7,6 @@ import {
   useReactFlow,
   ConnectionLineType,
   type NodeTypes,
-  type EdgeTypes,
   type Connection,
   type Node,
   type Edge,
@@ -22,7 +21,6 @@ import {
 } from '../adapter/domainModelAdapter';
 import { UmlClassNode } from './UmlClassNode';
 import { UmlPackageNode } from './UmlPackageNode';
-import { UmlAssociationEdge } from './UmlAssociationEdge';
 import {
   ALLOWED_MULTIPLICITIES,
   type CommandExecutionResult,
@@ -103,24 +101,8 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
     []
   );
 
-  const edgeTypes = useMemo<EdgeTypes>(
-    () => ({
-      umlAssociation: UmlAssociationEdge,
-    }),
-    []
-  );
-
   // Posiciones visuales (layout) por id; no forman parte del modelo canónico.
   const [positions, setPositions] = useState<LayoutPositions>({});
-  // Quiebres (waypoints) de cada asociación, por id de arista.
-  const [edgeWaypoints, setEdgeWaypoints] = useState<Record<string, { x: number; y: number }[]>>({});
-
-  const handleWaypointsChange = useCallback(
-    (edgeId: string, waypoints: { x: number; y: number }[]) => {
-      setEdgeWaypoints((prev) => ({ ...prev, [edgeId]: waypoints }));
-    },
-    []
-  );
 
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [assocName, setAssocName] = useState('');
@@ -141,15 +123,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
     () => modelToFlowNodes(model, callbacks, positions),
     [model, callbacks, positions]
   );
-  const edges = useMemo(
-    () =>
-      modelToFlowEdges(model, {
-        waypoints: edgeWaypoints,
-        editable: !readOnly,
-        onWaypointsChange: handleWaypointsChange,
-      }),
-    [model, edgeWaypoints, readOnly, handleWaypointsChange]
-  );
+  const edges = useMemo(() => modelToFlowEdges(model), [model]);
 
   const classNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -454,7 +428,6 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
             fitView
             nodesFocusable={true}
             edgesFocusable={false}
