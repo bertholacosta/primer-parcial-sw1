@@ -6,8 +6,9 @@ Entorno canónico: Windows 11 con PowerShell 7 (`pwsh`) para Orca, Codex, Kiro, 
 
 Fuentes de verdad, en orden: decisiones explícitas del Product Owner registradas en `docs/PROJECT.md`; ADR aceptados en `docs/adr/`; contratos versionados en `docs/contracts/`; tarea asignada; `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` y `docs/REPO_MAP.md`. Una tarea no puede contradecir una fuente superior.
 
-- Una tarea pequeña por rama y worktree de Orca; un solo agente escritor por rama.
-- El revisor trabaja en modo lectura y nunca corrige la rama revisada.
+- Por defecto, una tarea pequeña por rama y worktree de Orca; un solo agente escritor por rama.
+- El Product Owner puede autorizar explícitamente implementar tareas directamente en el worktree actual, sin Orca y sin revisión independiente. Esta excepción no elimina `allowed_paths`, `forbidden_paths`, criterios de aceptación ni validaciones declaradas.
+- Cuando exista revisión independiente, el revisor trabaja en modo lectura y nunca corrige la rama revisada.
 - Respeta `allowed_paths` y `forbidden_paths`; no hagas refactorizaciones laterales.
 - No cambies arquitectura sin ADR aceptado. No edites manualmente código generado.
 - Ejecuta todos los comandos de validación declarados. CI, compiladores, linters y pruebas deciden la aceptación.
@@ -15,4 +16,4 @@ Fuentes de verdad, en orden: decisiones explícitas del Product Owner registrada
 - Conserva cambios del usuario. No hagas push, merge remoto ni elimines ramas sin autorización.
 - Registra decisiones y estado en archivos versionados; no dependas de memoria conversacional.
 
-Flujo: especificación (Kiro / Antigravity) → implementación (Devin CLI/SWE-2 / Codex) → revisión independiente (Antigravity / Codex) → corrección por el escritor → validación objetiva → integración por Antigravity con aprobación requerida (Codex reincorporado tras reinicio de cuota por decisión del Product Owner del 2026-09-21).
+Flujo predeterminado: especificación (Kiro / Antigravity) → implementación (Devin CLI/SWE-2 / Codex) → revisión independiente (Antigravity / Codex) → corrección por el escritor → validación objetiva → integración por Antigravity con aprobación requerida. Con autorización explícita del Product Owner se permite implementación directa sin Orca ni revisión independiente, conservando siempre la validación objetiva y los límites de la tarea (Codex reincorporado tras reinicio de cuota por decisión del Product Owner del 2026-09-21).
