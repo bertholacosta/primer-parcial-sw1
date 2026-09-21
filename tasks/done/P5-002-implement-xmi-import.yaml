@@ -1,7 +1,7 @@
 id: P5-002
 title: "Implementar importación XMI mínima"
 phase: 5
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Convertir el corpus XMI soportado a modelos canónicos válidos con diagnósticos explícitos."
@@ -32,3 +32,6 @@ deliverables:
   - packages/xmi-adapter/
 links:
   - docs/contracts/xmi-profile-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
