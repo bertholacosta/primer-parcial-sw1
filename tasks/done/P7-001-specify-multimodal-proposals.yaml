@@ -1,7 +1,7 @@
 id: P7-001
 title: "Especificar propuestas multimodales"
 phase: 7
-status: ready
+status: done
 kind: specification
 owner_role: Antigravity
 objective: "Definir cómo voz, imagen e IA producen propuestas auditables de model-commands sin mutar el modelo."
@@ -32,3 +32,6 @@ deliverables:
   - docs/contracts/multimodal-proposals-v1.md
 links:
   - docs/contracts/model-commands-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
