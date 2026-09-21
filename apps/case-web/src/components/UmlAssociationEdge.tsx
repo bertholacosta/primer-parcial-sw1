@@ -145,7 +145,9 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
   selected,
   data,
 }) => {
-  const { obstacles, sourceRect, targetRect } = useStore((state) => {
+  const PARALLEL_GAP = 26;
+
+  const { obstacles, sourceRect, targetRect, parallelIndex, parallelCount } = useStore((state) => {
     const rects: Rect[] = [];
     let sourceRect: Rect | undefined;
     let targetRect: Rect | undefined;
@@ -162,7 +164,23 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
       else if (node.id === target) targetRect = rect;
       else rects.push(expand(rect, MARGIN));
     });
-    return { obstacles: rects, sourceRect, targetRect };
+
+    // Aristas que unen el mismo par de nodos (en cualquier sentido)
+    const siblings: string[] = [];
+    state.edgeLookup.forEach((edge) => {
+      const samePair =
+        (edge.source === source && edge.target === target) ||
+        (edge.source === target && edge.target === source);
+      if (samePair) siblings.push(edge.id);
+    });
+    siblings.sort();
+    return {
+      obstacles: rects,
+      sourceRect,
+      targetRect,
+      parallelIndex: Math.max(0, siblings.indexOf(id)),
+      parallelCount: siblings.length,
+    };
   });
 
   const points = useMemo(() => {
@@ -175,8 +193,23 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
       x: sourceRect.x + sourceRect.w / 2,
       y: sourceRect.y + sourceRect.h / 2,
     });
+
+    // Separar aristas paralelas: desplazamiento perpendicular centrado.
+    if (parallelCount > 1) {
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const offset = (parallelIndex - (parallelCount - 1) / 2) * PARALLEL_GAP;
+      s.x += nx * offset;
+      s.y += ny * offset;
+      t.x += nx * offset;
+      t.y += ny * offset;
+    }
+
     return route(s, t, obstacles);
-  }, [sourceRect, targetRect, obstacles]);
+  }, [sourceRect, targetRect, obstacles, parallelIndex, parallelCount]);
 
   if (!points) return null;
   const sourceX = points[0].x;
