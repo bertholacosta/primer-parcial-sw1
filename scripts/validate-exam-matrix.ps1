@@ -14,9 +14,34 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $RepoRoot
 try {
+    function Fail([string]$Stage, [string]$Message) {
+        Write-Host "[exam-matrix] FAIL ${Stage}: $Message"
+        exit 1
+    }
+
+    function Write-ToolVersion([string]$Command, [string[]]$Arguments) {
+        if (-not (Get-Command $Command -ErrorAction SilentlyContinue)) {
+            Fail "prerrequisitos" "herramienta '$Command' no disponible en PATH."
+        }
+
+        Write-Host "`n[exam-matrix] >>> $Command $($Arguments -join ' ')"
+        & $Command @Arguments
+        if ($LASTEXITCODE -ne 0) {
+            Fail "prerrequisitos" "no se pudo obtener la versión de '$Command' (código $LASTEXITCODE)."
+        }
+    }
+
     Write-Host "================================================================"
     Write-Host "=== Matriz de Aceptación Final del Examen (P9-004)           ==="
     Write-Host "================================================================"
+
+    Write-Host "`n[exam-matrix] Raíz: $RepoRoot"
+    Write-Host "[exam-matrix] PowerShell: $($PSVersionTable.PSVersion)"
+    Write-ToolVersion "git" @("--version")
+    Write-ToolVersion "node" @("--version")
+    Write-ToolVersion "npm" @("--version")
+    Write-ToolVersion "mvn" @("--version")
+    Write-ToolVersion "flutter" @("--version")
 
     Write-Host "`n[1/3] Ejecutando circuito determinista E2E (P9-001)..."
     & pwsh -NoProfile -File (Join-Path $RepoRoot "scripts/validate-e2e.ps1")

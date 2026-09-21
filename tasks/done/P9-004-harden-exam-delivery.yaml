@@ -1,7 +1,7 @@
 id: P9-004
 title: "Endurecer entrega reproducible del examen"
 phase: 9
-status: ready
+status: done
 kind: documentation
 owner_role: Codex / GPT-5.6 Sol
 objective: "Verificar desde limpio, documentar operación y cerrar riesgos sin ampliar alcance ni refactorizar."
@@ -10,8 +10,16 @@ inputs:
   files: [docs/PROJECT.md, docs/ARCHITECTURE.md, docs/ROADMAP.md]
   docs: [AGENTS.md]
 scope:
-  allowed_paths: [docs/, scripts/, README.md]
-  forbidden_paths: [apps/, services/, packages/, templates/, fixtures/generated-projects/]
+  allowed_paths:
+    - docs/
+    - scripts/
+    - README.md
+  forbidden_paths:
+    - apps/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/generated-projects/
 acceptance_criteria:
   - "Todos los comandos de aceptación pasan desde checkout limpio y quedan documentados con versiones."
   - "Riesgos residuales, limitaciones y demostración del examen son explícitos y aprobados."
@@ -20,3 +28,6 @@ validation_commands:
   - "pwsh -NoProfile -File scripts/validate-exam-matrix.ps1"
 deliverables: [docs/, scripts/, README.md]
 links: [docs/PROJECT.md, docs/ROADMAP.md]
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
