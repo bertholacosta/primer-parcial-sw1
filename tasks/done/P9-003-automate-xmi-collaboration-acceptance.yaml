@@ -1,7 +1,7 @@
 id: P9-003
 title: "Automatizar aceptación XMI y colaboración"
 phase: 9
-status: active
+status: done
 kind: test
 owner_role: Devin CLI / SWE-2
 objective: "Ejecutar round-trip XMI y convergencia de dos clientes sobre fixtures versionados."
@@ -23,3 +23,6 @@ validation_commands:
   - "pwsh -File scripts/validate-xmi-collaboration.ps1"
 deliverables: [scripts/, fixtures/xmi/]
 links: [docs/contracts/xmi-profile-v1.md, docs/contracts/collaboration-protocol-v1.md]
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
