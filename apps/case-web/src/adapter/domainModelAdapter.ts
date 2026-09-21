@@ -13,6 +13,7 @@ export interface UmlClassNodeData {
   isAbstract: boolean;
   packageId?: string;
   attributes: CanonicalAttribute[];
+  readOnly?: boolean;
   onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string) => void;
   onUpdateAttribute?: (classId: string, attributeId: string, newName: string) => void;
 }
@@ -126,6 +127,7 @@ export function parseDomainModel(raw: unknown): CanonicalDomainModel {
  * Dispone las clases en una cuadrícula determinista sin lógica de dominio cableada.
  */
 export interface FlowNodeCallbacks {
+  readOnly?: boolean;
   onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string) => void;
   onUpdateAttribute?: (classId: string, attributeId: string, newName: string) => void;
 }
@@ -157,8 +159,9 @@ export function modelToFlowNodes(
         isAbstract: Boolean(cls.isAbstract),
         packageId: cls.packageId,
         attributes: cls.attributes,
-        onAddAttribute: callbacks?.onAddAttribute,
-        onUpdateAttribute: callbacks?.onUpdateAttribute,
+        readOnly: callbacks?.readOnly,
+        onAddAttribute: callbacks?.readOnly ? undefined : callbacks?.onAddAttribute,
+        onUpdateAttribute: callbacks?.readOnly ? undefined : callbacks?.onUpdateAttribute,
       },
     };
   });

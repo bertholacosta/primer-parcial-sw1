@@ -22,15 +22,26 @@ import {
   type CreateAssociationInput,
 } from '../commands/associationCommands';
 
+export interface CollaborationBarInfo {
+  stateLabel: string;
+  connected: boolean;
+  roleLabel?: string;
+  participants: string[];
+  pendingCount: number;
+}
+
 interface CaseWebCanvasProps extends FlowNodeCallbacks {
   model: CanonicalDomainModel;
   lastCommandResult?: CommandExecutionResult | null;
+  collaboration?: CollaborationBarInfo;
   onCreateAssociation?: (input: CreateAssociationInput) => void;
 }
 
 export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
   model,
   lastCommandResult,
+  collaboration,
+  readOnly,
   onAddAttribute,
   onUpdateAttribute,
   onCreateAssociation,
@@ -76,10 +87,11 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
 
   const callbacks = useMemo(
     () => ({
+      readOnly,
       onAddAttribute,
       onUpdateAttribute,
     }),
-    [onAddAttribute, onUpdateAttribute]
+    [readOnly, onAddAttribute, onUpdateAttribute]
   );
 
   const nodes = useMemo(() => modelToFlowNodes(model, callbacks), [model, callbacks]);
@@ -121,7 +133,44 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
         </div>
       </header>
 
+      {/* Barra de estado de colaboración (solo en modo conectado) */}
+      {collaboration && (
+        <div
+          data-testid="collaboration-bar"
+          style={{
+            padding: '6px 20px',
+            background: '#1e293b',
+            color: '#e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            fontSize: '12px',
+          }}
+        >
+          <span data-testid="collaboration-state" style={{ color: collaboration.connected ? '#4ade80' : '#fbbf24' }}>
+            ● {collaboration.stateLabel}
+          </span>
+          {collaboration.roleLabel && (
+            <span data-testid="collaboration-role">Rol: {collaboration.roleLabel}</span>
+          )}
+          <span data-testid="collaboration-participants">
+            Participantes: {collaboration.participants.length}
+          </span>
+          {collaboration.pendingCount > 0 && (
+            <span data-testid="collaboration-pending">
+              {collaboration.pendingCount} comando(s) pendiente(s)
+            </span>
+          )}
+          {readOnly && (
+            <span data-testid="collaboration-readonly" style={{ marginLeft: 'auto', color: '#94a3b8' }}>
+              Modo solo lectura
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Barra de herramientas: creación de asociaciones mediante comando */}
+      {!readOnly && (
       <div
         data-testid="association-toolbar"
         style={{
@@ -249,6 +298,7 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
           </button>
         )}
       </div>
+      )}
 
       {/* Banner de resultado del último comando */}
       {lastCommandResult && (

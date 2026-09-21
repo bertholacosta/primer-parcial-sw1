@@ -143,21 +143,23 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data }) =>
                       <span style={{ color: '#64748b', fontSize: '11px' }}>
                         [{attr.multiplicity}]
                       </span>
-                      <button
-                        data-testid={`btn-edit-attr-${data.name}-${attr.name}`}
-                        onClick={() => handleStartEdit(attr.id, attr.name)}
-                        title="Renombrar/editar atributo"
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '11px',
-                          color: '#475569',
-                          padding: '1px 3px',
-                        }}
-                      >
-                        &#9998;
-                      </button>
+                      {!data.readOnly && data.onUpdateAttribute && (
+                        <button
+                          data-testid={`btn-edit-attr-${data.name}-${attr.name}`}
+                          onClick={() => handleStartEdit(attr.id, attr.name)}
+                          title="Renombrar/editar atributo"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            color: '#475569',
+                            padding: '1px 3px',
+                          }}
+                        >
+                          &#9998;
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -220,6 +222,10 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data }) =>
               </button>
             </div>
           </div>
+        ) : data.readOnly || !data.onAddAttribute ? (
+          <span data-testid={`readonly-footer-${data.name}`} style={{ color: '#cbd5e1', fontSize: '10px' }}>
+            solo lectura
+          </span>
         ) : (
           <button
             data-testid={`btn-add-attribute-${data.name}`}
