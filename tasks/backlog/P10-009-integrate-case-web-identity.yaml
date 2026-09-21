@@ -1,0 +1,50 @@
+id: P10-009
+title: "Integrar identidad y compartición en case-web"
+phase: 10
+status: backlog
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: >-
+  Incorporar registro, login, restauración de sesión, selector de diagramas y gestión
+  de miembros e invitaciones en case-web conforme al contrato aceptado.
+dependencies: [P10-006]
+inputs:
+  files:
+    - docs/contracts/identity-access-v1.md
+    - apps/case-web/package.json
+  docs:
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - apps/case-web/
+  forbidden_paths:
+    - services/
+    - packages/
+    - templates/
+constraints:
+  - "No guardar refresh tokens en localStorage ni sessionStorage."
+  - "La interfaz no sustituye controles de autorización del servidor."
+acceptance_criteria:
+  - "Un usuario puede registrarse, iniciar y cerrar sesión."
+  - "La sesión se restaura mediante el flujo de refresh definido."
+  - "El usuario solo ve diagramas autorizados y puede abrir uno."
+  - "El owner invita, cambia roles y revoca acceso desde la interfaz."
+  - "Los errores de autenticación y autorización son accesibles y no filtran secretos."
+validation_commands:
+  - "git diff --check -- apps/case-web"
+  - "npm run build --prefix apps/case-web"
+  - "npm test --prefix apps/case-web"
+deliverables:
+  - apps/case-web/
+links:
+  - docs/contracts/identity-access-v1.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

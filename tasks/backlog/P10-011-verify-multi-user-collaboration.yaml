@@ -1,0 +1,57 @@
+id: P10-011
+title: "Verificar colaboración autenticada extremo a extremo"
+phase: 10
+status: backlog
+kind: test
+owner_role: Antigravity / Codex
+objective: >-
+  Automatizar un escenario reproducible con owner, editor y viewer que pruebe login,
+  compartición, coedición, autorización, reconexión y recuperación tras reinicio.
+dependencies: [P10-010]
+inputs:
+  files:
+    - docs/contracts/identity-access-v1.md
+    - docs/contracts/collaboration-protocol-v1.md
+  docs:
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - tests/
+    - scripts/
+    - apps/case-web/
+    - services/model-server/
+  forbidden_paths:
+    - services/generator-cli/
+    - templates/
+    - fixtures/generated-projects/
+constraints:
+  - "Usar usuarios, secretos y base PostgreSQL efímeros de prueba."
+  - "No debilitar controles de seguridad para facilitar las pruebas."
+acceptance_criteria:
+  - "Owner invita a editor y viewer y ambos obtienen el rol esperado."
+  - "Owner y editor convergen al mismo hash después de editar el mismo diagrama."
+  - "Viewer observa cambios pero no puede mutar por UI ni por mensaje fabricado."
+  - "Una reconexión no duplica comandos y recupera secuencias faltantes."
+  - "Tras reiniciar model-server, el modelo y la deduplicación permanecen válidos."
+validation_commands:
+  - "git diff --check -- tests scripts apps/case-web services/model-server"
+  - "npm run build --prefix services/model-server"
+  - "npm test --prefix services/model-server"
+  - "npm run build --prefix apps/case-web"
+  - "npm test --prefix apps/case-web"
+deliverables:
+  - tests/
+  - scripts/
+links:
+  - docs/contracts/identity-access-v1.md
+  - docs/contracts/collaboration-protocol-v1.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

@@ -1,0 +1,49 @@
+id: P10-003
+title: "Incorporar runtime HTTP y migraciones PostgreSQL"
+phase: 10
+status: backlog
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: >-
+  Preparar model-server para ejecutar REST y conectarse a PostgreSQL con migraciones
+  reproducibles, health checks y configuración exclusivamente por entorno.
+dependencies: [P10-002]
+inputs:
+  files:
+    - services/model-server/package.json
+  docs:
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+    - docs/contracts/identity-access-v1.md
+scope:
+  allowed_paths:
+    - services/model-server/
+  forbidden_paths:
+    - apps/
+    - packages/collaboration-protocol/
+    - services/generator-cli/
+    - templates/
+constraints:
+  - "No incluir secretos ni credenciales reales."
+  - "Las migraciones son la autoridad del esquema; no usar sincronización automática destructiva."
+acceptance_criteria:
+  - "El servicio inicia con configuración validada y expone un health check."
+  - "Las migraciones crean y revierten en una base de prueba aislada."
+  - "Una configuración incompleta falla de forma explícita sin filtrar secretos."
+validation_commands:
+  - "git diff --check -- services/model-server"
+  - "npm run build --prefix services/model-server"
+  - "npm test --prefix services/model-server"
+deliverables:
+  - services/model-server/
+links:
+  - docs/adr/0008-identity-access-and-persistent-collaboration.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

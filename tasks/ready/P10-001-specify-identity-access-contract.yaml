@@ -1,0 +1,51 @@
+id: P10-001
+title: "Especificar identidad, acceso y compartición"
+phase: 10
+status: ready
+kind: specification
+owner_role: Kiro
+objective: >-
+  Definir un contrato versionado para registro, sesiones, diagramas, membresías,
+  invitaciones por correo y enlaces compartibles sin fijar detalles internos no observables.
+dependencies: []
+inputs:
+  files:
+    - docs/contracts/collaboration-protocol-v1.md
+    - docs/contracts/domain-model-v1.md
+  docs:
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - docs/contracts/identity-access-v1.md
+    - docs/contracts/README.md
+  forbidden_paths:
+    - apps/
+    - services/
+    - packages/
+    - templates/
+    - fixtures/generated-projects/
+constraints:
+  - "No cambiar la semántica de collaboration-protocol v1."
+  - "No registrar este contrato como accepted sin aprobación explícita del Product Owner."
+acceptance_criteria:
+  - "Define respuestas y errores observables de registro, login, refresh y logout."
+  - "Define owner, editor y viewer, incluyendo autorización por operación."
+  - "Define ciclo de vida, expiración, revocación e idempotencia de invitaciones y enlaces."
+  - "Incluye escenarios normativos de dos usuarios y acceso denegado."
+validation_commands:
+  - "git diff --check -- docs/contracts/identity-access-v1.md docs/contracts/README.md"
+  - "rg -n \"register|login|refresh|owner|editor|viewer|invitation|share|revoc\" docs/contracts/identity-access-v1.md"
+deliverables:
+  - docs/contracts/identity-access-v1.md
+links:
+  - docs/adr/0008-identity-access-and-persistent-collaboration.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

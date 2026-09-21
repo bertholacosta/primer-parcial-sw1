@@ -91,6 +91,22 @@ Cierre: el escenario Android acordado funciona sin red y no elude el validador.
 
 Cierre: todas las pruebas del examen pasan desde un checkout limpio y la entrega es reproducible.
 
+## Fase 10 — Identidad y colaboración persistente
+
+- `P10-001`: especificar identidad, acceso y compartición.
+- `P10-002`: resolver ADR de identidad y colaboración persistente.
+- `P10-003`: incorporar runtime HTTP y migraciones PostgreSQL.
+- `P10-004`: implementar autenticación por correo y contraseña.
+- `P10-005`: implementar propiedad y membresías de diagramas.
+- `P10-006`: implementar invitaciones por correo y enlace.
+- `P10-007`: persistir modelos y estado de colaboración.
+- `P10-008`: exponer colaboración mediante WebSocket/STOMP.
+- `P10-009`: integrar identidad y compartición en `case-web`.
+- `P10-010`: integrar coedición simultánea en `case-web`.
+- `P10-011`: verificar colaboración autenticada extremo a extremo.
+
+Cierre: owner y editor construyen simultáneamente un diagrama persistente, viewer observa sin mutar y la sesión se recupera tras desconexión y reinicio.
+
 ## Camino crítico inicial
 
 `P1-001 → P1-002 → P1-003 → P1-004 → P2-001 → P2-002 → P2-003 → P2-004 → P2-005 → P3-001 → P3-003 → P9-001`

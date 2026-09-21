@@ -1,0 +1,53 @@
+id: P10-007
+title: "Persistir modelos y estado de colaboración"
+phase: 10
+status: backlog
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: >-
+  Sustituir el repositorio volátil de model-server por persistencia transaccional de
+  modelo, OpLog, deduplicación y snapshots recuperable tras reinicio.
+dependencies: [P10-003, P10-005]
+inputs:
+  files:
+    - services/model-server/src/model-server.ts
+    - docs/contracts/collaboration-protocol-v1.md
+  docs:
+    - docs/adr/0003-realtime-collaboration.md
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - services/model-server/
+    - packages/collaboration-protocol/
+  forbidden_paths:
+    - apps/
+    - services/generator-cli/
+    - templates/
+constraints:
+  - "No cambiar mensajes ni semántica de collaboration-protocol v1."
+  - "Commit del modelo, secuencia, OpLog y deduplicación debe ser atómico."
+acceptance_criteria:
+  - "Un comando confirmado sobrevive al reinicio del servicio."
+  - "Un reintento duplicado posterior al reinicio devuelve el resultado original sin nueva mutación."
+  - "Catch-up y snapshot fallback reconstruyen el mismo hash canónico."
+  - "Una falla de persistencia no produce CommandCommitted ni avance visible de secuencia."
+validation_commands:
+  - "git diff --check -- services/model-server packages/collaboration-protocol"
+  - "npm run build --prefix services/model-server"
+  - "npm test --prefix services/model-server"
+  - "npm test --prefix packages/collaboration-protocol"
+deliverables:
+  - services/model-server/
+  - packages/collaboration-protocol/
+links:
+  - docs/adr/0003-realtime-collaboration.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

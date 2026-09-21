@@ -1,0 +1,54 @@
+id: P10-010
+title: "Integrar coedición simultánea en case-web"
+phase: 10
+status: backlog
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: >-
+  Conectar los comandos del editor al cliente de colaboración, aplicar commits ordenados
+  y mostrar presencia, rol, reconexión y conflictos sin mutaciones locales definitivas.
+dependencies: [P10-008, P10-009]
+inputs:
+  files:
+    - docs/contracts/collaboration-protocol-v1.md
+    - apps/case-web/src/App.tsx
+  docs:
+    - docs/adr/0003-realtime-collaboration.md
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - apps/case-web/
+    - packages/collaboration-protocol/
+  forbidden_paths:
+    - services/
+    - services/generator-cli/
+    - templates/
+constraints:
+  - "No alterar el modelo confirmado antes de CommandCommitted."
+  - "No fusionar silenciosamente un CONCURRENT_MODIFICATION."
+acceptance_criteria:
+  - "Dos navegadores abren el mismo diagrama y convergen tras comandos secuenciales."
+  - "La interfaz muestra participantes activos y el rol adjudicado."
+  - "Viewer no dispone de controles mutables y el servidor sigue rechazando comandos forzados."
+  - "Una desconexión recuperable ejecuta catch-up sin duplicar comandos."
+  - "Un conflicto muestra rechazo y permite reintento explícito sobre la versión actual."
+validation_commands:
+  - "git diff --check -- apps/case-web packages/collaboration-protocol"
+  - "npm run build --prefix apps/case-web"
+  - "npm test --prefix apps/case-web"
+  - "npm test --prefix packages/collaboration-protocol"
+deliverables:
+  - apps/case-web/
+  - packages/collaboration-protocol/
+links:
+  - docs/contracts/collaboration-protocol-v1.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

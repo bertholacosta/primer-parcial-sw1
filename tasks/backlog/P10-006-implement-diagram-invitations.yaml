@@ -1,0 +1,49 @@
+id: P10-006
+title: "Implementar invitaciones por correo y enlace"
+phase: 10
+status: backlog
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: >-
+  Permitir que el owner invite por correo o cree enlaces con rol, expiración y
+  revocación, y que un usuario autenticado los canjee de forma idempotente.
+dependencies: [P10-005]
+inputs:
+  files:
+    - docs/contracts/identity-access-v1.md
+  docs:
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - services/model-server/
+  forbidden_paths:
+    - apps/
+    - packages/collaboration-protocol/
+    - services/generator-cli/
+constraints:
+  - "Persistir únicamente hashes de tokens de invitación y enlace."
+  - "El envío de correo debe depender de un puerto sustituible y no de credenciales versionadas."
+acceptance_criteria:
+  - "Owner crea y revoca invitaciones editor o viewer."
+  - "Aceptar dos veces el mismo token no duplica membresías."
+  - "Tokens expirados, revocados o desconocidos son rechazados."
+  - "El canje de enlace requiere usuario autenticado."
+  - "Las pruebas usan un adaptador de correo falso y verifican el mensaje solicitado."
+validation_commands:
+  - "git diff --check -- services/model-server"
+  - "npm run build --prefix services/model-server"
+  - "npm test --prefix services/model-server"
+deliverables:
+  - services/model-server/
+links:
+  - docs/contracts/identity-access-v1.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

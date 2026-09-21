@@ -1,0 +1,49 @@
+id: P10-005
+title: "Implementar propiedad y membresías de diagramas"
+phase: 10
+status: backlog
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: >-
+  Persistir diagramas y aplicar autorización owner, editor y viewer en creación,
+  listado, lectura y administración de miembros.
+dependencies: [P10-004]
+inputs:
+  files:
+    - docs/contracts/identity-access-v1.md
+    - docs/contracts/domain-model-v1.md
+  docs:
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - services/model-server/
+  forbidden_paths:
+    - apps/
+    - packages/collaboration-protocol/
+    - services/generator-cli/
+constraints:
+  - "Toda consulta de diagrama debe verificar acceso en el servidor."
+  - "Cada diagrama conserva exactamente un owner en el MVP."
+acceptance_criteria:
+  - "Crear un diagrama asigna al usuario autenticado como owner."
+  - "El listado solo retorna diagramas accesibles para el usuario."
+  - "Owner administra miembros; editor y viewer no pueden cambiar permisos."
+  - "Viewer no puede ejecutar ninguna mutación del diagrama."
+validation_commands:
+  - "git diff --check -- services/model-server"
+  - "npm run build --prefix services/model-server"
+  - "npm test --prefix services/model-server"
+deliverables:
+  - services/model-server/
+links:
+  - docs/contracts/identity-access-v1.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

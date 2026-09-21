@@ -11,8 +11,9 @@ Registro actual:
 - `0000-foundational-decisions.md`: aceptado por instrucción del Product Owner.
 - `0001-case-web-technology.md`: propuesta pendiente.
 - `0002-generator-implementation.md`: propuesta pendiente.
-- `0003-realtime-collaboration.md`: propuesta pendiente.
+- `0003-realtime-collaboration.md`: aceptado por el Product Owner el 2026-09-20.
 - `0004-mobile-state-and-storage.md`: propuesta pendiente.
 - `0005-android-local-ai.md`: propuesta pendiente.
 - `0006-domain-model-validation.md`: propuesta pendiente.
 - `0007-windows-orca-pipeline.md`: aceptado por instrucción explícita del Product Owner.
+- `0008-identity-access-and-persistent-collaboration.md`: propuesta pendiente.

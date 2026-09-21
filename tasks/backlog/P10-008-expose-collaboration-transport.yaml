@@ -1,0 +1,54 @@
+id: P10-008
+title: "Exponer colaboración mediante WebSocket STOMP"
+phase: 10
+status: backlog
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: >-
+  Adaptar WebSocket/STOMP a ModelServer.dispatch, autenticando la conexión y resolviendo
+  roles desde membresías persistentes sin contaminar el protocolo neutral.
+dependencies: [P10-006, P10-007]
+inputs:
+  files:
+    - docs/contracts/collaboration-protocol-v1.md
+    - services/model-server/src/model-server.ts
+  docs:
+    - docs/adr/0003-realtime-collaboration.md
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - services/model-server/
+    - packages/collaboration-protocol/
+  forbidden_paths:
+    - apps/
+    - services/generator-cli/
+    - templates/
+constraints:
+  - "Validar origen, credenciales y membresía antes de aceptar mensajes."
+  - "No confiar en userId ni rol enviados por el cliente."
+acceptance_criteria:
+  - "Dos conexiones autenticadas reciben commits ordenados del mismo diagrama."
+  - "Owner, editor y viewer se traducen a admin, editor y viewer respectivamente."
+  - "Viewer recibe actualizaciones pero SubmitCommand se rechaza sin mutación."
+  - "Revocar una membresía impide nuevos comandos y reconexiones autorizadas."
+  - "Reconexión con lastKnownSeqNumber realiza catch-up o snapshot fallback."
+validation_commands:
+  - "git diff --check -- services/model-server packages/collaboration-protocol"
+  - "npm run build --prefix services/model-server"
+  - "npm test --prefix services/model-server"
+  - "npm test --prefix packages/collaboration-protocol"
+deliverables:
+  - services/model-server/
+  - packages/collaboration-protocol/
+links:
+  - docs/contracts/collaboration-protocol-v1.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

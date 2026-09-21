@@ -1,0 +1,50 @@
+id: P10-002
+title: "Resolver ADR de identidad y colaboración persistente"
+phase: 10
+status: backlog
+kind: adr
+owner_role: Kiro
+objective: >-
+  Contrastar la propuesta de identidad, autorización y persistencia con el contrato
+  P10-001 y registrar la decisión explícita del Product Owner.
+dependencies: [P10-001]
+inputs:
+  files:
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+    - docs/contracts/identity-access-v1.md
+  docs:
+    - docs/adr/0003-realtime-collaboration.md
+    - docs/ARCHITECTURE.md
+scope:
+  allowed_paths:
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+    - docs/adr/README.md
+  forbidden_paths:
+    - apps/
+    - services/
+    - packages/
+    - templates/
+constraints:
+  - "Solo el Product Owner puede cambiar el estado a accepted."
+  - "No contradecir ADR-0003 ni collaboration-protocol v1."
+acceptance_criteria:
+  - "Compara al menos dos límites de servicio para identidad y colaboración."
+  - "Resuelve sesiones, permisos, invitaciones, persistencia y recuperación tras reinicio."
+  - "Registra aprobación o rechazo explícito con fecha."
+validation_commands:
+  - "git diff --check -- docs/adr/0008-identity-access-and-persistent-collaboration.md docs/adr/README.md"
+  - "rg -n \"Estado|Alternativas|Decisión|PostgreSQL|WebSocket|Aprobación\" docs/adr/0008-identity-access-and-persistent-collaboration.md"
+deliverables:
+  - docs/adr/0008-identity-access-and-persistent-collaboration.md
+links:
+  - docs/contracts/identity-access-v1.md
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []
