@@ -143,6 +143,11 @@ class VoiceProposalAdapter {
   /// [mediaSha256] should be the hash of the raw audio buffer when one
   /// exists; with a pure injected transcript the transcript's own SHA-256
   /// is used as the auditable input hash (MP-INV-4/MP-INV-5).
+  ///
+  /// [modality] declares the real input channel (§3.1.1): `voice` for
+  /// captured audio (default) or `text_prompt` for text typed directly by
+  /// the user (e.g. the guided onboarding flow). Text prompts produce a
+  /// `text_transcript` evidence instead of an `audio_segment` one.
   MultimodalProposal propose({
     required DomainModel model,
     required String transcript,
@@ -150,6 +155,7 @@ class VoiceProposalAdapter {
     int? audioStartMs,
     int? audioEndMs,
     DateTime? capturedAt,
+    ProposalModality modality = ProposalModality.voice,
   }) {
     final now = _clock().toUtc();
     final intents = _parseTranscript(transcript);
@@ -341,18 +347,21 @@ class VoiceProposalAdapter {
       );
     }
 
+    final isVoice = modality == ProposalModality.voice;
     final evidence = ProposalEvidence(
       evidenceId: _uuid.v4(),
-      type: EvidenceType.audioSegment,
+      type: isVoice ? EvidenceType.audioSegment : EvidenceType.textTranscript,
       mediaSha256:
           mediaSha256 ?? sha256.convert(utf8.encode(transcript)).toString(),
       payload: EvidencePayload(
         textTranscript: transcript,
-        audioTimeRange: (audioStartMs != null && audioEndMs != null)
-            ? AudioTimeRange(startMs: audioStartMs, endMs: audioEndMs)
-            : null,
-        description:
-            'Transcripción de voz inyectada; el motor de reconocimiento local aún no está seleccionado.',
+        audioTimeRange:
+            (isVoice && audioStartMs != null && audioEndMs != null)
+                ? AudioTimeRange(startMs: audioStartMs, endMs: audioEndMs)
+                : null,
+        description: isVoice
+            ? 'Transcripción de voz inyectada; el motor de reconocimiento local aún no está seleccionado.'
+            : 'Prompt de texto inyectado; el motor de lenguaje aún no está seleccionado.',
       ),
     );
 
@@ -365,7 +374,7 @@ class VoiceProposalAdapter {
           ? ProposalLifecycleState.dryRunValidated
           : ProposalLifecycleState.awaitingConfirmation,
       source: ProposalSource(
-        modality: ProposalModality.voice,
+        modality: modality,
         clientPlatform: clientPlatform,
         agentRole: agentRole,
         capturedAt: (capturedAt ?? now).toUtc(),

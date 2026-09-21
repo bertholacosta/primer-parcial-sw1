@@ -5,6 +5,7 @@ import 'models/offline_operation.dart';
 import 'state/descriptor_state.dart';
 import 'state/offline_queue.dart';
 import 'widgets/dynamic_form.dart';
+import 'widgets/guided_onboarding.dart';
 
 void main() {
   runApp(const ProviderScope(child: MobileFlutterApp()));
@@ -67,6 +68,18 @@ class _DynamicDescriptorHomeScreenState
         title: const Text('Dynamic Model Slice'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          IconButton(
+            key: const Key('open_onboarding'),
+            icon: const Icon(Icons.assistant),
+            tooltip: 'Onboarding guiado por propuestas',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const GuidedOnboardingScreen(),
+                ),
+              );
+            },
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Center(

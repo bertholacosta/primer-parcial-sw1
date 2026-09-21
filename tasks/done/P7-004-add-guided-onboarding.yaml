@@ -1,7 +1,7 @@
 id: P7-004
 title: "Implementar onboarding guiado por propuestas"
 phase: 7
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Guiar al usuario desde una intención inicial hasta revisar y confirmar una propuesta válida."
@@ -33,3 +33,6 @@ deliverables:
   - apps/mobile-flutter/
 links:
   - docs/contracts/multimodal-proposals-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
