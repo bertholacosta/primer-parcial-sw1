@@ -36,11 +36,14 @@ La Fase 0 no implementa este circuito; define su gobierno, contratos pendientes 
 
 - Product Owner: aprueba alcance y decisiones críticas.
 - Orca: controla issues, ramas, worktrees y fases.
-- Codex/GPT-5.6 Sol: líder, arquitecto integrador y responsable de aceptar únicamente cambios verificables.
+- Antigravity/Gemini: arquitecto integrador, revisor independiente y resolución de problemas complejos.
 - Kiro: análisis y especificación.
 - Devin CLI/SWE-2: implementación principal.
-- Antigravity/Gemini 3.6: revisión independiente y problemas complejos.
+- Codex/GPT-5.6 Sol: retirado e inactivo por agotamiento de cuota semanal (decisión PO 2026-09-21; fecha límite del examen: 23 de septiembre).
 - CI, compiladores, linters, validadores y pruebas: autoridad objetiva sobre aceptación técnica.
+
+### Decisiones explícitas del Product Owner
+- **2026-09-21:** Exclusión total y definitiva de Codex de las tareas y del pipeline por superación de cuota semanal previa a la entrega fijada para el 23 de septiembre. Antigravity asume la integración, arquitectura y revisión del ecosistema junto a Devin CLI para la implementación.
 
 ## Restricciones de gobierno
 

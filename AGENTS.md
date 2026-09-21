@@ -15,4 +15,4 @@ Fuentes de verdad, en orden: decisiones explícitas del Product Owner registrada
 - Conserva cambios del usuario. No hagas push, merge remoto ni elimines ramas sin autorización.
 - Registra decisiones y estado en archivos versionados; no dependas de memoria conversacional.
 
-Flujo: especificación (Kiro) → implementación (Devin CLI/SWE-2) → revisión independiente (Antigravity/Gemini 3.6) → corrección por el escritor → validación objetiva → integración por Codex/GPT-5.6 Sol con aprobación requerida.
+Flujo: especificación (Kiro / Antigravity) → implementación (Devin CLI/SWE-2) → revisión independiente (Antigravity) → corrección por el escritor → validación objetiva → integración por Antigravity / Gemini con aprobación requerida (Codex excluido por decisión del Product Owner del 2026-09-21).
