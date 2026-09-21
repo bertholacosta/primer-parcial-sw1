@@ -246,20 +246,11 @@ function Get-OrcaRoles {
     param([Parameter(Mandatory)]$Task)
 
     $owner = [string]$Task.OwnerRole
-    $writer = if ($owner -match '(?i)Kiro') {
-        'kiro'
-    }
-    elseif ($owner -match '(?i)Devin') {
+    $writer = if ($owner -match '(?i)Devin') {
         'devin'
     }
     elseif ($owner -match '(?i)Antigravity') {
         'antigravity'
-    }
-    elseif ($owner -match '(?i)Codex') {
-        'antigravity'
-    }
-    elseif ($Task.Kind -in @('specification', 'adr')) {
-        'kiro'
     }
     elseif ($Task.Kind -in @('implementation', 'test')) {
         'devin'
@@ -267,6 +258,7 @@ function Get-OrcaRoles {
     else {
         'antigravity'
     }
+
 
     $declaredWriter = ([string]$Task.DeclaredWriter).ToLowerInvariant()
     if ($declaredWriter -in @('kiro', 'devin', 'antigravity')) {
@@ -547,7 +539,7 @@ function New-OrcaAgentInvocation {
         'codex' { return New-CodexInvocation @parameters -Role $Role }
         'kiro' { return New-KiroInvocation @parameters }
         'devin' { return New-DevinInvocation @parameters }
-        'antigravity' { return New-AntigravityInvocation @parameters }
+        'antigravity' { return New-AntigravityInvocation @parameters -Role $Role }
         default { throw "Unknown agent adapter: $AgentId" }
     }
 }
