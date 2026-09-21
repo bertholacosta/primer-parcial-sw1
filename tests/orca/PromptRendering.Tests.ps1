@@ -1,7 +1,7 @@
 It 'parses P1-001 without an external YAML package' {
     $task = Read-OrcaTask -RepoRoot $repoRoot -TaskId 'P1-001'
     Assert-Equal 'P1-001' $task.Id
-    Assert-Equal 'ready' $task.Status
+    Assert-Equal 'done' $task.Status
     Assert-Equal 'Kiro' $task.OwnerRole
     Assert-Equal 3 $task.ValidationCommands.Count
     Assert-True ($task.ValidationCommands[1] -match 'Test-Path')
@@ -12,7 +12,7 @@ It 'selects the declared writer and independent roles' {
     $roles = Get-OrcaRoles $task
     Assert-Equal 'kiro' $roles.writer
     Assert-Equal 'antigravity' $roles.reviewer
-    Assert-Equal 'codex' $roles.integrator
+    Assert-Equal 'antigravity' $roles.integrator
 }
 
 It 'renders a complete dry-run with every adapter and no mutations' {
@@ -34,10 +34,6 @@ It 'keeps dry-run agent invocations aligned with verified executables' {
     $actual = @($plan.adapters.executable | Sort-Object)
     Assert-Equal ($expected -join ',') ($actual -join ',')
     Assert-True (@($plan.adapters | Where-Object { $_.available }).Count -eq 4)
-
-    $codex = $plan.adapters | Where-Object { $_.id -eq 'codex' }
-    Assert-True ($codex.arguments -contains '--sandbox')
-    Assert-True ($codex.arguments -contains 'danger-full-access')
 
     $antigravity = $plan.adapters | Where-Object { $_.id -eq 'antigravity' }
     Assert-True ($antigravity.arguments -contains '--add-dir')

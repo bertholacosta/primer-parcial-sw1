@@ -269,8 +269,8 @@ function Get-OrcaRoles {
     }
 
     $reviewer = ([string]$Task.DeclaredReviewer).ToLowerInvariant()
-    if ($reviewer -notin @('kiro', 'devin', 'antigravity') -or $reviewer -eq $writer -or $reviewer -eq 'codex') {
-        $reviewer = if ($writer -eq 'antigravity') { 'devin' } else { 'antigravity' }
+    if ($reviewer -notin @('kiro', 'devin', 'antigravity') -or $reviewer -in @('codex', 'kiro', 'devin')) {
+        $reviewer = 'antigravity'
     }
 
     @{
