@@ -119,39 +119,70 @@ function midpointAlong(pts: Pt[]): Pt {
   return pts[Math.floor(pts.length / 2)];
 }
 
+/** Punto donde el rayo centro→toward cruza el borde del rectángulo. */
+function borderPoint(rect: Rect, toward: Pt): Pt {
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  const dx = toward.x - cx;
+  const dy = toward.y - cy;
+  if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return { x: cx, y: cy };
+  const tx = Math.abs(dx) > 1e-6 ? (rect.w / 2) / Math.abs(dx) : Number.POSITIVE_INFINITY;
+  const ty = Math.abs(dy) > 1e-6 ? (rect.h / 2) / Math.abs(dy) : Number.POSITIVE_INFINITY;
+  const t = Math.min(tx, ty);
+  return { x: cx + dx * t, y: cy + dy * t };
+}
+
 /**
  * Arista de asociación UML: segmentos rectos que nunca atraviesan las
- * cajas de clase; rodea cualquier nodo interpuesto. Etiqueta centrada con
- * nombre y multiplicidades junto a cada extremo.
+ * cajas de clase y se anclan en el punto exacto del borde que mira hacia
+ * el otro nodo (no en handles fijos). Rodea cualquier nodo interpuesto.
  */
 export const UmlAssociationEdge: React.FC<EdgeProps> = ({
   id,
   source,
   target,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
   markerEnd,
   selected,
   data,
 }) => {
-  const obstacles = useStore((state) => {
+  const { obstacles, sourceRect, targetRect } = useStore((state) => {
     const rects: Rect[] = [];
+    let sourceRect: Rect | undefined;
+    let targetRect: Rect | undefined;
     state.nodeLookup.forEach((node) => {
-      if (node.id === source || node.id === target) return;
       const pos = node.internals?.positionAbsolute ?? node.position;
-      const w = node.measured?.width ?? FALLBACK_W;
-      const h = node.measured?.height ?? FALLBACK_H;
-      if (pos) rects.push(expand({ x: pos.x, y: pos.y, w, h }, MARGIN));
+      if (!pos) return;
+      const rect: Rect = {
+        x: pos.x,
+        y: pos.y,
+        w: node.measured?.width ?? FALLBACK_W,
+        h: node.measured?.height ?? FALLBACK_H,
+      };
+      if (node.id === source) sourceRect = rect;
+      else if (node.id === target) targetRect = rect;
+      else rects.push(expand(rect, MARGIN));
     });
-    return rects;
+    return { obstacles: rects, sourceRect, targetRect };
   });
 
-  const points = useMemo(
-    () => route({ x: sourceX, y: sourceY }, { x: targetX, y: targetY }, obstacles),
-    [sourceX, sourceY, targetX, targetY, obstacles]
-  );
+  const points = useMemo(() => {
+    if (!sourceRect || !targetRect) return null;
+    const s = borderPoint(sourceRect, {
+      x: targetRect.x + targetRect.w / 2,
+      y: targetRect.y + targetRect.h / 2,
+    });
+    const t = borderPoint(targetRect, {
+      x: sourceRect.x + sourceRect.w / 2,
+      y: sourceRect.y + sourceRect.h / 2,
+    });
+    return route(s, t, obstacles);
+  }, [sourceRect, targetRect, obstacles]);
+
+  if (!points) return null;
+  const sourceX = points[0].x;
+  const sourceY = points[0].y;
+  const targetX = points[points.length - 1].x;
+  const targetY = points[points.length - 1].y;
 
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
   const labelPos = midpointAlong(points);
