@@ -1,7 +1,7 @@
 id: P9-003
 title: "Automatizar aceptación XMI y colaboración"
 phase: 9
-status: ready
+status: active
 kind: test
 owner_role: Devin CLI / SWE-2
 objective: "Ejecutar round-trip XMI y convergencia de dos clientes sobre fixtures versionados."
