@@ -1,7 +1,7 @@
 id: P7-003
 title: "Agregar adaptador de propuestas de imagen"
 phase: 7
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Convertir una interpretación estructurada de imagen inyectada en propuestas confirmables, sin elegir motor de visión."
@@ -33,3 +33,6 @@ deliverables:
   - apps/mobile-flutter/
 links:
   - docs/contracts/multimodal-proposals-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
