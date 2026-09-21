@@ -1,0 +1,35 @@
+id: P6-003
+title: "Sincronizar dos clientes en el corte mínimo"
+phase: 6
+status: ready
+kind: implementation
+owner_role: Devin CLI / SWE-2
+objective: "Implementar una sesión de dos clientes que intercambie comandos y converja tras desconexión/reconexión."
+dependencies:
+  - P6-002
+inputs:
+  files:
+    - docs/contracts/collaboration-protocol-v1.md
+    - docs/adr/0003-realtime-collaboration.md
+  docs:
+    - docs/contracts/model-commands-v1.md
+scope:
+  allowed_paths:
+    - packages/collaboration-protocol/
+    - services/model-server/
+  forbidden_paths:
+    - apps/
+    - services/generator-cli/
+    - templates/
+    - fixtures/generated-projects/
+acceptance_criteria:
+  - "La traza normativa de dos clientes termina en modelos equivalentes."
+  - "Duplicados y reconexión no aplican dos veces el mismo comando."
+validation_commands:
+  - "git diff --check -- packages/collaboration-protocol services/model-server"
+  - "npm test --prefix packages/collaboration-protocol"
+deliverables:
+  - packages/collaboration-protocol/
+  - services/model-server/
+links:
+  - docs/adr/0003-realtime-collaboration.md
