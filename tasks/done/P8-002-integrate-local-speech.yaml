@@ -1,7 +1,7 @@
 id: P8-002
 title: "Integrar reconocimiento de voz local Android"
 phase: 8
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Reemplazar la transcripción inyectada por reconocimiento local para el escenario acordado, manteniendo el adaptador de propuestas."
@@ -35,3 +35,6 @@ deliverables:
   - apps/mobile-flutter/
 links:
   - docs/adr/0005-android-local-ai.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"

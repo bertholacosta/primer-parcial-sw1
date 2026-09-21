@@ -1,8 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Push-to-talk capture for the on-device ASR (ADR-0005). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="mobile_flutter"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:largeHeap="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

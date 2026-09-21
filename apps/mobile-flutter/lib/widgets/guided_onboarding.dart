@@ -45,6 +45,8 @@ class _GuidedOnboardingScreenState
       ),
       body: switch (state) {
         OnboardingIdle() => _buildIntentStep(),
+        OnboardingListening() || OnboardingTranscribing() =>
+          _buildVoiceStep(state),
         OnboardingProposalReady() => _buildReviewStep(state),
         OnboardingResolved() => _buildResolvedStep(state),
       },
@@ -91,7 +93,93 @@ class _GuidedOnboardingScreenState
                 .read(onboardingProvider.notifier)
                 .submitIntent(_intentController.text),
           ),
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 12),
+          Text(
+            'O dicta tu intención: mantén pulsado el micrófono y habla. '
+            'El reconocimiento es 100% local (whisper.cpp en el '
+            'dispositivo) y funciona en modo avión.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: Listener(
+              key: const Key('onboarding_voice_ptt'),
+              onPointerDown: (_) => ref
+                  .read(onboardingProvider.notifier)
+                  .startVoiceCapture(),
+              onPointerUp: (_) => ref
+                  .read(onboardingProvider.notifier)
+                  .stopVoiceCapture(),
+              onPointerCancel: (_) => ref
+                  .read(onboardingProvider.notifier)
+                  .cancelVoiceCapture(),
+              child: CircleAvatar(
+                key: const Key('onboarding_voice_record'),
+                radius: 32,
+                backgroundColor:
+                    Theme.of(context).colorScheme.primaryContainer,
+                child: const Icon(Icons.mic, size: 32),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  // ---- Voice capture step (push-to-talk) --------------------------------
+
+  Widget _buildVoiceStep(OnboardingState state) {
+    final listening = state is OnboardingListening;
+    return Center(
+      key: Key(listening
+          ? 'onboarding_step_listening'
+          : 'onboarding_step_transcribing'),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              listening ? Icons.mic : Icons.graphic_eq,
+              size: 56,
+              color: listening
+                  ? Colors.red
+                  : Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              listening
+                  ? 'Escuchando… suelta el botón o pulsa «Detener» para '
+                      'transcribir.'
+                  : 'Transcribiendo con el motor de voz local…',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 24),
+            if (listening)
+              ElevatedButton.icon(
+                key: const Key('onboarding_voice_stop'),
+                icon: const Icon(Icons.stop),
+                label: const Text('Detener y transcribir'),
+                onPressed: () => ref
+                    .read(onboardingProvider.notifier)
+                    .stopVoiceCapture(),
+              )
+            else
+              const CircularProgressIndicator(),
+            const SizedBox(height: 8),
+            TextButton(
+              key: const Key('onboarding_voice_cancel'),
+              onPressed: () => ref
+                  .read(onboardingProvider.notifier)
+                  .cancelVoiceCapture(),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        ),
       ),
     );
   }

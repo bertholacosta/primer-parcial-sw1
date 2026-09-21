@@ -4,6 +4,8 @@ import '../models/descriptor.dart';
 import '../models/domain_model.dart';
 import '../models/model_command.dart';
 import '../models/multimodal_proposal.dart';
+import '../services/local_speech_recognizer.dart';
+import '../services/voice_input_pipeline.dart';
 import '../services/voice_proposal_adapter.dart';
 import 'descriptor_state.dart';
 
@@ -57,6 +59,19 @@ class OnboardingProposalReady extends OnboardingState {
   bool get canConfirm => !isInvalid && selectedCommandIds.isNotEmpty;
 }
 
+/// Push-to-talk in progress: the microphone is recording a locution for
+/// the local recognizer (ADR-0005). No proposal exists yet and the
+/// canonical model is untouched.
+class OnboardingListening extends OnboardingState {
+  const OnboardingListening();
+}
+
+/// The recording finished and the on-device ASR is transcribing the
+/// captured audio. No proposal exists yet and the model is untouched.
+class OnboardingTranscribing extends OnboardingState {
+  const OnboardingTranscribing();
+}
+
 /// Step 3 — terminal state of the flow: the proposal reached a resolved
 /// lifecycle state (`confirmed`, `partially_confirmed`, `rejected` or
 /// `expired`). [applied] is true only when commands mutated the model.
@@ -77,6 +92,14 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
   final VoiceProposalAdapter _adapter =
       VoiceProposalAdapter(agentRole: 'guided-onboarding-adapter-v1');
   DomainModel? _model;
+
+  /// Whether a push-to-talk capture session is open. Set synchronously so
+  /// a fast tap (down+up before `start()` resolves) still stops cleanly.
+  bool _captureActive = false;
+
+  /// Generation counter invalidated on cancellation so a late
+  /// transcription result cannot overwrite a state the user left.
+  int _captureGeneration = 0;
 
   @override
   OnboardingState build() => const OnboardingIdle();
@@ -102,6 +125,75 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
           proposal.proposedCommands.map((c) => c.commandId).toSet(),
     );
   }
+
+  /// Starts a push-to-talk capture (§5.1.1 step 1). Only valid from the
+  /// intent step. Capture-time failures (e.g. denied microphone
+  /// permission) are registered as auditable INVALID proposals instead of
+  /// being discarded.
+  Future<void> startVoiceCapture() async {
+    if (state is! OnboardingIdle || _captureActive) return;
+    _captureActive = true;
+    try {
+      await ref.read(audioCaptureProvider).start();
+      state = const OnboardingListening();
+    } on SpeechRecognitionException catch (e) {
+      _captureActive = false;
+      state = _reviewable(ref
+          .read(voiceProposalServiceProvider)
+          .recognitionFailure(model: domainModel, error: e));
+    }
+  }
+
+  /// Stops the capture, transcribes the audio on-device and builds the
+  /// proposal through the deterministic adapter (§5.1.1 steps 2–6).
+  /// Recognition errors land in the proposal's `dryRunValidation.errors`.
+  Future<void> stopVoiceCapture() async {
+    if (!_captureActive) return;
+    _captureActive = false;
+    final generation = ++_captureGeneration;
+    state = const OnboardingTranscribing();
+    final service = ref.read(voiceProposalServiceProvider);
+    SpeechAudio audio;
+    try {
+      audio = await ref.read(audioCaptureProvider).stop();
+    } on SpeechRecognitionException catch (e) {
+      if (_captureGeneration != generation) return;
+      state = _reviewable(
+          service.recognitionFailure(model: domainModel, error: e));
+      return;
+    }
+    final proposal =
+        await service.proposeFromAudio(model: domainModel, audio: audio);
+    if (_captureGeneration != generation) return;
+    state = _reviewable(proposal);
+  }
+
+  /// Aborts an in-progress capture or an in-flight transcription (e.g.
+  /// gesture cancelled). No audio is kept and no proposal is created.
+  Future<void> cancelVoiceCapture() async {
+    _captureGeneration++;
+    if (!_captureActive) {
+      if (state is OnboardingListening ||
+          state is OnboardingTranscribing) {
+        state = const OnboardingIdle();
+      }
+      return;
+    }
+    _captureActive = false;
+    try {
+      await ref.read(audioCaptureProvider).cancel();
+    } on SpeechRecognitionException {
+      // Best-effort release; nothing was captured.
+    }
+    state = const OnboardingIdle();
+  }
+
+  OnboardingProposalReady _reviewable(MultimodalProposal proposal) =>
+      OnboardingProposalReady(
+        proposal: proposal,
+        selectedCommandIds:
+            proposal.proposedCommands.map((c) => c.commandId).toSet(),
+      );
 
   /// Toggles a proposed command in or out of the confirmation selection
   /// (correction path, §8.1 `confirm_selection`). Only valid while the
@@ -236,3 +328,21 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
 final onboardingProvider =
     NotifierProvider<OnboardingNotifier, OnboardingState>(
         OnboardingNotifier.new);
+
+/// Provider for the on-device speech recognizer (ADR-0005). The default
+/// implementation talks to the Android whisper.cpp bridge and never uses
+/// the network; tests and non-Android builds override it with a fake.
+final localSpeechRecognizerProvider = Provider<LocalSpeechRecognizer>(
+  (ref) => const WhisperChannelRecognizer(),
+);
+
+/// Provider for the push-to-talk PCM capture source.
+final audioCaptureProvider = Provider<AudioCaptureSource>(
+  (ref) => const MethodChannelAudioCapture(),
+);
+
+/// Provider for the voice pipeline (capture → recognizer → adapter).
+final voiceProposalServiceProvider = Provider<VoiceProposalService>(
+  (ref) =>
+      VoiceProposalService(recognizer: ref.watch(localSpeechRecognizerProvider)),
+);

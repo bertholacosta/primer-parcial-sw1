@@ -27,6 +27,23 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        ndk {
+            // ADR-0005: arm64-v8a is the primary target; x86_64 covers the
+            // development/CI emulator.
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+    }
+
+    // whisper.cpp JNI bridge (ADR-0005). WHISPER_CPP_DIR is forwarded to
+    // CMake; without it a stub library is built and the recognizer reports
+    // SPEECH_RECOGNIZER_UNAVAILABLE.
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            arguments(
+                "-DWHISPER_CPP_DIR=${System.getenv("WHISPER_CPP_DIR") ?: ""}",
+            )
+        }
     }
 
     buildTypes {

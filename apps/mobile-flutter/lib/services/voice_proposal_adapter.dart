@@ -70,13 +70,14 @@ class _AssociationIntent extends _TranscriptIntent {
   );
 }
 
-/// Adapter that converts an injected voice transcript into an auditable,
+/// Adapter that converts a voice transcript into an auditable,
 /// confirmable [MultimodalProposal] (multimodal-proposals-v1 §5.1).
 ///
 /// The adapter deliberately performs no audio capture and no speech
-/// recognition: the task objective is to convert a transcript that a future
-/// on-device engine (ADR-0005) will supply. All parsing and validation is
-/// deterministic and local; no network access is required.
+/// recognition: the transcript is supplied by the on-device engine of
+/// ADR-0005 through `VoiceProposalService` / `LocalSpeechRecognizer`
+/// (or injected directly in tests and text-prompt flows). All parsing and
+/// validation is deterministic and local; no network access is required.
 class VoiceProposalAdapter {
   VoiceProposalAdapter({
     ModelCommandProcessor? processor,
@@ -360,8 +361,8 @@ class VoiceProposalAdapter {
                 ? AudioTimeRange(startMs: audioStartMs, endMs: audioEndMs)
                 : null,
         description: isVoice
-            ? 'Transcripción de voz inyectada; el motor de reconocimiento local aún no está seleccionado.'
-            : 'Prompt de texto inyectado; el motor de lenguaje aún no está seleccionado.',
+            ? 'Locución transcrita por el reconocedor local del dispositivo (ADR-0005).'
+            : 'Prompt de texto ingresado directamente por el usuario.',
       ),
     );
 
