@@ -8,6 +8,7 @@ import type { ModelServerConfig } from "./config.js";
 import { PlatformError } from "./errors.js";
 import { NoopMailer, PlatformStore, type DiagramRole, type Mailer } from "./platform-store.js";
 import { RateLimiter } from "./rate-limiter.js";
+import { registerCollaborationTransport } from "./websocket-transport.js";
 import { hashPassword, newOpaqueToken, signAccessToken, tokenHash, verifyAccessToken, verifyPassword, type AccessIdentity } from "./security.js";
 
 const REFRESH_COOKIE = "refresh_token";
@@ -70,6 +71,7 @@ export async function buildHttpApp(options: BuildHttpAppOptions): Promise<Fastif
 
   await app.register(cookie);
   await app.register(cors, { origin: options.config.corsOrigins, credentials: true });
+  await registerCollaborationTransport(app, options.database, options.config);
 
   app.setErrorHandler((error, request, reply) => {
     const platformError = error instanceof PlatformError ? error : new PlatformError("INTERNAL_ERROR", 500, "Error interno.");
