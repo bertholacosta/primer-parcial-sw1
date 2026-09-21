@@ -1,7 +1,7 @@
 id: P8-003
 title: "Integrar propuestas de IA local Android"
 phase: 8
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Ejecutar localmente el escenario de interpretación acordado y producir propuestas contractuales sin mutación directa."
@@ -35,3 +35,6 @@ deliverables:
   - apps/mobile-flutter/
 links:
   - docs/adr/0005-android-local-ai.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"

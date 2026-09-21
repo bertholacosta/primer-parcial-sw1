@@ -11,6 +11,7 @@ class MainActivity : FlutterActivity() {
         val handler = LocalAsrMethodHandler(this)
         handler.register(flutterEngine)
         asrHandler = handler
+        LocalSlmMethodHandler(this).register(flutterEngine)
     }
 
     override fun onRequestPermissionsResult(

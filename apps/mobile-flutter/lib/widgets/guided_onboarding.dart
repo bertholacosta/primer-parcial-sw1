@@ -45,7 +45,9 @@ class _GuidedOnboardingScreenState
       ),
       body: switch (state) {
         OnboardingIdle() => _buildIntentStep(),
-        OnboardingListening() || OnboardingTranscribing() =>
+        OnboardingListening() ||
+        OnboardingTranscribing() ||
+        OnboardingInterpreting() =>
           _buildVoiceStep(state),
         OnboardingProposalReady() => _buildReviewStep(state),
         OnboardingResolved() => _buildResolvedStep(state),
@@ -129,21 +131,28 @@ class _GuidedOnboardingScreenState
     );
   }
 
-  // ---- Voice capture step (push-to-talk) --------------------------------
+  // ---- Voice capture / local interpretation step -------------------------
 
   Widget _buildVoiceStep(OnboardingState state) {
     final listening = state is OnboardingListening;
+    final interpreting = state is OnboardingInterpreting;
     return Center(
       key: Key(listening
           ? 'onboarding_step_listening'
-          : 'onboarding_step_transcribing'),
+          : interpreting
+              ? 'onboarding_step_interpreting'
+              : 'onboarding_step_transcribing'),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              listening ? Icons.mic : Icons.graphic_eq,
+              listening
+                  ? Icons.mic
+                  : interpreting
+                      ? Icons.auto_awesome
+                      : Icons.graphic_eq,
               size: 56,
               color: listening
                   ? Colors.red
@@ -154,7 +163,9 @@ class _GuidedOnboardingScreenState
               listening
                   ? 'Escuchando… suelta el botón o pulsa «Detener» para '
                       'transcribir.'
-                  : 'Transcribiendo con el motor de voz local…',
+                  : interpreting
+                      ? 'Interpretando con el modelo de IA local…'
+                      : 'Transcribiendo con el motor de voz local…',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium,
             ),

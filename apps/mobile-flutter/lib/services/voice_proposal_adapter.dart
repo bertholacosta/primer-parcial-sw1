@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../models/domain_model.dart';
 import '../models/model_command.dart';
 import '../models/multimodal_proposal.dart';
+import 'local_interpreter.dart';
 import 'model_command_processor.dart';
 
 /// Outcome of a confirmation or rejection request over a proposal
@@ -313,6 +314,133 @@ class VoiceProposalAdapter {
       ));
     }
 
+    return _assembleProposal(
+      model: model,
+      transcript: transcript,
+      commands: commands,
+      breakdown: breakdown,
+      summaryParts: summaryParts,
+      proposalErrors: proposalErrors,
+      now: now,
+      mediaSha256: mediaSha256,
+      audioStartMs: audioStartMs,
+      audioEndMs: audioEndMs,
+      capturedAt: capturedAt,
+      modality: modality,
+    );
+  }
+
+  /// Converts the structured output of the on-device SLM
+  /// ([InterpretationResult], produced by llama.cpp/Qwen2.5 per ADR-0005)
+  /// into a confirmable proposal. The SLM only contributes `type`,
+  /// `payload` and confidence scores; command envelopes are stamped
+  /// deterministically here (multimodal-proposals-v1 S2) and the
+  /// mandatory dry-run gate (MP-INV-2) decides validity exactly as in the
+  /// deterministic parsing path.
+  ///
+  /// An `inference_rationale` evidence is attached alongside the media
+  /// evidence so the SLM extraction remains auditable (MP-INV-4).
+  MultimodalProposal proposeFromInterpretation({
+    required DomainModel model,
+    required String transcript,
+    required InterpretationResult interpretation,
+    String? mediaSha256,
+    int? audioStartMs,
+    int? audioEndMs,
+    DateTime? capturedAt,
+    ProposalModality modality = ProposalModality.voice,
+    String? agentRole,
+  }) {
+    final now = _clock().toUtc();
+    final commands = <ModelCommand>[];
+    final breakdown = <ConfidenceBreakdown>[];
+    final proposalErrors = <CommandDiagnostic>[];
+
+    for (final inferred in interpretation.commands) {
+      commands.add(ModelCommand(
+        type: inferred.type,
+        commandId: _uuid.v4(),
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: Map<String, dynamic>.from(inferred.payload),
+      ));
+      breakdown.add(ConfidenceBreakdown(
+        commandIndex: commands.length - 1,
+        score: inferred.score,
+        fieldScores: inferred.fieldScores,
+      ));
+    }
+
+    if (commands.isEmpty) {
+      proposalErrors.add(const CommandDiagnostic(
+        code: 'NO_COMMANDS_GENERATED',
+        path: r'$.intent.rawPrompt',
+        message:
+            'El modelo de lenguaje local no dedujo comandos válidos para el metamodelo v1.',
+        severity: DiagnosticSeverity.error,
+      ));
+    }
+
+    final rationale = StringBuffer(
+      'Interpretación del SLM local (llama.cpp/Qwen2.5 on-device, '
+      'ADR-0005): ${interpretation.intentSummary}',
+    );
+    if (interpretation.elapsedMs != null) {
+      rationale.write(' · ${interpretation.elapsedMs} ms');
+    }
+    if (interpretation.generatedTokens != null) {
+      rationale.write(' · ${interpretation.generatedTokens} tokens');
+    }
+
+    return _assembleProposal(
+      model: model,
+      transcript: transcript,
+      commands: commands,
+      breakdown: breakdown,
+      summaryParts: [interpretation.intentSummary],
+      proposalErrors: proposalErrors,
+      now: now,
+      mediaSha256: mediaSha256,
+      audioStartMs: audioStartMs,
+      audioEndMs: audioEndMs,
+      capturedAt: capturedAt,
+      modality: modality,
+      agentRole: agentRole,
+      extraEvidences: [
+        ProposalEvidence(
+          evidenceId: _uuid.v4(),
+          type: EvidenceType.inferenceRationale,
+          mediaSha256: mediaSha256 ??
+              sha256
+                  .convert(utf8.encode(interpretation.rawOutput ?? transcript))
+                  .toString(),
+          payload: EvidencePayload(description: rationale.toString()),
+        ),
+      ],
+    );
+  }
+
+  /// Shared assembly of the proposal artifact: confidence aggregation,
+  /// mandatory deterministic dry-run and lifecycle assignment. Used by
+  /// the deterministic parsing path ([propose]) and the SLM
+  /// interpretation path ([proposeFromInterpretation]) so both are held
+  /// to the same gate (MP-INV-2).
+  MultimodalProposal _assembleProposal({
+    required DomainModel model,
+    required String transcript,
+    required List<ModelCommand> commands,
+    required List<ConfidenceBreakdown> breakdown,
+    required List<String> summaryParts,
+    required List<CommandDiagnostic> proposalErrors,
+    required DateTime now,
+    String? mediaSha256,
+    int? audioStartMs,
+    int? audioEndMs,
+    DateTime? capturedAt,
+    ProposalModality modality = ProposalModality.voice,
+    String? agentRole,
+    List<ProposalEvidence> extraEvidences = const [],
+  }) {
     final overall = breakdown.isEmpty
         ? 0.0
         : _mean(breakdown.map((b) => b.score));
@@ -377,7 +505,7 @@ class VoiceProposalAdapter {
       source: ProposalSource(
         modality: modality,
         clientPlatform: clientPlatform,
-        agentRole: agentRole,
+        agentRole: agentRole ?? this.agentRole,
         capturedAt: (capturedAt ?? now).toUtc(),
       ),
       confidence: ProposalConfidence(
@@ -387,7 +515,7 @@ class VoiceProposalAdapter {
             : (overall >= 0.60 ? ConfidenceLevel.medium : ConfidenceLevel.low),
         breakdown: breakdown,
       ),
-      evidences: [evidence],
+      evidences: [evidence, ...extraEvidences],
       intent: ProposalIntent(
         summary: summaryParts.isEmpty
             ? 'Sin intenciones de modelado detectadas.'

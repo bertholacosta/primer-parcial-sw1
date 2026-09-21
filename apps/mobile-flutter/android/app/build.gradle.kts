@@ -34,14 +34,16 @@ android {
         }
     }
 
-    // whisper.cpp JNI bridge (ADR-0005). WHISPER_CPP_DIR is forwarded to
-    // CMake; without it a stub library is built and the recognizer reports
-    // SPEECH_RECOGNIZER_UNAVAILABLE.
+    // whisper.cpp + llama.cpp JNI bridges (ADR-0005). WHISPER_CPP_DIR and
+    // LLAMA_CPP_DIR are forwarded to CMake; without them stub libraries are
+    // built and the engines report SPEECH_RECOGNIZER_UNAVAILABLE /
+    // SLM_UNAVAILABLE.
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
             arguments(
                 "-DWHISPER_CPP_DIR=${System.getenv("WHISPER_CPP_DIR") ?: ""}",
+                "-DLLAMA_CPP_DIR=${System.getenv("LLAMA_CPP_DIR") ?: ""}",
             )
         }
     }

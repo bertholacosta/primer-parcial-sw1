@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_flutter/models/multimodal_proposal.dart';
+import 'package:mobile_flutter/services/local_interpreter.dart';
 import 'package:mobile_flutter/state/onboarding_state.dart';
 import 'package:mobile_flutter/widgets/guided_onboarding.dart';
 
@@ -12,8 +13,27 @@ const _validIntent =
 const _invalidIntent =
     'agregar campo salario de tipo Decimal a la clase Empleado';
 
+/// On-device SLM fake disabled for widget tests so the pipeline
+/// resolves deterministically without native platform calls.
+class _DisabledInterpreter implements LocalInterpreter {
+  const _DisabledInterpreter();
+
+  @override
+  Future<bool> isAvailable() async => false;
+
+  @override
+  Future<InterpretationResult> interpret(InterpretationRequest request) async {
+    throw const InterpretationException(
+      LocalInterpretationErrorCodes.slmUnavailable,
+      'SLM deshabilitado en pruebas de widget.',
+    );
+  }
+}
+
 ProviderContainer _container() {
-  final container = ProviderContainer();
+  final container = ProviderContainer(overrides: [
+    localInterpreterProvider.overrideWithValue(const _DisabledInterpreter()),
+  ]);
   addTearDown(container.dispose);
   return container;
 }
@@ -23,13 +43,14 @@ OnboardingNotifier _notifier(ProviderContainer container) =>
 
 void main() {
   group('OnboardingNotifier (flow state machine)', () {
-    test('intent produces a reviewable, dry-run validated proposal', () {
+    test('intent produces a reviewable, dry-run validated proposal',
+        () async {
       final container = _container();
       final notifier = _notifier(container);
 
       expect(container.read(onboardingProvider), isA<OnboardingIdle>());
 
-      notifier.submitIntent(_validIntent);
+      await notifier.submitIntent(_validIntent);
 
       final state = container.read(onboardingProvider);
       expect(state, isA<OnboardingProposalReady>());
@@ -48,10 +69,10 @@ void main() {
     });
 
     test('valid confirmation applies the commands and resolves the flow',
-        () {
+        () async {
       final container = _container();
       final notifier = _notifier(container);
-      notifier.submitIntent(_validIntent);
+      await notifier.submitIntent(_validIntent);
 
       notifier.confirm(confirmedBy: 'tester');
 
@@ -69,10 +90,10 @@ void main() {
     });
 
     test('cancellation rejects the proposal and leaves the model untouched',
-        () {
+        () async {
       final container = _container();
       final notifier = _notifier(container);
-      notifier.submitIntent(_validIntent);
+      await notifier.submitIntent(_validIntent);
       final modelBefore = jsonEncode(notifier.domainModel.toJson());
 
       notifier.cancel(rejectedBy: 'tester');
@@ -88,10 +109,10 @@ void main() {
     });
 
     test('invalid proposal cannot be confirmed and never mutates the model',
-        () {
+        () async {
       final container = _container();
       final notifier = _notifier(container);
-      notifier.submitIntent(_invalidIntent);
+      await notifier.submitIntent(_invalidIntent);
 
       final ready =
           container.read(onboardingProvider) as OnboardingProposalReady;
@@ -120,10 +141,10 @@ void main() {
     });
 
     test('correction by deselecting commands yields a partial confirmation',
-        () {
+        () async {
       final container = _container();
       final notifier = _notifier(container);
-      notifier.submitIntent(_validIntent);
+      await notifier.submitIntent(_validIntent);
       final ready =
           container.read(onboardingProvider) as OnboardingProposalReady;
 
@@ -147,10 +168,11 @@ void main() {
       expect(cliente.attributes, isEmpty);
     });
 
-    test('deselecting a dependent command is refused with diagnostics', () {
+    test('deselecting a dependent command is refused with diagnostics',
+        () async {
       final container = _container();
       final notifier = _notifier(container);
-      notifier.submitIntent(_validIntent);
+      await notifier.submitIntent(_validIntent);
       final ready =
           container.read(onboardingProvider) as OnboardingProposalReady;
       final createId = ready.proposal.proposedCommands
@@ -173,10 +195,10 @@ void main() {
       expect(jsonEncode(notifier.domainModel.toJson()), modelBefore);
     });
 
-    test('restart returns the flow to the intent step', () {
+    test('restart returns the flow to the intent step', () async {
       final container = _container();
       final notifier = _notifier(container);
-      notifier.submitIntent(_validIntent);
+      await notifier.submitIntent(_validIntent);
       notifier.cancel();
 
       notifier.reset();
@@ -187,7 +209,9 @@ void main() {
 
   group('GuidedOnboardingScreen (widget flow)', () {
     Future<ProviderContainer> pumpScreen(WidgetTester tester) async {
-      final container = ProviderContainer();
+      final container = ProviderContainer(overrides: [
+        localInterpreterProvider.overrideWithValue(const _DisabledInterpreter()),
+      ]);
       addTearDown(container.dispose);
       await tester.pumpWidget(
         UncontrolledProviderScope(

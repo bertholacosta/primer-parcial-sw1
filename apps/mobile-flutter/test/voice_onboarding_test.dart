@@ -5,12 +5,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_flutter/models/multimodal_proposal.dart';
+import 'package:mobile_flutter/services/local_interpreter.dart';
 import 'package:mobile_flutter/services/local_speech_recognizer.dart';
 import 'package:mobile_flutter/state/onboarding_state.dart';
 import 'package:mobile_flutter/widgets/guided_onboarding.dart';
 
 const _locutionT1 =
     'Crear clase Cliente con id de tipo String obligatorio y email de tipo String opcional';
+
+/// On-device SLM fake disabled for voice tests so the pipeline
+/// resolves deterministically via deterministic adapter fallback.
+class _DisabledInterpreter implements LocalInterpreter {
+  const _DisabledInterpreter();
+
+  @override
+  Future<bool> isAvailable() async => false;
+
+  @override
+  Future<InterpretationResult> interpret(InterpretationRequest request) async {
+    throw const InterpretationException(
+      LocalInterpretationErrorCodes.slmUnavailable,
+      'SLM deshabilitado en pruebas de voz.',
+    );
+  }
+}
 
 /// On-device recognizer fake: pure Dart, no platform channel, no network.
 class _FakeRecognizer implements LocalSpeechRecognizer {
@@ -65,6 +83,7 @@ ProviderContainer _container({_FakeRecognizer? recognizer, _FakeCapture? capture
     localSpeechRecognizerProvider
         .overrideWithValue(recognizer ?? _FakeRecognizer()),
     audioCaptureProvider.overrideWithValue(capture ?? _FakeCapture()),
+    localInterpreterProvider.overrideWithValue(const _DisabledInterpreter()),
   ]);
   addTearDown(container.dispose);
   return container;
@@ -185,6 +204,7 @@ void main() {
         localSpeechRecognizerProvider
             .overrideWithValue(recognizer ?? _FakeRecognizer()),
         audioCaptureProvider.overrideWithValue(capture ?? _FakeCapture()),
+        localInterpreterProvider.overrideWithValue(const _DisabledInterpreter()),
       ]);
       addTearDown(container.dispose);
       await tester.pumpWidget(

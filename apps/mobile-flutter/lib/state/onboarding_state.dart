@@ -4,6 +4,7 @@ import '../models/descriptor.dart';
 import '../models/domain_model.dart';
 import '../models/model_command.dart';
 import '../models/multimodal_proposal.dart';
+import '../services/local_interpreter.dart';
 import '../services/local_speech_recognizer.dart';
 import '../services/voice_input_pipeline.dart';
 import '../services/voice_proposal_adapter.dart';
@@ -72,6 +73,13 @@ class OnboardingTranscribing extends OnboardingState {
   const OnboardingTranscribing();
 }
 
+/// The local interpretation stage (ADR-0005 SLM, or the deterministic
+/// fallback parser) is converting the user's input into a proposal. No
+/// proposal exists yet and the model is untouched.
+class OnboardingInterpreting extends OnboardingState {
+  const OnboardingInterpreting();
+}
+
 /// Step 3 — terminal state of the flow: the proposal reached a resolved
 /// lifecycle state (`confirmed`, `partially_confirmed`, `rejected` or
 /// `expired`). [applied] is true only when commands mutated the model.
@@ -109,21 +117,24 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
   DomainModel get domainModel => _model ??= _seedModel();
 
   /// Step 1 → 2: converts the user's free-text [intent] into a proposal
-  /// (modality `text_prompt`, §3.1.1) through the deterministic gate and
-  /// presents it for review.
-  void submitIntent(String intent) {
+  /// (modality `text_prompt`, §3.1.1). The local interpretation stage of
+  /// ADR-0005 runs first when the on-device SLM is available; otherwise
+  /// the deterministic adapter produces the proposal. Either way the
+  /// output passes the mandatory dry-run gate before review (MP-INV-2).
+  Future<void> submitIntent(String intent) async {
     final trimmed = intent.trim();
     if (trimmed.isEmpty) return;
-    final proposal = _adapter.propose(
-      model: domainModel,
-      transcript: trimmed,
-      modality: ProposalModality.textPrompt,
-    );
-    state = OnboardingProposalReady(
-      proposal: proposal,
-      selectedCommandIds:
-          proposal.proposedCommands.map((c) => c.commandId).toSet(),
-    );
+    final generation = ++_captureGeneration;
+    state = const OnboardingInterpreting();
+    final proposal = await ref
+        .read(voiceProposalServiceProvider)
+        .proposeFromTranscript(
+          model: domainModel,
+          transcript: trimmed,
+          modality: ProposalModality.textPrompt,
+        );
+    if (_captureGeneration != generation) return;
+    state = _reviewable(proposal);
   }
 
   /// Starts a push-to-talk capture (§5.1.1 step 1). Only valid from the
@@ -168,13 +179,15 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
     state = _reviewable(proposal);
   }
 
-  /// Aborts an in-progress capture or an in-flight transcription (e.g.
-  /// gesture cancelled). No audio is kept and no proposal is created.
+  /// Aborts an in-progress capture or an in-flight transcription or
+  /// interpretation (e.g. gesture cancelled). No audio is kept and no
+  /// proposal is created.
   Future<void> cancelVoiceCapture() async {
     _captureGeneration++;
     if (!_captureActive) {
       if (state is OnboardingListening ||
-          state is OnboardingTranscribing) {
+          state is OnboardingTranscribing ||
+          state is OnboardingInterpreting) {
         state = const OnboardingIdle();
       }
       return;
@@ -336,13 +349,24 @@ final localSpeechRecognizerProvider = Provider<LocalSpeechRecognizer>(
   (ref) => const WhisperChannelRecognizer(),
 );
 
+/// Provider for the on-device interpretation engine (ADR-0005, SLM
+/// stage). The default implementation talks to the Android llama.cpp
+/// bridge and never uses the network; when the engine or its weights are
+/// absent the pipeline degrades to the deterministic adapter.
+final localInterpreterProvider = Provider<LocalInterpreter>(
+  (ref) => const LlamaChannelInterpreter(),
+);
+
 /// Provider for the push-to-talk PCM capture source.
 final audioCaptureProvider = Provider<AudioCaptureSource>(
   (ref) => const MethodChannelAudioCapture(),
 );
 
-/// Provider for the voice pipeline (capture → recognizer → adapter).
+/// Provider for the local proposal pipeline
+/// (capture → recognizer → interpreter → adapter).
 final voiceProposalServiceProvider = Provider<VoiceProposalService>(
-  (ref) =>
-      VoiceProposalService(recognizer: ref.watch(localSpeechRecognizerProvider)),
+  (ref) => VoiceProposalService(
+    recognizer: ref.watch(localSpeechRecognizerProvider),
+    interpreter: ref.watch(localInterpreterProvider),
+  ),
 );
