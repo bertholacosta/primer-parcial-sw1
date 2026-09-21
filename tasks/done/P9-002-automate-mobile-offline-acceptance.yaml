@@ -1,7 +1,7 @@
 id: P9-002
 title: "Automatizar aceptación móvil y offline"
 phase: 9
-status: active
+status: done
 kind: test
 owner_role: Devin CLI / SWE-2
 objective: "Automatizar carga dinámica, edición, reinicio sin red y reintento idempotente en Android."
@@ -22,3 +22,6 @@ validation_commands:
   - "pwsh -File scripts/validate-mobile-offline.ps1"
 deliverables: [apps/mobile-flutter/, scripts/]
 links: [docs/contracts/mobile-offline-v1.md]
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"
