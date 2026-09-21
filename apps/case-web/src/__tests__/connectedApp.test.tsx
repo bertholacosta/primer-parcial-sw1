@@ -16,6 +16,7 @@ import {
   type DomainModel,
   type Envelope,
 } from 'collaboration-protocol';
+import type { CanonicalDomainModel } from '../domain/model';
 
 /* --------------------------- Fakes --------------------------- */
 
@@ -93,7 +94,12 @@ const sessionModel: DomainModel = {
   associations: [],
 };
 
-const diagram: DiagramRecord = { diagramId: 'd-1', name: 'Demo', role: 'owner', model: sessionModel };
+const diagram: DiagramRecord = {
+  diagramId: 'd-1',
+  name: 'Demo',
+  role: 'owner',
+  model: sessionModel as unknown as CanonicalDomainModel,
+};
 
 function fakeApi(overrides: Partial<ModelServerApi> = {}): ModelServerApi {
   return {
