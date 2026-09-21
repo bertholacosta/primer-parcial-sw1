@@ -1741,21 +1741,25 @@ function Invoke-OrcaRun {
             $infrastructureRecovery = $Resume -and (Test-OrcaInfrastructureRecovery -RunRoot $runRoot -State $state -Task $task)
             $legacyReviewParserFailure = $Resume -and $state.state -eq 'reviewing' -and $state.haltReason -eq 'contradictory-requirements-or-review-block'
             $recoverableIntegratorFailure = $Resume -and $state.state -eq 'approved' -and $state.haltReason -eq 'integrator-not-approved'
+            $adrAccepted = $Resume -and $state.state -eq 'approved' -and $state.haltReason -eq 'adr-acceptance-required' -and ($state.ContainsKey('adrAccepted') -and $state.adrAccepted)
             if ($infrastructureRecovery) {
                 Restore-OrcaInfrastructureRun -RunRoot $runRoot -State $state
             }
-            elseif ($legacyReviewParserFailure -or $recoverableIntegratorFailure) {
+            elseif ($legacyReviewParserFailure -or $recoverableIntegratorFailure -or $adrAccepted) {
                 $state.halted = $false
                 $state.haltReason = $null
                 $state.lastError = if ($legacyReviewParserFailure) {
                     'Recovered persisted review state created by the legacy verdict parser.'
+                }
+                elseif ($adrAccepted) {
+                    'ADR approved by Product Owner; proceeding to integration.'
                 }
                 else { 'Retrying the persisted integration gate with a new session.' }
                 Save-OrcaRunState $runRoot $state
                 if ($recoverableIntegratorFailure) {
                     Set-OrcaRunTransition $runRoot $state 'validating'
                 }
-                Write-OrcaRunEvent $runRoot 'agent-gate-recovered' @{ state = $state.state; priorFailure = if ($legacyReviewParserFailure) { 'legacy-review-parser' } else { 'integrator-not-approved' }; newSession = $true }
+                Write-OrcaRunEvent $runRoot 'agent-gate-recovered' @{ state = $state.state; priorFailure = if ($legacyReviewParserFailure) { 'legacy-review-parser' } elseif ($adrAccepted) { 'adr-acceptance-required' } else { 'integrator-not-approved' }; newSession = $true }
             }
             else { throw "Run is halted: $($state.haltReason)" }
         }
@@ -1856,7 +1860,7 @@ function Invoke-OrcaRun {
                 }
                 'correcting' { Set-OrcaRunTransition $runRoot $state 'executing' }
                 'approved' {
-                    if ($task.Kind -eq 'adr') {
+                    if ($task.Kind -eq 'adr' -and -not ($state.ContainsKey('adrAccepted') -and $state.adrAccepted)) {
                         $state.halted = $true; $state.haltReason = 'adr-acceptance-required'; Save-OrcaRunState $runRoot $state
                         throw 'ADR acceptance requires Product Owner action.'
                     }
