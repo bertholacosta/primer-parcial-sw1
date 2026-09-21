@@ -14,6 +14,11 @@ import {
   type CreateAssociationCommand,
   type CreateAssociationInput,
 } from '../commands/associationCommands';
+import {
+  executeCreateClass,
+  type CreateClassCommand,
+  type CreateClassInput,
+} from '../commands/classCommands';
 
 // Fixture por defecto canónico incrustado para ejecución local/standalone
 export const DEFAULT_CANONICAL_FIXTURE = {
@@ -160,6 +165,31 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
     [model]
   );
 
+  const handleCreateClass = useCallback(
+    (input: CreateClassInput) => {
+      if (!model) return;
+      const command: CreateClassCommand = {
+        type: 'CreateClass',
+        commandId: `cmd-class-${Date.now()}`,
+        modelId: model.id,
+        modelVersion: model.version,
+        payload: {
+          classId: `cls-${Date.now()}`,
+          name: input.name,
+          packageId: input.packageId,
+          isAbstract: input.isAbstract,
+        },
+      };
+
+      const { updatedModel, result } = executeCreateClass(model, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') {
+        setModel(updatedModel);
+      }
+    },
+    [model]
+  );
+
   const handleCreateAssociation = useCallback(
     (input: CreateAssociationInput) => {
       if (!model) return;
@@ -228,6 +258,7 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
       onAddAttribute={handleAddAttribute}
       onUpdateAttribute={handleUpdateAttribute}
       onCreateAssociation={handleCreateAssociation}
+      onCreateClass={handleCreateClass}
     />
   );
 };

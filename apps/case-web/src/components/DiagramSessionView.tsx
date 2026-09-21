@@ -16,6 +16,7 @@ import { SharePanel } from './SharePanel';
 import type { CanonicalDomainModel } from '../domain/model';
 import type { CommandExecutionResult } from '../commands/attributeCommands';
 import type { CreateAssociationInput } from '../commands/associationCommands';
+import type { CreateClassInput } from '../commands/classCommands';
 import type { ParticipantRole } from 'collaboration-protocol';
 
 interface DiagramSessionViewProps {
@@ -176,6 +177,18 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
     [submit]
   );
 
+  const handleCreateClass = useCallback(
+    (input: CreateClassInput) => {
+      submit('CreateClass', {
+        id: `cls-${crypto.randomUUID()}`,
+        name: input.name,
+        packageId: input.packageId,
+        isAbstract: input.isAbstract,
+      });
+    },
+    [submit]
+  );
+
   const retryRejected = useCallback(() => {
     if (!lastRejected) return;
     submit(lastRejected.type, lastRejected.payload as Record<string, unknown>);
@@ -244,6 +257,7 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
             onAddAttribute={readOnly ? undefined : handleAddAttribute}
             onUpdateAttribute={readOnly ? undefined : handleUpdateAttribute}
             onCreateAssociation={readOnly ? undefined : handleCreateAssociation}
+            onCreateClass={readOnly ? undefined : handleCreateClass}
           />
         ) : (
           <div data-testid="session-loading" style={{ padding: '24px', fontFamily: 'sans-serif', fontSize: '13px', color: '#64748b' }}>

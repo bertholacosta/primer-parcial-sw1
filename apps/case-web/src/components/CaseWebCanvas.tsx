@@ -21,6 +21,7 @@ import {
   ALLOWED_NAVIGABILITIES,
   type CreateAssociationInput,
 } from '../commands/associationCommands';
+import type { CreateClassInput } from '../commands/classCommands';
 
 export interface CollaborationBarInfo {
   stateLabel: string;
@@ -35,6 +36,7 @@ interface CaseWebCanvasProps extends FlowNodeCallbacks {
   lastCommandResult?: CommandExecutionResult | null;
   collaboration?: CollaborationBarInfo;
   onCreateAssociation?: (input: CreateAssociationInput) => void;
+  onCreateClass?: (input: CreateClassInput) => void;
 }
 
 export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
@@ -45,6 +47,7 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
   onAddAttribute,
   onUpdateAttribute,
   onCreateAssociation,
+  onCreateClass,
 }) => {
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
@@ -53,6 +56,10 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
     []
   );
 
+  const [isAddingClass, setIsAddingClass] = useState(false);
+  const [className, setClassName] = useState('');
+  const [classPackageId, setClassPackageId] = useState('');
+  const [classIsAbstract, setClassIsAbstract] = useState(false);
   const [isAddingAssociation, setIsAddingAssociation] = useState(false);
   const [assocName, setAssocName] = useState('');
   const [assocSourceId, setAssocSourceId] = useState('');
@@ -60,6 +67,25 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
   const [assocSourceMult, setAssocSourceMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
   const [assocTargetMult, setAssocTargetMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
   const [assocNavigability, setAssocNavigability] = useState<string>(ALLOWED_NAVIGABILITIES[0]);
+
+  const handleStartAddClass = () => {
+    setClassName('');
+    setClassPackageId(model.packages[0]?.id ?? '');
+    setClassIsAbstract(false);
+    setIsAddingClass(true);
+    setIsAddingAssociation(false);
+  };
+
+  const handleConfirmAddClass = () => {
+    if (onCreateClass) {
+      onCreateClass({
+        name: className.trim(),
+        packageId: classPackageId || undefined,
+        isAbstract: classIsAbstract,
+      });
+    }
+    setIsAddingClass(false);
+  };
 
   const handleStartAddAssociation = () => {
     setAssocName('');
@@ -169,8 +195,8 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
         </div>
       )}
 
-      {/* Barra de herramientas: creación de asociaciones mediante comando */}
-      {!readOnly && (
+      {/* Barra de herramientas: creación de clases y asociaciones mediante comando */}
+      {!readOnly && (onCreateClass || onCreateAssociation) && (
       <div
         data-testid="association-toolbar"
         style={{
@@ -184,7 +210,57 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
           fontSize: '12px',
         }}
       >
-        {isAddingAssociation ? (
+        {isAddingClass ? (
+          <>
+            <input
+              data-testid="class-name-input"
+              placeholder="NombreDeClase"
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
+              style={{ fontSize: '12px', padding: '3px 6px' }}
+            />
+            {model.packages.length > 0 && (
+              <select
+                data-testid="class-package-select"
+                aria-label="Paquete"
+                value={classPackageId}
+                onChange={(e) => setClassPackageId(e.target.value)}
+                style={{ fontSize: '12px', padding: '3px' }}
+              >
+                <option value="">(sin paquete)</option>
+                {model.packages.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <input
+                type="checkbox"
+                data-testid="class-abstract-checkbox"
+                checked={classIsAbstract}
+                onChange={(e) => setClassIsAbstract(e.target.checked)}
+              />
+              abstracta
+            </label>
+            <button
+              data-testid="confirm-add-class"
+              onClick={handleConfirmAddClass}
+              disabled={!className.trim()}
+              style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
+            >
+              Crear
+            </button>
+            <button
+              data-testid="cancel-add-class"
+              onClick={() => setIsAddingClass(false)}
+              style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
+          </>
+        ) : isAddingAssociation ? (
           <>
             <input
               data-testid="assoc-name-input"
@@ -275,6 +351,26 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
             </button>
           </>
         ) : (
+          <>
+          {onCreateClass && (
+          <button
+            data-testid="btn-add-class"
+            onClick={handleStartAddClass}
+            title="Crear una nueva clase en el diagrama"
+            style={{
+              background: '#dbeafe',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '4px 10px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              color: '#1e40af',
+            }}
+          >
+            + Clase
+          </button>
+          )}
+          {onCreateAssociation && (
           <button
             data-testid="btn-add-association"
             onClick={handleStartAddAssociation}
@@ -296,6 +392,8 @@ export const CaseWebCanvas: React.FC<CaseWebCanvasProps> = ({
           >
             + Asociación
           </button>
+          )}
+          </>
         )}
       </div>
       )}

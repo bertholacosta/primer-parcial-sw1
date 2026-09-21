@@ -250,3 +250,38 @@ describe('CaseWeb Visual Association Commands (P4-005)', () => {
     expect(assocList.querySelectorAll('li')).toHaveLength(1);
   });
 });
+
+describe('CaseWeb CreateClass Command', () => {
+  it('crea una clase desde la barra de herramientas y la refleja en la vista', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    fireEvent.click(screen.getByTestId('btn-add-class'));
+    fireEvent.change(screen.getByTestId('class-name-input'), {
+      target: { value: 'Prestamo' },
+    });
+    fireEvent.click(screen.getByTestId('confirm-add-class'));
+
+    const banner = screen.getByTestId('command-result-banner');
+    expect(banner.textContent).toContain('Comando aplicado');
+    expect(banner.textContent).toContain('Versión del modelo: 1.0.1');
+
+    expect(screen.getByTestId('semantic-item-Prestamo')).toBeInTheDocument();
+    expect(screen.getByText(/3 clases renderizadas/i)).toBeInTheDocument();
+  });
+
+  it('rechaza un nombre duplicado en el mismo ámbito sin mutar el modelo', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    fireEvent.click(screen.getByTestId('btn-add-class'));
+    fireEvent.change(screen.getByTestId('class-name-input'), {
+      target: { value: 'Libro' },
+    });
+    fireEvent.click(screen.getByTestId('confirm-add-class'));
+
+    const banner = screen.getByTestId('command-result-banner');
+    expect(banner.textContent).toContain('Comando rechazado');
+    expect(banner.textContent).toContain('DUPLICATE_CLASS_NAME');
+
+    expect(screen.getByText(/2 clases renderizadas/i)).toBeInTheDocument();
+  });
+});
