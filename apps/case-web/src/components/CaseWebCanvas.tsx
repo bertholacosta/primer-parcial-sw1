@@ -1,16 +1,19 @@
-import React, { useMemo, useRef, useState, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
   Background,
   Controls,
   useReactFlow,
+  useNodesState,
+  applyNodeChanges,
   ConnectionLineType,
   type NodeTypes,
   type EdgeTypes,
   type Connection,
   type Node,
   type Edge,
+  type NodeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { CanonicalDomainModel } from '../domain/model';
@@ -18,7 +21,7 @@ import {
   modelToFlowNodes,
   modelToFlowEdges,
   type FlowNodeCallbacks,
-  type LayoutPositions,
+  type AnyFlowNode,
 } from '../adapter/domainModelAdapter';
 import { UmlClassNode } from './UmlClassNode';
 import { UmlPackageNode } from './UmlPackageNode';
@@ -110,8 +113,11 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
     []
   );
 
-  // Posiciones visuales (layout) por id; no forman parte del modelo canónico.
-  const [positions, setPositions] = useState<LayoutPositions>({});
+  // Nodos controlados por React Flow (conservan dragging/measured/selected
+  // internos, evitando parpadeo). El modelo se fusiona encima en el effect.
+  const [flowNodes, setFlowNodes] = useNodesState<AnyFlowNode>([]);
+  // Posición de drop/click para elementos aún no presentes en el modelo.
+  const pendingPositions = useRef<Record<string, { x: number; y: number }>>({});
 
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [assocName, setAssocName] = useState('');
@@ -128,10 +134,34 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
     [readOnly, onAddAttribute, onUpdateAttribute, onRenameClass]
   );
 
-  const nodes = useMemo(
-    () => modelToFlowNodes(model, callbacks, positions),
-    [model, callbacks, positions]
+  // Sincroniza el modelo canónico con los nodos del canvas conservando
+  // posición/estado interno de los ya existentes (claves del no-parpadeo).
+  useEffect(() => {
+    setFlowNodes((current) => {
+      const fresh = modelToFlowNodes(model, callbacks);
+      return fresh.map((n) => {
+        const prev = current.find((p) => p.id === n.id);
+        const pending = pendingPositions.current[n.id];
+        if (pending) delete pendingPositions.current[n.id];
+        if (!prev) return pending ? { ...n, position: pending } : n;
+        return {
+          ...n,
+          position: prev.position,
+          selected: prev.selected,
+          dragging: prev.dragging,
+          measured: prev.measured,
+        };
+      });
+    });
+  }, [model, callbacks, setFlowNodes]);
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<AnyFlowNode>[]) => {
+      setFlowNodes((ns) => applyNodeChanges(changes, ns));
+    },
+    [setFlowNodes]
   );
+
   const edges = useMemo(() => modelToFlowEdges(model), [model]);
 
   const classNameById = useMemo(() => {
@@ -147,13 +177,13 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
       if (kind === 'package') {
         if (!onCreatePackage) return;
         const packageId = `pkg-${crypto.randomUUID()}`;
-        setPositions((prev) => ({ ...prev, [packageId]: position }));
+        pendingPositions.current[packageId] = position;
         onCreatePackage({ packageId, name: nextName('Paquete') });
         return;
       }
       if (!onCreateClass) return;
       const classId = `cls-${crypto.randomUUID()}`;
-      setPositions((prev) => ({ ...prev, [classId]: position }));
+      pendingPositions.current[classId] = position;
       onCreateClass({
         classId,
         name: nextName(kind === 'abstract-class' ? 'ClaseAbstracta' : 'Clase'),
@@ -171,7 +201,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
 
   /** Alternativa accesible al drag: clic crea el elemento en la siguiente celda libre. */
   const handlePaletteClick = (kind: PaletteKind) => () => {
-    const index = Object.keys(positions).length;
+    const index = flowNodes.length;
     createPaletteItem(kind, { x: 80 + (index % 3) * 320, y: 80 + Math.floor(index / 3) * 260 });
   };
 
@@ -227,17 +257,6 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   };
 
   /* ---------------- Movimiento libre y borrado ---------------- */
-
-  const handleNodeDrag = useCallback(
-    (_e: MouseEvent | TouchEvent, _node: Node, dragged: Node[]) => {
-      setPositions((prev) => {
-        const next = { ...prev };
-        for (const n of dragged) next[n.id] = n.position;
-        return next;
-      });
-    },
-    []
-  );
 
   const handleNodesDelete = useCallback(
     (deleted: Node[]) => {
@@ -441,8 +460,9 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
 
         <div ref={flowWrapper} style={{ flex: 1, position: 'relative' }}>
           <ReactFlow
-            nodes={nodes}
+            nodes={flowNodes}
             edges={edges}
+            onNodesChange={handleNodesChange}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             fitView
@@ -456,8 +476,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onConnect={editable ? handleConnect : undefined}
-            onNodeDrag={handleNodeDrag}
-            onNodeDragStop={handleNodeDrag}
+
             onNodesDelete={editable ? handleNodesDelete : undefined}
             onEdgesDelete={editable ? handleEdgesDelete : undefined}
             aria-label="Diagrama UML de clases"
