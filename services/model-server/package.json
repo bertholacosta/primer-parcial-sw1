@@ -3,18 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Servidor de modelo: repositorio en memoria del modelo canónico y hospedaje de sesiones de colaboración (collaboration-protocol v1; ADR-0003, Alternativa A).",
+  "description": "Backend autoritativo de identidad, diagramas y colaboración persistente.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
     "test": "vitest run"
   },
   "dependencies": {
-    "collaboration-protocol": "file:../../packages/collaboration-protocol"
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/websocket": "^11.3.0",
+    "argon2": "^0.45.1",
+    "collaboration-protocol": "file:../../packages/collaboration-protocol",
+    "fastify": "^5.12.4",
+    "jose": "^6.2.12",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.0",
+    "@types/pg": "^8.23.1",
+    "pg-mem": "^3.0.14",
     "typescript": "^5.6.3",
     "vitest": "^3.2.4"
   }

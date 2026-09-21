@@ -1,2 +1,12 @@
 export { ModelServer } from "./model-server.js";
 export type { OpenSessionOptions, OutboundDelivery } from "./model-server.js";
+export { loadConfig } from "./config.js";
+export type { ModelServerConfig } from "./config.js";
+export { databaseHealthy, migrate, PostgresDatabase } from "./database.js";
+export type { Database, SqlExecutor } from "./database.js";
+export { buildHttpApp } from "./http-app.js";
+export type { BuildHttpAppOptions } from "./http-app.js";
+export { NoopMailer, PlatformStore } from "./platform-store.js";
+export type { DiagramRecord, DiagramRole, Mailer, PublicUser, StoredUser } from "./platform-store.js";
+export { startModelServer } from "./runtime.js";
+export type { RunningModelServer } from "./runtime.js";
