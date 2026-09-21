@@ -1,7 +1,7 @@
 id: P5-003
 title: "Implementar exportación XMI y round-trip"
 phase: 5
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Exportar el subconjunto canónico soportado y demostrar equivalencia semántica de ida y vuelta."
@@ -33,3 +33,6 @@ deliverables:
   - fixtures/xmi/
 links:
   - docs/contracts/xmi-profile-v1.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"

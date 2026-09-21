@@ -7,8 +7,12 @@
   Nota: los atributos xmi:id se preservan del canónico (ver Q3 del contrato).
 -->
 <xmi:XMI xmi:version="2.1"
+         xmi:exporter="Enterprise Architect"
+         xmi:exporterVersion="16.0"
          xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
          xmlns:uml="http://www.omg.org/spec/UML/20131001">
+
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="16.0"/>
 
   <uml:Model xmi:id="MODEL_06" name="Biblioteca" xmi:type="uml:Model">
 
@@ -31,7 +35,7 @@
         <ownedAttribute xmi:type="uml:Property"
                         xmi:id="ATTR_51"
                         name="anioPublicacion"
-                        type="Integer">
+                        type="int">
           <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_ATTR_51_lo" value="0"/>
           <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_ATTR_51_hi" value="1"/>
         </ownedAttribute>
