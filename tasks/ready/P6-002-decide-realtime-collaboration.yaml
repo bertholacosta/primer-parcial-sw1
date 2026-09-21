@@ -1,7 +1,7 @@
 id: P6-002
 title: "Resolver ADR de colaboración en tiempo real"
 phase: 6
-status: planned
+status: ready
 kind: adr
 owner_role: Kiro
 objective: "Comparar y recomendar consistencia, transporte y persistencia que cumplan el protocolo P6-001."
