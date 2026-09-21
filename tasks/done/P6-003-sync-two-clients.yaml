@@ -1,7 +1,7 @@
 id: P6-003
 title: "Sincronizar dos clientes en el corte mínimo"
 phase: 6
-status: ready
+status: done
 kind: implementation
 owner_role: Devin CLI / SWE-2
 objective: "Implementar una sesión de dos clientes que intercambie comandos y converja tras desconexión/reconexión."
@@ -33,3 +33,6 @@ deliverables:
   - services/model-server/
 links:
   - docs/adr/0003-realtime-collaboration.md
+  - "scope and validation_commands passed"
+  - "independent reviewer approved normalized JSON"
+  - "integrator approved normalized JSON"

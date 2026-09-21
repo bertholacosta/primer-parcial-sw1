@@ -1,0 +1,18 @@
+{
+  "name": "collaboration-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Protocolo de colaboración v1: comandos del editor, secuenciador, deduplicación, OpLog, snapshots y sincronización de clientes (contratos collaboration-protocol-v1 y model-commands-v1; ADR-0003).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  }
+}
