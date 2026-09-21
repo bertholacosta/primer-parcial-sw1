@@ -11,6 +11,7 @@ Esta carpeta contendrá contratos versionados entre módulos. Un contrato acepta
 - `model-commands`: operaciones deterministas propuestas por UI, colaboración o IA.
 - `xmi-profile`: subconjunto UML/XMI soportado y reglas Enterprise Architect.
 - `collaboration-protocol`: orden, idempotencia, concurrencia y reconexión.
+- `identity-access`: registro, sesiones, membresías, invitaciones y enlaces compartibles.
 - `multimodal-proposals`: propuestas de voz/imagen/IA sin mutación directa.
 - `orca-pipeline`: estados, roles, recuperación y salidas del orquestador multiagente.
 
