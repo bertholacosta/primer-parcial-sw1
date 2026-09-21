@@ -7,6 +7,7 @@ import {
   useReactFlow,
   ConnectionLineType,
   type NodeTypes,
+  type EdgeTypes,
   type Connection,
   type Node,
   type Edge,
@@ -21,6 +22,7 @@ import {
 } from '../adapter/domainModelAdapter';
 import { UmlClassNode } from './UmlClassNode';
 import { UmlPackageNode } from './UmlPackageNode';
+import { UmlAssociationEdge } from './UmlAssociationEdge';
 import {
   ALLOWED_MULTIPLICITIES,
   type CommandExecutionResult,
@@ -97,6 +99,13 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
     () => ({
       umlClass: UmlClassNode,
       umlPackage: UmlPackageNode,
+    }),
+    []
+  );
+
+  const edgeTypes = useMemo<EdgeTypes>(
+    () => ({
+      umlAssociation: UmlAssociationEdge,
     }),
     []
   );
@@ -428,6 +437,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             fitView
             nodesFocusable={true}
             edgesFocusable={false}

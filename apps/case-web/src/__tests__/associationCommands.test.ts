@@ -213,7 +213,7 @@ describe('modelToFlowEdges — proyección de asociaciones al canvas', () => {
     expect(edge.data?.sourceMultiplicity).toBe('0..*');
     expect(edge.data?.targetMultiplicity).toBe('1..*');
     expect(edge.data?.navigability).toBe('bidirectional');
-    expect(edge.type).toBe('straight');
+    expect(edge.type).toBe('umlAssociation');
     expect(edge.label).toContain('escritoPor');
     expect(edge.label).toContain('0..*');
     expect(edge.label).toContain('1..*');
