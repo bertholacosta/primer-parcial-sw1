@@ -35,6 +35,19 @@ export type AnyFlowNode = UmlClassFlowNode | UmlPackageFlowNode;
 /** Posiciones visuales por id de elemento; el modelo canónico es solo semántico. */
 export type LayoutPositions = Record<string, { x: number; y: number }>;
 
+export interface UmlAssociationEdgeData {
+  [key: string]: unknown;
+  name?: string;
+  sourceMultiplicity: string;
+  targetMultiplicity: string;
+  navigability: string;
+  waypoints?: { x: number; y: number }[];
+  editable?: boolean;
+  onWaypointsChange?: (edgeId: string, waypoints: { x: number; y: number }[]) => void;
+}
+
+export type UmlAssociationFlowEdge = Edge<UmlAssociationEdgeData, 'umlAssociation'>;
+
 /**
  * Parsea y valida un documento de modelo de dominio canónico según docs/contracts/domain-model-v1.md.
  * Rechaza de forma explícita versiones de contrato no soportadas (!== '1').
@@ -207,19 +220,19 @@ export function modelToFlowNodes(
  * La etiqueta muestra el nombre (si existe) y las multiplicidades de ambos extremos;
  * las asociaciones unidireccionales llevan flecha en el extremo destino.
  */
-export function modelToFlowEdges(model: CanonicalDomainModel): Edge[] {
+export function modelToFlowEdges(
+  model: CanonicalDomainModel,
+  edgeExtras?: {
+    waypoints?: Record<string, { x: number; y: number }[]>;
+    editable?: boolean;
+    onWaypointsChange?: (edgeId: string, waypoints: { x: number; y: number }[]) => void;
+  }
+): UmlAssociationFlowEdge[] {
   return model.associations.map((assoc) => ({
     id: assoc.id,
-    type: 'straight',
+    type: 'umlAssociation' as const,
     source: assoc.sourceClassId,
     target: assoc.targetClassId,
-    label: assoc.name
-      ? `${assoc.name}  [${assoc.sourceMultiplicity} → ${assoc.targetMultiplicity}]`
-      : `[${assoc.sourceMultiplicity} → ${assoc.targetMultiplicity}]`,
-    labelBgPadding: [4, 2] as [number, number],
-    labelBgBorderRadius: 4,
-    labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.85 },
-    style: { stroke: '#475569', strokeWidth: 1.5 },
     markerEnd:
       assoc.navigability === 'unidirectional'
         ? { type: MarkerType.ArrowClosed, color: '#475569' }
@@ -229,6 +242,9 @@ export function modelToFlowEdges(model: CanonicalDomainModel): Edge[] {
       sourceMultiplicity: assoc.sourceMultiplicity,
       targetMultiplicity: assoc.targetMultiplicity,
       navigability: assoc.navigability,
+      waypoints: edgeExtras?.waypoints?.[assoc.id],
+      editable: edgeExtras?.editable,
+      onWaypointsChange: edgeExtras?.onWaypointsChange,
     },
   }));
 }
