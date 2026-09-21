@@ -24,7 +24,7 @@ docker compose up -d
 
 # 2. Variables de entorno (PowerShell 7)
 cd services/model-server
-$env:DATABASE_URL="postgres://postgres:postgres@localhost:5432/case"
+$env:DATABASE_URL="postgres://postgres:postgres@localhost:15432/case"
 $env:JWT_SECRET="dev-secret-dev-secret-dev-secret-32"
 $env:CORS_ORIGINS="http://localhost:5173"
 $env:SECURE_COOKIES="false"   # solo para http://localhost

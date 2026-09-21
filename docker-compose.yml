@@ -1,5 +1,5 @@
 # PostgreSQL de desarrollo para model-server.
-# Uso: docker compose up -d   →   DATABASE_URL=postgres://postgres:postgres@localhost:5432/case
+# Uso: docker compose up -d   →   DATABASE_URL=postgres://postgres:postgres@localhost:15432/case
 # Solo desarrollo local: credenciales triviales y sin TLS.
 
 services:
@@ -11,7 +11,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: case
     ports:
-      - "5432:5432"
+      # 15432 en el host: 5432 lo usa el PostgreSQL nativo y 5433-5532 está excluido por Windows
+      - "15432:5432"
     volumes:
       - case-pgdata:/var/lib/postgresql/data
     healthcheck:
