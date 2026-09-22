@@ -244,10 +244,17 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
   }, [sourceRect, targetRect, obstacles, parallelIndex, parallelCount]);
 
   if (!points) return null;
-  const sourceX = points[0].x;
-  const sourceY = points[0].y;
-  const targetX = points[points.length - 1].x;
-  const targetY = points[points.length - 1].y;
+
+  // Etiquetas de multiplicidad fuera de la caja: 14px en la dirección del
+  // primer/último segmento para que nunca queden ocultas tras el nodo.
+  const outward = (from: Pt, next: Pt, sign: 1 | -1): Pt => {
+    const dx = next.x - from.x;
+    const dy = next.y - from.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: from.x + (dx / len) * 14 * sign, y: from.y + (dy / len) * 14 * sign };
+  };
+  const srcLabelPos = outward(points[0], points[1], 1);
+  const tgtLabelPos = outward(points[points.length - 1], points[points.length - 2], 1);
 
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
   const labelPos = midpointAlong(points);
@@ -313,7 +320,7 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
             <div
               style={{
                 position: 'absolute',
-                transform: `translate(-50%, -130%) translate(${sourceX}px, ${sourceY}px)`,
+                transform: `translate(-50%, -50%) translate(${srcLabelPos.x}px, ${srcLabelPos.y - 8}px)`,
                 fontSize: 10,
                 color: '#64748b',
                 pointerEvents: 'none',
@@ -324,7 +331,7 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
             <div
               style={{
                 position: 'absolute',
-                transform: `translate(-50%, 30%) translate(${targetX}px, ${targetY}px)`,
+                transform: `translate(-50%, -50%) translate(${tgtLabelPos.x}px, ${tgtLabelPos.y - 8}px)`,
                 fontSize: 10,
                 color: '#64748b',
                 pointerEvents: 'none',
