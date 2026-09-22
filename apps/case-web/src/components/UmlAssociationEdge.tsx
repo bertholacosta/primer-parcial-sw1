@@ -251,7 +251,7 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
     const dx = next.x - from.x;
     const dy = next.y - from.y;
     const len = Math.hypot(dx, dy) || 1;
-    return { x: from.x + (dx / len) * 14 * sign, y: from.y + (dy / len) * 14 * sign };
+    return { x: from.x + (dx / len) * 24 * sign, y: from.y + (dy / len) * 24 * sign };
   };
   const srcLabelPos = outward(points[0], points[1], 1);
   const tgtLabelPos = outward(points[points.length - 1], points[points.length - 2], 1);
@@ -322,7 +322,12 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
                 position: 'absolute',
                 transform: `translate(-50%, -50%) translate(${srcLabelPos.x}px, ${srcLabelPos.y - 8}px)`,
                 fontSize: 10,
-                color: '#64748b',
+                color: '#475569',
+                background: 'rgba(255,255,255,0.92)',
+                border: '1px solid #e2e8f0',
+                borderRadius: 3,
+                padding: '0 3px',
+                zIndex: 10,
                 pointerEvents: 'none',
               }}
             >
@@ -333,7 +338,12 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
                 position: 'absolute',
                 transform: `translate(-50%, -50%) translate(${tgtLabelPos.x}px, ${tgtLabelPos.y - 8}px)`,
                 fontSize: 10,
-                color: '#64748b',
+                color: '#475569',
+                background: 'rgba(255,255,255,0.92)',
+                border: '1px solid #e2e8f0',
+                borderRadius: 3,
+                padding: '0 3px',
+                zIndex: 10,
                 pointerEvents: 'none',
               }}
             >
