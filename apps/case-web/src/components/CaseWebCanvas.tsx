@@ -71,6 +71,15 @@ const PALETTE_ITEMS: { kind: PaletteKind; label: string; hint: string }[] = [
   { kind: 'package', label: 'Paquete', hint: 'Arrastra al lienzo para crear' },
 ];
 
+const RELATION_ITEMS: { kind: AssociationKind; label: string }[] = [
+  { kind: 'association', label: '— Asociación' },
+  { kind: 'aggregation', label: '—◇ Agregación' },
+  { kind: 'composition', label: '—◆ Composición' },
+  { kind: 'generalization', label: '—▷ Generalización' },
+  { kind: 'dependency', label: '⇢ Dependencia' },
+  { kind: 'associationClass', label: '— Clase-asociación' },
+];
+
 const PALETTE_DRAG_TYPE = 'application/x-case-palette-item';
 
 interface PendingConnection {
@@ -123,6 +132,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [assocName, setAssocName] = useState('');
   const [assocKind, setAssocKind] = useState<AssociationKind>('association');
+  const [paletteRelationKind, setPaletteRelationKind] = useState<AssociationKind>('association');
   const [assocClassId, setAssocClassId] = useState('');
   const [assocSourceMult, setAssocSourceMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
   const [assocTargetMult, setAssocTargetMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
@@ -231,13 +241,13 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
 
   const openAssociationPopover = useCallback((sourceClassId: string, targetClassId: string) => {
     setAssocName('');
-    setAssocKind('association');
+    setAssocKind(paletteRelationKind);
     setAssocClassId('');
     setAssocSourceMult(ALLOWED_MULTIPLICITIES[0]);
     setAssocTargetMult(ALLOWED_MULTIPLICITIES[0]);
     setAssocNavigability(ALLOWED_NAVIGABILITIES[0]);
     setPendingConnection({ sourceClassId, targetClassId });
-  }, []);
+  }, [paletteRelationKind]);
 
   const handleConnect = useCallback(
     (connection: Connection) => {
@@ -433,35 +443,63 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
               </div>
             ))}
             {onCreateAssociation && (
-              <button
-                data-testid="btn-add-association"
-                onClick={() =>
-                  openAssociationPopover(
-                    model.classes[0]?.id ?? '',
-                    model.classes[1]?.id ?? model.classes[0]?.id ?? ''
-                  )
-                }
-                disabled={model.classes.length < 2}
-                title={
-                  model.classes.length < 2
-                    ? 'Se requieren al menos dos clases para crear una asociación'
-                    : 'Crear asociación eligiendo origen y destino'
-                }
-                style={{
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: '6px',
-                  background: '#ffffff',
-                  padding: '8px 6px',
-                  fontSize: '12px',
-                  cursor: model.classes.length < 2 ? 'not-allowed' : 'pointer',
-                  color: '#334155',
-                }}
-              >
-                ↔ Asociación
-              </button>
+              <>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: '8px', marginBottom: '2px' }}>
+                  Relaciones
+                </div>
+                {RELATION_ITEMS.map((item) => (
+                  <div
+                    key={item.kind}
+                    data-testid={`palette-relation-${item.kind}`}
+                    role="button"
+                    aria-pressed={paletteRelationKind === item.kind}
+                    onClick={() => setPaletteRelationKind(item.kind)}
+                    title="Selecciona y arrastra entre dos clases"
+                    style={{
+                      border: `1.5px solid ${paletteRelationKind === item.kind ? '#0284c7' : '#cbd5e1'}`,
+                      borderRadius: '6px',
+                      background: paletteRelationKind === item.kind ? '#e0f2fe' : '#ffffff',
+                      padding: '6px',
+                      fontSize: '11px',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      color: '#0f172a',
+                      userSelect: 'none',
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                ))}
+                <button
+                  data-testid="btn-add-association"
+                  onClick={() =>
+                    openAssociationPopover(
+                      model.classes[0]?.id ?? '',
+                      model.classes[1]?.id ?? model.classes[0]?.id ?? ''
+                    )
+                  }
+                  disabled={model.classes.length < 2}
+                  title={
+                    model.classes.length < 2
+                      ? 'Se requieren al menos dos clases para crear una relación'
+                      : 'Crear relación eligiendo origen y destino'
+                  }
+                  style={{
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '6px',
+                    background: '#ffffff',
+                    padding: '8px 6px',
+                    fontSize: '12px',
+                    cursor: model.classes.length < 2 ? 'not-allowed' : 'pointer',
+                    color: '#334155',
+                  }}
+                >
+                  ↔ Crear relación
+                </button>
+              </>
             )}
             <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', lineHeight: 1.4 }}>
-              Arrastra elementos al lienzo. Arrastra entre nodos para asociar. Doble clic renombra. Supr elimina lo seleccionado.
+              Arrastra elementos al lienzo. Elige un tipo de relación y arrastra entre dos clases. Doble clic renombra. Supr elimina lo seleccionado.
             </div>
           </aside>
         )}
