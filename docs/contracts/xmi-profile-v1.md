@@ -59,7 +59,6 @@ Los siguientes elementos y atributos XMI son procesados activamente en la conver
 |---|---|---|
 | `xmi:id` | sí | → `class.id` |
 | `name` | sí | → `class.name` |
-| `isAbstract="true\|false"` | no | → `class.isAbstract` (por defecto `false`) |
 | Clase contenida en un `packagedElement uml:Package` | — | → `class.packageId` (el id del paquete contenedor) |
 
 ### 3.4 Atributos de clase (`ownedAttribute` de tipo `uml:Property`)
@@ -153,8 +152,6 @@ uml:Model.name              ──→  model.name         ──→  uml:Model n
 uml:Package(xmi:id, name)   ──→  package{id,name,   ──→  packagedElement
   [anidado en Package]              parentId}              [anidado]
 uml:Class(xmi:id, name,     ──→  class{id,name,     ──→  packagedElement
-  isAbstract, en Package)           packageId,             uml:Class
-                                    isAbstract}
 ownedAttribute escalar      ──→  attribute{id,name, ──→  ownedAttribute
   (type, lowerValue,                type,nullable,         (type, lowerValue,
    upperValue)                      multiplicity}          upperValue)

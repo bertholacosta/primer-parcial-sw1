@@ -292,7 +292,6 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
   function processClass(classNode: XmlNode, parentPath: string, packageId?: string) {
     const classId = classNode.attributes['xmi:id'];
     const className = classNode.attributes['name'];
-    const isAbstract = classNode.attributes['isAbstract'] === 'true';
     const currentPath = `${parentPath} / packagedElement[@xmi:id='${classId}']`;
 
     if (!classId || !className) {
@@ -430,7 +429,6 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
     const cls: CanonicalClass = {
       id: classId,
       name: className,
-      isAbstract,
       attributes
     };
     if (packageId && packageId.trim() !== '') {

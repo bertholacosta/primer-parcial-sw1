@@ -112,7 +112,7 @@ describe("authenticated STOMP transport", () => {
     ownerSocket.send(encodeStompFrame("SEND", { destination: `/app/diagrams/${diagramId}` }, JSON.stringify(createEnvelope(diagramId, diagramId, "SubmitCommand", {
       clientCommandId: commandId,
       baseSeqNumber: 0,
-      command: { type: "CreateClass", commandId, modelId: diagramId, modelVersion: "1.0.0", payload: { id: "cls-01", name: "Producto", isAbstract: false } },
+      command: { type: "CreateClass", commandId, modelId: diagramId, modelVersion: "1.0.0", payload: { id: "cls-01", name: "Producto" } },
     }))));
     expect((await ownerInbox.envelope("CommandCommitted")).type).toBe("CommandCommitted");
     expect((await editorInbox.envelope("CommandCommitted")).type).toBe("CommandCommitted");

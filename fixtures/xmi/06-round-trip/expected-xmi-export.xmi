@@ -20,8 +20,7 @@
 
       <packagedElement xmi:type="uml:Class"
                        xmi:id="CLS_50"
-                       name="Libro"
-                       isAbstract="false">
+                       name="Libro">
         <ownedComment xmi:type="uml:Comment" xmi:id="CMT_CLS_50">
           <body>Entidad que representa un libro del catálogo.</body>
         </ownedComment>
@@ -43,8 +42,7 @@
 
       <packagedElement xmi:type="uml:Class"
                        xmi:id="CLS_51"
-                       name="Autor"
-                       isAbstract="false">
+                       name="Autor">
         <ownedAttribute xmi:type="uml:Property"
                         xmi:id="ATTR_52"
                         name="nombre"

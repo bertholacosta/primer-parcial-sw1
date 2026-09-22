@@ -39,7 +39,6 @@ export interface CreateClassPayload {
   id: string;
   name: string;
   packageId?: string;
-  isAbstract?: boolean;
   description?: string;
 }
 export type CreateClassCommand = BaseCommand<"CreateClass", CreateClassPayload>;
@@ -230,7 +229,6 @@ function evaluateCreateClass(model: DomainModel, command: CreateClassCommand): C
         id: p.id,
         name: p.name,
         packageId: p.packageId,
-        isAbstract: p.isAbstract ?? false,
         description: p.description,
         attributes: [],
       });

@@ -51,18 +51,6 @@ class _DynamicEntityFormState extends State<DynamicEntityForm> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.classDescriptor.isAbstract) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'Cannot instantiate abstract class "${widget.classDescriptor.name}".',
-            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-          ),
-        ),
-      );
-    }
-
     return Form(
       key: _formKey,
       child: Column(

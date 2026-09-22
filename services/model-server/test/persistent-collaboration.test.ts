@@ -15,7 +15,7 @@ function submit(diagramId: string, clientCommandId: string, modelVersion = "1.0.
       commandId: clientCommandId,
       modelId: diagramId,
       modelVersion,
-      payload: { id: "cls-01", name: "Producto", isAbstract: false },
+      payload: { id: "cls-01", name: "Producto" },
     },
   });
 }

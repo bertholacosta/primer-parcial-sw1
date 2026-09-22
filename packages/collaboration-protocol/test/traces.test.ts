@@ -13,7 +13,7 @@ function seedModel(version: string): DomainModel {
     name: "SistemaVentas",
     version,
     packages: [],
-    classes: [{ id: "cls-01", name: "Producto", isAbstract: false, attributes: [] }],
+    classes: [{ id: "cls-01", name: "Producto", attributes: [] }],
     associations: [],
   };
 }
@@ -58,7 +58,7 @@ describe("trazas normativas de dos clientes (collaboration-protocol-v1 §9)", ()
     const { hub, a, b } = makePair(seedModel("1.0.0"), 10);
 
     // Cliente A: CreateClass "Categoria" sobre modelVersion "1.0.0" (baseSeq 10).
-    a.submitCommand(a.buildCommand("CreateClass", { id: "cls-02", name: "Categoria", isAbstract: false }));
+    a.submitCommand(a.buildCommand("CreateClass", { id: "cls-02", name: "Categoria" }));
     expect(hub.coordinator.currentSeqNumber).toBe(11);
     expect(a.localModel!.version).toBe("1.0.1");
     expect(b.localModel!.version).toBe("1.0.1");

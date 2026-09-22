@@ -114,7 +114,7 @@ void main() {
         [
           const InterpretedCommand(
             type: 'CreateClass',
-            payload: {'id': 'cls-cliente', 'name': 'Cliente', 'isAbstract': false},
+            payload: {'id': 'cls-cliente', 'name': 'Cliente'},
             score: 0.97,
             fieldScores: {'name': 0.98},
           ),
@@ -269,7 +269,6 @@ void main() {
         {
           'id': 'cls-cuenta-01',
           'name': 'Cuenta',
-          'isAbstract': false,
           'attributes': []
         }
       ]);
@@ -347,7 +346,6 @@ void main() {
         {
           'id': 'cls-empleado-01',
           'name': 'Empleado',
-          'isAbstract': false,
           'attributes': []
         }
       ]);

@@ -22,7 +22,6 @@ export interface CanonicalClass {
   id: string;
   name: string;
   packageId?: string;
-  isAbstract: boolean;
   description?: string;
   attributes: CanonicalAttribute[];
 }

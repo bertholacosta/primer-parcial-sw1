@@ -100,7 +100,6 @@ Representa una entidad del dominio persistible o un objeto de valor.
 | `id` | string | sí | Único en el documento. |
 | `name` | string | sí | `[A-Za-z_][A-Za-z0-9_]*`. Único dentro del mismo paquete (o a nivel raíz si no hay paquete). |
 | `packageId` | string | no | Referencia al `id` de un Package existente. |
-| `isAbstract` | boolean | no | Por defecto `false`. |
 | `description` | string | no | Texto libre. |
 | `attributes` | [ Attribute ] | sí | Array, puede estar vacío. |
 
@@ -250,7 +249,6 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
       "id": "cls-01",
       "name": "Libro",
       "packageId": "pkg-01",
-      "isAbstract": false,
       "attributes": [
         {
           "id": "attr-01",
@@ -279,7 +277,6 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
       "id": "cls-02",
       "name": "Autor",
       "packageId": "pkg-01",
-      "isAbstract": false,
       "attributes": [
         {
           "id": "attr-04",

@@ -556,7 +556,6 @@ class ModelCommandProcessor {
           id: p['id'] as String,
           name: p['name'] as String,
           packageId: p['packageId'] as String?,
-          isAbstract: p['isAbstract'] as bool? ?? false,
           description: p['description'] as String?,
         ));
         model.bumpPatch();

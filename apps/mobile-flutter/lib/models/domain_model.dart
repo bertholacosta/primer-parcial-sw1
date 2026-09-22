@@ -49,7 +49,6 @@ class DomainClass {
   String id;
   String name;
   String? packageId;
-  bool isAbstract;
   String? description;
   List<DomainAttribute> attributes;
 
@@ -57,7 +56,6 @@ class DomainClass {
     required this.id,
     required this.name,
     this.packageId,
-    this.isAbstract = false,
     this.description,
     List<DomainAttribute>? attributes,
   }) : attributes = attributes ?? [];
@@ -67,7 +65,6 @@ class DomainClass {
       id: json['id'] as String,
       name: json['name'] as String,
       packageId: json['packageId'] as String?,
-      isAbstract: json['isAbstract'] as bool? ?? false,
       description: json['description'] as String?,
       attributes: (json['attributes'] as List<dynamic>? ?? const [])
           .map((a) => DomainAttribute.fromJson(a as Map<String, dynamic>))
@@ -90,7 +87,6 @@ class DomainClass {
         'id': id,
         'name': name,
         if (packageId != null) 'packageId': packageId,
-        'isAbstract': isAbstract,
         if (description != null) 'description': description,
         'attributes': attributes.map((a) => a.toJson()).toList(),
       };

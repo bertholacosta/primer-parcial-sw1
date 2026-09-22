@@ -48,7 +48,6 @@ export const DEFAULT_CANONICAL_FIXTURE = {
       id: 'cls-01',
       name: 'Libro',
       packageId: 'pkg-01',
-      isAbstract: false,
       attributes: [
         {
           id: 'attr-01',
@@ -77,7 +76,6 @@ export const DEFAULT_CANONICAL_FIXTURE = {
       id: 'cls-02',
       name: 'Autor',
       packageId: 'pkg-01',
-      isAbstract: false,
       attributes: [
         {
           id: 'attr-04',
@@ -188,7 +186,6 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
           classId: input.classId,
           name: input.name,
           packageId: input.packageId,
-          isAbstract: input.isAbstract,
         },
       };
 

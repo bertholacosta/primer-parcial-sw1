@@ -14,7 +14,6 @@
       "id": "cls-01",
       "name": "Libro",
       "packageId": "pkg-01",
-      "isAbstract": false,
       "attributes": [
         {
           "id": "attr-01",
@@ -43,7 +42,6 @@
       "id": "cls-02",
       "name": "Autor",
       "packageId": "pkg-01",
-      "isAbstract": false,
       "attributes": [
         {
           "id": "attr-04",

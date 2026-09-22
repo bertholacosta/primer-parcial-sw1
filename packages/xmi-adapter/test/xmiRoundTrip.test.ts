@@ -96,7 +96,6 @@ describe('XMI Exporter & Semantic Round-trip', () => {
         {
           id: 'CLS_TYPES',
           name: 'TypeCatalog',
-          isAbstract: false,
           attributes: [
             { id: 'ATTR_01_STR', name: 'fString', type: 'String', nullable: false, multiplicity: '1' },
             { id: 'ATTR_02_INT', name: 'fInt', type: 'Integer', nullable: false, multiplicity: '1' },
@@ -250,7 +249,6 @@ describe('XMI Exporter & Semantic Round-trip', () => {
         {
           id: 'CLS_01',
           name: 'Item',
-          isAbstract: false,
           attributes: [
             {
               id: 'ATTR_01',
@@ -295,7 +293,6 @@ describe('XMI Exporter & Semantic Round-trip', () => {
         {
           id: 'CLS_01',
           name: 'Item',
-          isAbstract: false,
           attributes: [
             {
               id: 'ATTR_01',

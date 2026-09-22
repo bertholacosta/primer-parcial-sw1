@@ -28,7 +28,6 @@ DomainModel _empleadoModel() => DomainModel.fromJson({
         {
           'id': 'cls-empleado-01',
           'name': 'Empleado',
-          'isAbstract': false,
           'attributes': []
         }
       ],

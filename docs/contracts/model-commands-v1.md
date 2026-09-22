@@ -84,7 +84,6 @@ Crea una nueva clase en el modelo.
 | `id` | string | sí | Identificador de la nueva clase. |
 | `name` | string | sí | Nombre de la clase. Patrón `[A-Za-z_][A-Za-z0-9_]*`. |
 | `packageId` | string | no | Id del paquete al que pertenece. Si está ausente, la clase queda en el espacio raíz. |
-| `isAbstract` | boolean | no | Por defecto `false`. |
 | `description` | string | no | Texto libre. |
 
 #### Precondiciones
@@ -130,7 +129,6 @@ Crea una nueva clase en el modelo.
     "id": "cls-01",
     "name": "Producto",
     "packageId": "pkg-01",
-    "isAbstract": false
   }
 }
 ```
@@ -148,7 +146,6 @@ Crea una nueva clase en el modelo.
       "id": "cls-01",
       "name": "Producto",
       "packageId": "pkg-01",
-      "isAbstract": false,
       "attributes": []
     }
   ],

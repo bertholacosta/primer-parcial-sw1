@@ -10,7 +10,6 @@ export interface UmlClassNodeData {
   [key: string]: unknown;
   id: string;
   name: string;
-  isAbstract: boolean;
   packageId?: string;
   attributes: CanonicalAttribute[];
   readOnly?: boolean;
@@ -121,7 +120,6 @@ export function parseDomainModel(raw: unknown): CanonicalDomainModel {
       id: classObj.id,
       name: classObj.name,
       packageId: typeof classObj.packageId === 'string' ? classObj.packageId : undefined,
-      isAbstract: Boolean(classObj.isAbstract),
       description: typeof classObj.description === 'string' ? classObj.description : undefined,
       attributes: parsedAttributes,
     };
@@ -176,7 +174,6 @@ export function modelToFlowNodes(
       data: {
         id: cls.id,
         name: cls.name,
-        isAbstract: Boolean(cls.isAbstract),
         packageId: cls.packageId,
         attributes: cls.attributes,
         readOnly: callbacks?.readOnly,

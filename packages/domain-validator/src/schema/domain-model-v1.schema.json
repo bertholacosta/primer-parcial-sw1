@@ -62,7 +62,6 @@
         "id": { "type": "string", "minLength": 1 },
         "name": { "$ref": "#/definitions/identifier" },
         "packageId": { "type": "string" },
-        "isAbstract": { "type": "boolean" },
         "description": { "type": "string" },
         "attributes": {
           "type": "array",

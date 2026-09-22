@@ -52,7 +52,6 @@ export interface DomainClass {
   id: string;
   name: string;
   packageId?: string;
-  isAbstract?: boolean;
   description?: string;
   attributes: DomainAttribute[];
 }

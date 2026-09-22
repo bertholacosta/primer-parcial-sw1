@@ -190,7 +190,7 @@ class VoiceProposalAdapter {
           commands.add(_command(
             model,
             'CreateClass',
-            {'id': classId, 'name': name, 'isAbstract': false},
+            {'id': classId, 'name': name},
           ));
           classIds[name.toLowerCase()] = classId;
           lastClassId = classId;

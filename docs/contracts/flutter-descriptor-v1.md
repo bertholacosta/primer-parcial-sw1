@@ -88,7 +88,6 @@ Proyección de una clase del modelo canónico relevante para Flutter.
 | `id` | string | sí | `id` de la clase en el modelo canónico. Clave de trazabilidad; no cambia al renombrar. |
 | `name` | string | sí | `name` de la clase en el modelo canónico. Nombre legible para etiquetas de UI. |
 | `packageName` | string | no | Nombre del paquete inmediato de la clase, si tiene `packageId`. Útil para agrupar vistas. |
-| `isAbstract` | boolean | sí | Refleja `isAbstract` del modelo. Las clases abstractas no generan formularios de creación directa. |
 | `description` | string | no | `description` de la clase en el modelo canónico. Puede usarse como tooltip o ayuda contextual. |
 | `attributes` | [ AttributeDescriptor ] | sí | Lista de descriptores de atributos. Puede estar vacía. |
 
@@ -242,7 +241,6 @@ Generado desde el modelo `valid-minimal.json` (clase `Libro`, atributos `titulo:
       "id": "cls-01",
       "name": "Libro",
       "packageName": "biblioteca",
-      "isAbstract": false,
       "description": null,
       "attributes": [
         {
@@ -281,7 +279,6 @@ Generado desde el modelo `valid-minimal.json` (clase `Libro`, atributos `titulo:
       "id": "cls-02",
       "name": "Autor",
       "packageName": "biblioteca",
-      "isAbstract": false,
       "description": null,
       "attributes": [
         {
@@ -326,7 +323,6 @@ El runtime no necesita acceder ni parsear `domain-model.json` directamente. El S
 
 ### 10.3 Clase abstracta — sin formulario de creación
 
-Si `ClassDescriptor.isAbstract` es `true`, el runtime Flutter no debe generar un formulario de creación directa para esa clase. Puede generar formularios para sus subclases si se modelan en versiones futuras del contrato.
 
 ---
 

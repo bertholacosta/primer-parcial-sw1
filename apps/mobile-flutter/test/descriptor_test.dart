@@ -35,7 +35,6 @@ void main() {
       expect(root.classes.length, equals(2));
       final libro = root.classes.firstWhere((c) => c.name == 'Libro');
       expect(libro.id, equals('cls-01'));
-      expect(libro.isAbstract, isFalse);
       expect(libro.packageName, equals('biblioteca'));
       expect(libro.attributes.length, equals(3));
 

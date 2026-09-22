@@ -156,7 +156,6 @@ class ClassDescriptor {
   final String id;
   final String name;
   final String? packageName;
-  final bool isAbstract;
   final String? description;
   final List<AttributeDescriptor> attributes;
 
@@ -164,7 +163,6 @@ class ClassDescriptor {
     required this.id,
     required this.name,
     this.packageName,
-    required this.isAbstract,
     this.description,
     required this.attributes,
   });
@@ -181,7 +179,6 @@ class ClassDescriptor {
 
     requireField('id');
     requireField('name');
-    requireField('isAbstract');
     requireField('attributes');
 
     final rawAttrs = json['attributes'] as List<dynamic>;
@@ -193,7 +190,6 @@ class ClassDescriptor {
       id: json['id'] as String,
       name: json['name'] as String,
       packageName: json['packageName'] as String?,
-      isAbstract: json['isAbstract'] as bool,
       description: json['description'] as String?,
       attributes: attributes,
     );
@@ -203,7 +199,6 @@ class ClassDescriptor {
         'id': id,
         'name': name,
         if (packageName != null) 'packageName': packageName,
-        'isAbstract': isAbstract,
         if (description != null) 'description': description,
         'attributes': attributes.map((a) => a.toJson()).toList(),
       };

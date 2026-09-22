@@ -173,7 +173,7 @@ describe("colaboración multiusuario extremo a extremo (P10-011)", () => {
     const cmd1 = randomUUID();
     sendCommand(ownerWs.socket, diagramId, cmd1, 0, {
       type: "CreateClass", commandId: cmd1, modelId: diagramId, modelVersion: "1.0.0",
-      payload: { id: "cls-01", name: "Producto", isAbstract: false },
+      payload: { id: "cls-01", name: "Producto" },
     });
     const c1Owner = (await ownerWs.inbox.envelope<CommandCommittedPayload>("CommandCommitted")).payload;
     const c1Editor = (await editorWs.inbox.envelope<CommandCommittedPayload>("CommandCommitted")).payload;
@@ -211,7 +211,7 @@ describe("colaboración multiusuario extremo a extremo (P10-011)", () => {
     const cmd3 = randomUUID();
     sendCommand(ownerWs.socket, diagramId, cmd3, 2, {
       type: "CreateClass", commandId: cmd3, modelId: diagramId, modelVersion: c2Owner.resultingModelVersion,
-      payload: { id: "cls-02", name: "Factura", isAbstract: false },
+      payload: { id: "cls-02", name: "Factura" },
     });
     const c3Owner = (await ownerWs.inbox.envelope<CommandCommittedPayload>("CommandCommitted")).payload;
     expect(c3Owner.serverSeqNumber).toBe(3);
@@ -251,7 +251,7 @@ describe("colaboración multiusuario extremo a extremo (P10-011)", () => {
     // Reenvío idéntico tras el reinicio → deduplicación persistente, mismo seq.
     sendCommand(ownerRestart.socket, diagramId, cmd1, 3, {
       type: "CreateClass", commandId: cmd1, modelId: diagramId, modelVersion: "1.0.0",
-      payload: { id: "cls-01", name: "Producto", isAbstract: false },
+      payload: { id: "cls-01", name: "Producto" },
     });
     const dedup = (await ownerRestart.inbox.envelope<CommandCommittedPayload>("CommandCommitted")).payload;
     expect(dedup.clientCommandId).toBe(cmd1);

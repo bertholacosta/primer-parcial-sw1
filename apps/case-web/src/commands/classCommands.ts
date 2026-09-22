@@ -11,7 +11,6 @@ export interface CreateClassPayload {
   classId: string;
   name: string;
   packageId?: string;
-  isAbstract?: boolean;
   description?: string;
 }
 
@@ -22,7 +21,6 @@ export interface CreateClassInput {
   classId: string;
   name: string;
   packageId?: string;
-  isAbstract?: boolean;
 }
 
 export interface RenameClassPayload {
@@ -134,7 +132,6 @@ export function executeCreateClass(
     id: payload.classId,
     name: payload.name,
     packageId: payload.packageId,
-    isAbstract: payload.isAbstract ?? false,
     description: payload.description,
     attributes: [],
   };

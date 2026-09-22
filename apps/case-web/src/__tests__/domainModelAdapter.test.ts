@@ -18,7 +18,6 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
     const libro = model.classes.find((c) => c.name === 'Libro');
     expect(libro).toBeDefined();
     expect(libro?.id).toBe('cls-01');
-    expect(libro?.isAbstract).toBe(false);
     expect(libro?.attributes).toHaveLength(3);
     expect(libro?.attributes.map((a) => a.name)).toEqual(['titulo', 'isbn', 'fechaPublicacion']);
     expect(libro?.attributes.map((a) => a.type)).toEqual(['String', 'String', 'Date']);
@@ -119,7 +118,6 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
         {
           id: 'cls-paciente',
           name: 'Paciente',
-          isAbstract: true,
           attributes: [
             { id: 'a1', name: 'historiaClinica', type: 'String', nullable: false, multiplicity: '1' },
           ],
@@ -134,7 +132,6 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
 
     expect(classNodes).toHaveLength(1);
     expect(classNodes[0].data.name).toBe('Paciente');
-    expect(classNodes[0].data.isAbstract).toBe(true);
     expect(classNodes[0].data.attributes[0].name).toBe('historiaClinica');
   });
 });

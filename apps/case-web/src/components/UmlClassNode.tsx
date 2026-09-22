@@ -84,19 +84,6 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data }) =>
           textAlign: 'center',
         }}
       >
-        {data.isAbstract && (
-          <div
-            data-testid="abstract-tag"
-            style={{
-              fontSize: '11px',
-              fontStyle: 'italic',
-              color: '#64748b',
-              marginBottom: '2px',
-            }}
-          >
-            &laquo;abstract&raquo;
-          </div>
-        )}
         {isRenaming ? (
           <input
             data-testid={`rename-class-input-${data.id}`}
@@ -118,7 +105,6 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data }) =>
             style={{
               fontWeight: 700,
               fontSize: '14px',
-              fontStyle: data.isAbstract ? 'italic' : 'normal',
               cursor: data.readOnly || !data.onRenameClass ? 'default' : 'text',
             }}
           >

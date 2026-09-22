@@ -9,7 +9,6 @@ void main() {
       const libroClass = ClassDescriptor(
         id: 'cls-01',
         name: 'Libro',
-        isAbstract: false,
         attributes: [
           AttributeDescriptor(
             id: 'attr-01',
@@ -89,7 +88,6 @@ void main() {
       const complexClass = ClassDescriptor(
         id: 'cls-complex',
         name: 'Registro',
-        isAbstract: false,
         attributes: [
           AttributeDescriptor(
             id: 'attr-int',
@@ -183,34 +181,5 @@ void main() {
       expect(savedData!['campoFuturo'], equals('fallback text'));
     });
 
-    testWidgets('respects isAbstract and does not allow instantiation (§10.3)', (tester) async {
-      const abstractClass = ClassDescriptor(
-        id: 'cls-abs',
-        name: 'ItemBase',
-        isAbstract: true,
-        attributes: [
-          AttributeDescriptor(
-            id: 'attr-code',
-            name: 'codigo',
-            type: 'String',
-            nullable: false,
-            multiplicity: '1',
-            uiType: 'textField',
-            required: true,
-          ),
-        ],
-      );
-
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: DynamicEntityForm(classDescriptor: abstractClass),
-          ),
-        ),
-      );
-
-      expect(find.text('Cannot instantiate abstract class "ItemBase".'), findsOneWidget);
-      expect(find.byKey(const Key('btn_save_itembase')), findsNothing);
-    });
   });
 }

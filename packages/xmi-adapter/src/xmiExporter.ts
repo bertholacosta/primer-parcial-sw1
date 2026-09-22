@@ -112,8 +112,7 @@ export function exportXmi(model: CanonicalDomainModel): string {
   function renderClass(cls: CanonicalClass, indent: string) {
     lines.push(`${indent}<packagedElement xmi:type="uml:Class"`);
     lines.push(`${indent}                 xmi:id="${escapeXml(cls.id)}"`);
-    lines.push(`${indent}                 name="${escapeXml(cls.name)}"`);
-    lines.push(`${indent}                 isAbstract="${cls.isAbstract ? 'true' : 'false'}">`);
+    lines.push(`${indent}                 name="${escapeXml(cls.name)}">`);
 
     const innerIndent = indent + '  ';
 

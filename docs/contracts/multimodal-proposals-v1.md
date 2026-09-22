@@ -495,7 +495,6 @@ El usuario dicta en la aplicación móvil Android: *"Crear clase Cliente con id 
       "payload": {
         "id": "cls-cliente-01",
         "name": "Cliente",
-        "isAbstract": false
       }
     },
     {
@@ -636,7 +635,6 @@ El usuario toma una fotografía de una pizarra donde se aprecian dos clases: `Fa
       "payload": {
         "id": "cls-factura-01",
         "name": "Factura",
-        "isAbstract": false
       }
     },
     {
@@ -647,7 +645,6 @@ El usuario toma una fotografía de una pizarra donde se aprecian dos clases: `Fa
       "payload": {
         "id": "cls-detalle-01",
         "name": "DetalleFactura",
-        "isAbstract": false
       }
     },
     {

@@ -292,7 +292,6 @@ sequenceDiagram
          "payload": {
            "id": "cls-02",
            "name": "Categoria",
-           "isAbstract": false
          }
        }
      }
@@ -319,7 +318,6 @@ sequenceDiagram
          "commandId": "cmd-A1",
          "modelId": "model-01",
          "modelVersion": "1.0.0",
-         "payload": { "id": "cls-02", "name": "Categoria", "isAbstract": false }
        }
      }
    }

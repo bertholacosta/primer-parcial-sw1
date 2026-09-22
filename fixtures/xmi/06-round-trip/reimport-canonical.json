@@ -14,7 +14,6 @@
       "id": "CLS_50",
       "name": "Libro",
       "packageId": "PKG_06",
-      "isAbstract": false,
       "description": "Entidad que representa un libro del catálogo.",
       "attributes": [
         {
@@ -37,7 +36,6 @@
       "id": "CLS_51",
       "name": "Autor",
       "packageId": "PKG_06",
-      "isAbstract": false,
       "attributes": [
         {
           "id": "ATTR_52",

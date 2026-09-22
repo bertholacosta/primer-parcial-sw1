@@ -93,7 +93,6 @@ function classDescriptor(cls: DomainClass, packagesById: Map<string, DomainPacka
     id: cls.id,
     name: cls.name,
     packageName,
-    isAbstract: cls.isAbstract === true,
     description: cls.description ?? null,
     attributes: [...cls.attributes].sort((a, b) => compareStrings(a.id, b.id)).map(attributeDescriptor),
   };

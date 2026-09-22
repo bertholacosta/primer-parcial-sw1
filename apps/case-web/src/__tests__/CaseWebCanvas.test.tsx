@@ -61,7 +61,6 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
       data: {
         id: 'cls-01',
         name: 'Libro',
-        isAbstract: false,
         attributes: [
           { id: 'a1', name: 'titulo', type: 'String', nullable: false, multiplicity: '1' },
           { id: 'a2', name: 'paginas', type: 'Integer', nullable: true, multiplicity: '0..1' },
@@ -85,29 +84,6 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
     // Fila de atributos
     expect(screen.getByTestId('attribute-row-Libro-titulo')).toHaveTextContent('+ titulo: String');
     expect(screen.getByTestId('attribute-row-Libro-paginas')).toHaveTextContent('+ paginas: Integer');
-  });
-
-  it('renderiza la etiqueta «abstract» cuando la clase es abstracta', () => {
-    const abstractNode: UmlClassFlowNode = {
-      id: 'cls-abs',
-      type: 'umlClass',
-      position: { x: 0, y: 0 },
-      data: {
-        id: 'cls-abs',
-        name: 'Publicacion',
-        isAbstract: true,
-        attributes: [],
-      },
-    };
-
-    render(
-      <ReactFlowProvider>
-        <UmlClassNode {...(abstractNode as any)} />
-      </ReactFlowProvider>
-    );
-
-    expect(screen.getByTestId('abstract-tag')).toHaveTextContent('«abstract»');
-    expect(screen.getByText('(sin atributos)')).toBeInTheDocument();
   });
 
   it('permite agregar un atributo dinámicamente mediante el botón + Atributo y actualiza el modelo y la vista (P4-004)', () => {

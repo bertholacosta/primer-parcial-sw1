@@ -12,7 +12,7 @@ function baseModel(): DomainModel {
     version: "1.0.0",
     packages: [{ id: "pkg-01", name: "ventas" }],
     classes: [
-      { id: "cls-01", name: "Producto", packageId: "pkg-01", isAbstract: false, attributes: [] },
+      { id: "cls-01", name: "Producto", packageId: "pkg-01", attributes: [] },
     ],
     associations: [],
   };
@@ -37,7 +37,6 @@ describe("procesador de comandos model-commands-v1", () => {
     expect(outcome.modelVersion).toBe("1.0.1");
     expect(outcome.model.classes.map((c) => c.id)).toContain("cls-02");
     const created = outcome.model.classes.find((c) => c.id === "cls-02")!;
-    expect(created.isAbstract).toBe(false);
     expect(created.attributes).toEqual([]);
   });
 

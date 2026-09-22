@@ -13,7 +13,6 @@ DomainModel _model() => DomainModel.fromJson({
         {
           'id': 'cls-cliente',
           'name': 'Cliente',
-          'isAbstract': false,
           'attributes': [
             {
               'id': 'attr-cliente-id',

@@ -14,7 +14,6 @@
       "id": "CLS_10",
       "name": "Cliente",
       "packageId": "PKG_02",
-      "isAbstract": false,
       "attributes": [
         {
           "id": "ATTR_10",
@@ -36,7 +35,6 @@
       "id": "CLS_11",
       "name": "Pedido",
       "packageId": "PKG_02",
-      "isAbstract": false,
       "attributes": [
         {
           "id": "ATTR_12",
@@ -58,7 +56,6 @@
       "id": "CLS_12",
       "name": "Producto",
       "packageId": "PKG_02",
-      "isAbstract": false,
       "attributes": [
         {
           "id": "ATTR_14",

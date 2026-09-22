@@ -147,7 +147,6 @@ describe("descriptor Flutter — documento generado conforme al contrato v1", ()
     const libro = classes.find((c) => c.id === "cls-01")!;
     expect(libro.name).toBe("Libro");
     expect(libro.packageName).toBe("biblioteca");
-    expect(libro.isAbstract).toBe(false);
 
     const attrs = libro.attributes as Record<string, unknown>[];
     expect(attrs.map((a) => a.id)).toEqual([...attrs.map((a) => a.id)].sort());

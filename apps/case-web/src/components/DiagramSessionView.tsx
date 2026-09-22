@@ -186,7 +186,6 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
         id: input.classId,
         name: input.name,
         packageId: input.packageId,
-        isAbstract: input.isAbstract,
       });
     },
     [submit]

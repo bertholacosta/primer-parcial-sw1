@@ -307,7 +307,6 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
           .map((c) => DomainClass(
                 id: c.id,
                 name: c.name,
-                isAbstract: c.isAbstract,
                 description: c.description,
                 attributes: c.attributes
                     .map((a) => DomainAttribute(

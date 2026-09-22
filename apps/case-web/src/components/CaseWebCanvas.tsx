@@ -63,7 +63,7 @@ export interface CaseWebCanvasProps extends FlowNodeCallbacks {
   onDeleteAssociation?: (associationId: string) => void;
 }
 
-type PaletteKind = 'class' | 'abstract-class' | 'package';
+type PaletteKind = 'class' | 'package';
 
 const PALETTE_ITEMS: { kind: PaletteKind; label: string; hint: string }[] = [
   { kind: 'class', label: 'Clase', hint: 'Arrastra al lienzo para crear' },
@@ -198,9 +198,8 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
       pendingPositions.current[classId] = position;
       onCreateClass({
         classId,
-        name: nextName(kind === 'abstract-class' ? 'ClaseAbstracta' : 'Clase'),
+        name: nextName('Clase'),
         packageId: model.packages[0]?.id,
-        isAbstract: kind === 'abstract-class',
       });
     },
     [onCreateClass, onCreatePackage, model.packages]
@@ -692,7 +691,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
         <ul style={{ margin: 0, paddingLeft: '20px' }}>
           {model.classes.map((cls) => (
             <li key={cls.id} data-testid={`semantic-item-${cls.name}`}>
-              <strong>{cls.name}</strong> {cls.isAbstract ? '(abstracta)' : ''} &mdash;{' '}
+              <strong>{cls.name}</strong> &mdash;{' '}
               {cls.attributes.length > 0
                 ? cls.attributes
                     .map((a) => `${a.name}: ${a.type} [${a.multiplicity}]`)

@@ -38,7 +38,6 @@ void main() {
           ClassDescriptor(
             id: 'cls-01',
             name: 'Libro',
-            isAbstract: false,
             attributes: [
               AttributeDescriptor(
                 id: 'attr-01',
@@ -54,7 +53,6 @@ void main() {
           ClassDescriptor(
             id: 'cls-02',
             name: 'Autor',
-            isAbstract: false,
             attributes: [
               AttributeDescriptor(
                 id: 'attr-02',
@@ -166,7 +164,6 @@ void main() {
           ClassDescriptor(
             id: 'cls-01',
             name: 'Libro',
-            isAbstract: false,
             attributes: [],
           ),
         ],

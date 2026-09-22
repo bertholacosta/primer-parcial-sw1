@@ -244,7 +244,7 @@ class ImageProposalAdapter {
       final classId = _uniqueId('cls-${name.toLowerCase()}', usedIds);
       classIds[name.toLowerCase()] = classId;
       commands.add(_command(model, 'CreateClass',
-          {'id': classId, 'name': name, 'isAbstract': false}));
+          {'id': classId, 'name': name}));
       breakdown.add(ConfidenceBreakdown(
         commandIndex: commands.length - 1,
         score: _clamp01(box.confidence),
