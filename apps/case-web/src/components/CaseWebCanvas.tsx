@@ -67,7 +67,6 @@ type PaletteKind = 'class' | 'abstract-class' | 'package';
 
 const PALETTE_ITEMS: { kind: PaletteKind; label: string; hint: string }[] = [
   { kind: 'class', label: 'Clase', hint: 'Arrastra al lienzo para crear' },
-  { kind: 'abstract-class', label: 'Clase abstracta', hint: 'Arrastra al lienzo para crear' },
   { kind: 'package', label: 'Paquete', hint: 'Arrastra al lienzo para crear' },
 ];
 
@@ -433,9 +432,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                   userSelect: 'none',
                 }}
               >
-                {item.kind === 'abstract-class' ? (
-                  <em>{item.label}</em>
-                ) : item.kind === 'package' ? (
+                {item.kind === 'package' ? (
                   <span>&#128193; {item.label}</span>
                 ) : (
                   item.label
