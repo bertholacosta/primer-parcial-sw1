@@ -63,6 +63,15 @@ export interface DomainAttribute {
   description?: string;
 }
 
+/** Tipos de relación UML soportados (ADR-0009). Por defecto `"association"`. */
+export type AssociationKind =
+  | 'association'
+  | 'aggregation'
+  | 'composition'
+  | 'generalization'
+  | 'dependency'
+  | 'associationClass';
+
 export interface DomainAssociation {
   id: string;
   name?: string;
@@ -71,6 +80,10 @@ export interface DomainAssociation {
   sourceMultiplicity: Multiplicity;
   targetMultiplicity: Multiplicity;
   navigability: Navigability;
+  /** Tipo UML de la relación; omitido equivale a `"association"`. */
+  kind?: AssociationKind;
+  /** Para `associationClass`: clase que porta los atributos del vínculo. */
+  associationClassId?: string;
   description?: string;
 }
 

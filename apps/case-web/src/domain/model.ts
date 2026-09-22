@@ -16,6 +16,14 @@ export interface CanonicalClass {
   attributes: CanonicalAttribute[];
 }
 
+export type AssociationKind =
+  | 'association'
+  | 'aggregation'
+  | 'composition'
+  | 'generalization'
+  | 'dependency'
+  | 'associationClass';
+
 export interface CanonicalAssociation {
   id: string;
   name?: string;
@@ -24,6 +32,8 @@ export interface CanonicalAssociation {
   sourceMultiplicity: string;
   targetMultiplicity: string;
   navigability: 'unidirectional' | 'bidirectional';
+  kind?: AssociationKind;
+  associationClassId?: string;
   description?: string;
 }
 

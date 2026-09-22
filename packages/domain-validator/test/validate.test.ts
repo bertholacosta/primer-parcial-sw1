@@ -184,3 +184,69 @@ describe("restricciones adicionales del contrato", () => {
     });
   });
 });
+
+function doc(associations: unknown[]): unknown {
+  return {
+    contractVersion: "1",
+    id: "m1",
+    name: "Test",
+    version: "1.0.0",
+    packages: [],
+    classes: [
+      { id: "c-a", name: "Padre", attributes: [] },
+      { id: "c-b", name: "Hija", attributes: [] },
+      { id: "c-c", name: "Otra", attributes: [] },
+    ],
+    associations,
+  };
+}
+
+describe("tipos de relación UML (ADR-0009)", () => {
+  it("acepta generalization y dependency válidas", () => {
+    const result = validate(doc([
+      { id: "g1", kind: "generalization", sourceClassId: "c-b", targetClassId: "c-a", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "unidirectional" },
+      { id: "d1", kind: "dependency", sourceClassId: "c-c", targetClassId: "c-a", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "unidirectional" },
+    ]));
+    expect(result.errors).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it("rechaza ciclo de herencia", () => {
+    const result = validate(doc([
+      { id: "g1", kind: "generalization", sourceClassId: "c-b", targetClassId: "c-a", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "unidirectional" },
+      { id: "g2", kind: "generalization", sourceClassId: "c-a", targetClassId: "c-b", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "unidirectional" },
+    ]));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.message.includes("Ciclo de herencia"))).toBe(true);
+  });
+
+  it("rechaza herencia múltiple", () => {
+    const result = validate(doc([
+      { id: "g1", kind: "generalization", sourceClassId: "c-b", targetClassId: "c-a", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "unidirectional" },
+      { id: "g2", kind: "generalization", sourceClassId: "c-b", targetClassId: "c-c", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "unidirectional" },
+    ]));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.message.includes("herencia múltiple"))).toBe(true);
+  });
+
+  it("rechaza parte en dos composiciones", () => {
+    const result = validate(doc([
+      { id: "c1", kind: "composition", sourceClassId: "c-a", targetClassId: "c-b", sourceMultiplicity: "1", targetMultiplicity: "0..*", navigability: "unidirectional" },
+      { id: "c2", kind: "composition", sourceClassId: "c-c", targetClassId: "c-b", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "unidirectional" },
+    ]));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.message.includes("más de una composición"))).toBe(true);
+  });
+
+  it("rechaza associationClass sin associationClassId o inexistente", () => {
+    const missing = validate(doc([
+      { id: "ac1", kind: "associationClass", sourceClassId: "c-a", targetClassId: "c-b", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "bidirectional" },
+    ]));
+    expect(missing.errors.some(e => e.code === "MISSING_REQUIRED_FIELD")).toBe(true);
+
+    const unresolved = validate(doc([
+      { id: "ac1", kind: "associationClass", sourceClassId: "c-a", targetClassId: "c-b", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "bidirectional", associationClassId: "c-x" },
+    ]));
+    expect(unresolved.errors.some(e => e.code === "UNRESOLVED_REFERENCE")).toBe(true);
+  });
+});

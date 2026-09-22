@@ -138,3 +138,32 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
     expect(classNodes[0].data.attributes[0].name).toBe('historiaClinica');
   });
 });
+
+describe('modelToFlowEdges — tipos de relación (ADR-0009)', () => {
+  it('propaga kind y associationClassId a data y omite multiplicidades en generalización', async () => {
+    const { modelToFlowEdges } = await import('../adapter/domainModelAdapter');
+    const model = {
+      contractVersion: '1',
+      id: 'm1',
+      name: 'T',
+      version: '1.0.0',
+      packages: [],
+      classes: [
+        { id: 'a', name: 'Padre', attributes: [] },
+        { id: 'b', name: 'Hija', attributes: [] },
+        { id: 'v', name: 'Vinculo', attributes: [] },
+      ],
+      associations: [
+        { id: 'g1', kind: 'generalization' as const, sourceClassId: 'b', targetClassId: 'a', sourceMultiplicity: '1', targetMultiplicity: '1', navigability: 'unidirectional' as const },
+        { id: 'ac1', kind: 'associationClass' as const, sourceClassId: 'a', targetClassId: 'b', sourceMultiplicity: '1', targetMultiplicity: '0..*', navigability: 'bidirectional' as const, associationClassId: 'v' },
+      ],
+    };
+    const edges = modelToFlowEdges(model);
+    const gen = edges.find(e => e.id === 'g1')!;
+    expect(gen.data?.kind).toBe('generalization');
+    expect(gen.markerEnd).toBeUndefined(); // el marcador UML lo dibuja el edge
+    const ac = edges.find(e => e.id === 'ac1')!;
+    expect(ac.data?.kind).toBe('associationClass');
+    expect(ac.data?.associationClassId).toBe('v');
+  });
+});

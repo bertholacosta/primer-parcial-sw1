@@ -1,4 +1,4 @@
-import type { CanonicalDomainModel, CanonicalAssociation } from '../domain/model';
+import type { CanonicalDomainModel, CanonicalAssociation, AssociationKind } from '../domain/model';
 import {
   ALLOWED_MULTIPLICITIES,
   incrementPatchVersion,
@@ -9,14 +9,33 @@ import {
 
 export const ALLOWED_NAVIGABILITIES = ['unidirectional', 'bidirectional'] as const;
 
+export const ASSOCIATION_KINDS: AssociationKind[] = [
+  'association',
+  'aggregation',
+  'composition',
+  'generalization',
+  'dependency',
+  'associationClass',
+];
+
+/** Kinds con multiplicidades/navegabilidad reales (ADR-0009). */
+export const STRUCTURAL_KINDS: AssociationKind[] = [
+  'association',
+  'aggregation',
+  'composition',
+  'associationClass',
+];
+
 export interface CreateAssociationPayload {
   id: string;
   name?: string;
   sourceClassId: string;
   targetClassId: string;
-  sourceMultiplicity: string;
-  targetMultiplicity: string;
-  navigability: string;
+  sourceMultiplicity?: string;
+  targetMultiplicity?: string;
+  navigability?: string;
+  kind?: AssociationKind;
+  associationClassId?: string;
   description?: string;
 }
 
@@ -36,9 +55,11 @@ export interface CreateAssociationInput {
   name?: string;
   sourceClassId: string;
   targetClassId: string;
-  sourceMultiplicity: string;
-  targetMultiplicity: string;
-  navigability: string;
+  sourceMultiplicity?: string;
+  targetMultiplicity?: string;
+  navigability?: string;
+  kind?: AssociationKind;
+  associationClassId?: string;
   description?: string;
 }
 
@@ -113,34 +134,103 @@ export function executeCreateAssociation(
     });
   }
 
-  // PC-CA-7: multiplicidad del extremo origen válida
-  if (!ALLOWED_MULTIPLICITIES.includes(payload.sourceMultiplicity as any)) {
+  const kind: AssociationKind = payload.kind ?? 'association';
+  const structural = STRUCTURAL_KINDS.includes(kind);
+
+  if (payload.kind && !ASSOCIATION_KINDS.includes(payload.kind)) {
     errors.push({
-      code: 'INVALID_MULTIPLICITY',
-      message: `La multiplicidad '${payload.sourceMultiplicity}' no es válida (${ALLOWED_MULTIPLICITIES.join(', ')}).`,
+      code: 'INVALID_ASSOCIATION_KIND',
+      message: `El tipo de relación '${payload.kind}' no es válido (${ASSOCIATION_KINDS.join(', ')}).`,
       severity: 'ERROR',
-      path: '$.payload.sourceMultiplicity',
+      path: '$.payload.kind',
     });
   }
 
-  // PC-CA-8: multiplicidad del extremo destino válida
-  if (!ALLOWED_MULTIPLICITIES.includes(payload.targetMultiplicity as any)) {
+  if (structural) {
+    // PC-CA-7/8/9: multiplicidades y navegabilidad válidas (solo kinds estructurales)
+    if (!ALLOWED_MULTIPLICITIES.includes(payload.sourceMultiplicity as any)) {
+      errors.push({
+        code: 'INVALID_MULTIPLICITY',
+        message: `La multiplicidad '${payload.sourceMultiplicity}' no es válida (${ALLOWED_MULTIPLICITIES.join(', ')}).`,
+        severity: 'ERROR',
+        path: '$.payload.sourceMultiplicity',
+      });
+    }
+    if (!ALLOWED_MULTIPLICITIES.includes(payload.targetMultiplicity as any)) {
+      errors.push({
+        code: 'INVALID_MULTIPLICITY',
+        message: `La multiplicidad '${payload.targetMultiplicity}' no es válida (${ALLOWED_MULTIPLICITIES.join(', ')}).`,
+        severity: 'ERROR',
+        path: '$.payload.targetMultiplicity',
+      });
+    }
+    if (!ALLOWED_NAVIGABILITIES.includes(payload.navigability as any)) {
+      errors.push({
+        code: 'INVALID_NAVIGABILITY',
+        message: `La navegabilidad '${payload.navigability}' no es válida (${ALLOWED_NAVIGABILITIES.join(', ')}).`,
+        severity: 'ERROR',
+        path: '$.payload.navigability',
+      });
+    }
+  }
+
+  if (kind === 'generalization') {
+    // Herencia simple: la hija solo puede tener una generalización
+    if (model.associations.some((a) => (a.kind ?? 'association') === 'generalization' && a.sourceClassId === payload.sourceClassId)) {
+      errors.push({
+        code: 'MULTIPLE_INHERITANCE',
+        message: `La clase '${payload.sourceClassId}' ya tiene una generalización; solo se admite herencia simple.`,
+        severity: 'ERROR',
+        path: '$.payload.sourceClassId',
+      });
+    }
+    // Sin ciclos: seguir la cadena de padres desde el target
+    let current: string | undefined = payload.targetClassId;
+    const seen = new Set<string>();
+    while (current) {
+      if (current === payload.sourceClassId) {
+        errors.push({
+          code: 'GENERALIZATION_CYCLE',
+          message: 'La generalización crearía un ciclo de herencia.',
+          severity: 'ERROR',
+          path: '$.payload.targetClassId',
+        });
+        break;
+      }
+      if (seen.has(current)) break;
+      seen.add(current);
+      current = model.associations.find(
+        (a) => (a.kind ?? 'association') === 'generalization' && a.sourceClassId === current
+      )?.targetClassId;
+    }
+  }
+
+  if (kind === 'composition' &&
+    model.associations.some((a) => a.kind === 'composition' && a.targetClassId === payload.targetClassId)) {
     errors.push({
-      code: 'INVALID_MULTIPLICITY',
-      message: `La multiplicidad '${payload.targetMultiplicity}' no es válida (${ALLOWED_MULTIPLICITIES.join(', ')}).`,
+      code: 'COMPOSITION_PART_OCCUPIED',
+      message: `La clase '${payload.targetClassId}' ya es parte de otra composición.`,
       severity: 'ERROR',
-      path: '$.payload.targetMultiplicity',
+      path: '$.payload.targetClassId',
     });
   }
 
-  // PC-CA-9: navegabilidad válida
-  if (!ALLOWED_NAVIGABILITIES.includes(payload.navigability as any)) {
-    errors.push({
-      code: 'INVALID_NAVIGABILITY',
-      message: `La navegabilidad '${payload.navigability}' no es válida (${ALLOWED_NAVIGABILITIES.join(', ')}).`,
-      severity: 'ERROR',
-      path: '$.payload.navigability',
-    });
+  if (kind === 'associationClass') {
+    if (!payload.associationClassId) {
+      errors.push({
+        code: 'MISSING_ASSOCIATION_CLASS',
+        message: `Una clase-asociación requiere 'associationClassId'.`,
+        severity: 'ERROR',
+        path: '$.payload.associationClassId',
+      });
+    } else if (!model.classes.some((c) => c.id === payload.associationClassId)) {
+      errors.push({
+        code: 'ASSOCIATION_CLASS_NOT_FOUND',
+        message: `No existe la clase con id '${payload.associationClassId}'.`,
+        severity: 'ERROR',
+        path: '$.payload.associationClassId',
+      });
+    }
   }
 
   if (errors.length > 0) {
@@ -161,9 +251,11 @@ export function executeCreateAssociation(
     name: payload.name,
     sourceClassId: payload.sourceClassId,
     targetClassId: payload.targetClassId,
-    sourceMultiplicity: payload.sourceMultiplicity,
-    targetMultiplicity: payload.targetMultiplicity,
-    navigability: payload.navigability as CanonicalAssociation['navigability'],
+    sourceMultiplicity: payload.sourceMultiplicity ?? '1',
+    targetMultiplicity: payload.targetMultiplicity ?? '1',
+    navigability: (structural ? payload.navigability ?? 'unidirectional' : 'unidirectional') as CanonicalAssociation['navigability'],
+    kind,
+    associationClassId: kind === 'associationClass' ? payload.associationClassId : undefined,
     description: payload.description,
   };
 

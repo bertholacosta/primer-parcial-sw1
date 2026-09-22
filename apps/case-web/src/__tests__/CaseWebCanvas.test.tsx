@@ -302,3 +302,68 @@ describe('CaseWeb Palette & CreateClass Command', () => {
     expect(screen.getByTestId('semantic-item-Autor')).toBeInTheDocument();
   });
 });
+
+describe('Tipos de relación UML en el popover (ADR-0009)', () => {
+  it('generalización oculta multiplicidades/navegabilidad y crea la relación', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    fireEvent.click(screen.getByTestId('btn-add-association'));
+    fireEvent.change(screen.getByTestId('assoc-kind-select'), { target: { value: 'generalization' } });
+
+    // Sin campos de multiplicidad ni navegabilidad
+    expect(screen.queryByTestId('assoc-source-mult-select')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('assoc-navigability-select')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('assoc-source-select'), { target: { value: 'cls-01' } });
+    fireEvent.change(screen.getByTestId('assoc-target-select'), { target: { value: 'cls-02' } });
+    fireEvent.click(screen.getByTestId('confirm-add-association'));
+
+    const banner = screen.getByTestId('command-result-banner');
+    expect(banner.textContent).toContain('Comando aplicado');
+    expect(screen.getByTestId('semantic-association-list').textContent).toContain('«generalization»');
+  });
+
+  it('clase-asociación exige la clase portadora y la crea al elegirla', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    fireEvent.click(screen.getByTestId('btn-add-association'));
+    fireEvent.change(screen.getByTestId('assoc-kind-select'), { target: { value: 'associationClass' } });
+    fireEvent.change(screen.getByTestId('assoc-source-select'), { target: { value: 'cls-01' } });
+    fireEvent.change(screen.getByTestId('assoc-target-select'), { target: { value: 'cls-02' } });
+
+    // Sin clase portadora → rechazado
+    fireEvent.click(screen.getByTestId('confirm-add-association'));
+    expect(screen.getByTestId('command-result-banner').textContent).toContain('MISSING_ASSOCIATION_CLASS');
+
+    // Eligiendo la clase portadora → aceptado
+    fireEvent.click(screen.getByTestId('btn-add-association'));
+    fireEvent.change(screen.getByTestId('assoc-kind-select'), { target: { value: 'associationClass' } });
+    fireEvent.change(screen.getByTestId('assoc-source-select'), { target: { value: 'cls-01' } });
+    fireEvent.change(screen.getByTestId('assoc-target-select'), { target: { value: 'cls-02' } });
+    fireEvent.change(screen.getByTestId('assoc-class-select'), { target: { value: 'cls-02' } });
+    fireEvent.click(screen.getByTestId('confirm-add-association'));
+    expect(screen.getByTestId('command-result-banner').textContent).toContain('Comando aplicado');
+    expect(screen.getByTestId('semantic-association-list').textContent).toContain('«associationClass»');
+  });
+
+  it('composición rechaza una parte ya ocupada por otra composición', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    // Todo=cls-01 → Parte=cls-02
+    fireEvent.click(screen.getByTestId('btn-add-association'));
+    fireEvent.change(screen.getByTestId('assoc-kind-select'), { target: { value: 'composition' } });
+    fireEvent.change(screen.getByTestId('assoc-source-select'), { target: { value: 'cls-01' } });
+    fireEvent.change(screen.getByTestId('assoc-target-select'), { target: { value: 'cls-02' } });
+    fireEvent.click(screen.getByTestId('confirm-add-association'));
+    expect(screen.getByTestId('command-result-banner').textContent).toContain('Comando aplicado');
+
+    // Otro todo sobre la misma parte → rechazado
+    fireEvent.click(screen.getByTestId('btn-add-association'));
+    fireEvent.change(screen.getByTestId('assoc-kind-select'), { target: { value: 'composition' } });
+    fireEvent.change(screen.getByTestId('assoc-source-select'), { target: { value: 'cls-02' } });
+    fireEvent.change(screen.getByTestId('assoc-target-select'), { target: { value: 'cls-02' } });
+    fireEvent.click(screen.getByTestId('confirm-add-association'));
+    const banner = screen.getByTestId('command-result-banner');
+    expect(banner.textContent).toContain('Comando rechazado');
+  });
+});

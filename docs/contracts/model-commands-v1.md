@@ -456,9 +456,11 @@ Crea una nueva asociación entre dos clases existentes.
 | `name` | string | no | Nombre legible de la relación. |
 | `sourceClassId` | string | sí | Id de la clase origen. |
 | `targetClassId` | string | sí | Id de la clase destino. |
-| `sourceMultiplicity` | string | sí | Multiplicidad en el extremo origen. |
-| `targetMultiplicity` | string | sí | Multiplicidad en el extremo destino. |
-| `navigability` | string | sí | `"unidirectional"` o `"bidirectional"`. |
+| `sourceMultiplicity` | string | sí* | Multiplicidad en el extremo origen. *Obligatoria salvo `kind` `"generalization"`/`"dependency"` (se rellena `"1"`). |
+| `targetMultiplicity` | string | sí* | Multiplicidad en el extremo destino. Misma regla. |
+| `navigability` | string | sí* | `"unidirectional"` o `"bidirectional"`. *Solo kinds estructurales; para `generalization`/`dependency` se fuerza `"unidirectional"`. |
+| `kind` | string | no | Tipo UML (ADR-0009): `"association"` (defecto), `"aggregation"`, `"composition"`, `"generalization"`, `"dependency"`, `"associationClass"`. |
+| `associationClassId` | string | no | Obligatorio si `kind = "associationClass"`. |
 | `description` | string | no | Texto libre. |
 
 #### Precondiciones
@@ -471,9 +473,14 @@ Crea una nueva asociación entre dos clases existentes.
 | PC-CA-4 | Existe una clase con `sourceClassId`. | `CLASS_NOT_FOUND` |
 | PC-CA-5 | Existe una clase con `targetClassId`. | `CLASS_NOT_FOUND` |
 | PC-CA-6 | `sourceClassId` ≠ `targetClassId` (no se admiten auto-asociaciones en v1). | `SELF_ASSOCIATION_NOT_ALLOWED` |
-| PC-CA-7 | `sourceMultiplicity` es uno de los literales permitidos. | `INVALID_MULTIPLICITY` |
-| PC-CA-8 | `targetMultiplicity` es uno de los literales permitidos. | `INVALID_MULTIPLICITY` |
-| PC-CA-9 | `navigability` es `"unidirectional"` o `"bidirectional"`. | `INVALID_NAVIGABILITY` |
+| PC-CA-7 | `sourceMultiplicity` es uno de los literales permitidos (solo kinds estructurales). | `INVALID_MULTIPLICITY` |
+| PC-CA-8 | `targetMultiplicity` es uno de los literales permitidos (solo kinds estructurales). | `INVALID_MULTIPLICITY` |
+| PC-CA-9 | `navigability` es `"unidirectional"` o `"bidirectional"` (solo kinds estructurales). | `INVALID_NAVIGABILITY` |
+| PC-CA-10 | `kind`, si presente, es uno de los valores permitidos. | `INVALID_ASSOCIATION_KIND` |
+| PC-CA-11 | `kind = "generalization"`: la hija no tiene otra generalización. | `MULTIPLE_INHERITANCE` |
+| PC-CA-12 | `kind = "generalization"`: no crea un ciclo de herencia. | `GENERALIZATION_CYCLE` |
+| PC-CA-13 | `kind = "composition"`: el destino no es parte de otra composición. | `COMPOSITION_PART_OCCUPIED` |
+| PC-CA-14 | `kind = "associationClass"`: `associationClassId` presente y existente. | `MISSING_ASSOCIATION_CLASS` / `ASSOCIATION_CLASS_NOT_FOUND` |
 
 #### Resultado: `accepted`
 

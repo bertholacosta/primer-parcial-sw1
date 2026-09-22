@@ -204,6 +204,8 @@ interface DocAssociation {
   id: string;
   sourceClassId: string;
   targetClassId: string;
+  kind?: string;
+  associationClassId?: string;
 }
 
 interface DocShape {
@@ -457,6 +459,63 @@ function semanticValidation(doc: Record<string, unknown>, errors: Diagnostic[], 
         message: `La asociación '${assoc.id}' no puede tener la misma clase origen y destino.`,
         severity: "ERROR",
       });
+    }
+    const kind = assoc.kind ?? "association";
+    if (kind === "associationClass") {
+      if (!assoc.associationClassId) {
+        errors.push({
+          code: DiagnosticCode.MISSING_REQUIRED_FIELD,
+          path: childPath(base, "associationClassId"),
+          message: `La clase-asociación '${assoc.id}' requiere 'associationClassId'.`,
+          severity: "ERROR",
+        });
+      } else if (!classIds.has(assoc.associationClassId)) {
+        errors.push({
+          code: DiagnosticCode.UNRESOLVED_REFERENCE,
+          path: childPath(base, "associationClassId"),
+          message: `La clase-asociación '${assoc.associationClassId}' no existe en el documento.`,
+          severity: "ERROR",
+        });
+      }
+    }
+    if (kind === "composition" && model.associations.some((o) => o !== assoc && o.kind === "composition" && o.targetClassId === assoc.targetClassId)) {
+      errors.push({
+        code: DiagnosticCode.INVALID_VALUE,
+        path: childPath(base, "targetClassId"),
+        message: `La clase '${assoc.targetClassId}' es parte de más de una composición.`,
+        severity: "ERROR",
+      });
+    }
+    if (kind === "generalization" && model.associations.some((o) => o !== assoc && o.kind === "generalization" && o.sourceClassId === assoc.sourceClassId)) {
+      errors.push({
+        code: DiagnosticCode.INVALID_VALUE,
+        path: childPath(base, "sourceClassId"),
+        message: `La clase '${assoc.sourceClassId}' tiene más de una generalización (herencia múltiple no admitida).`,
+        severity: "ERROR",
+      });
+    }
+  }
+
+  // Ciclos de herencia: seguir la cadena padre de cada generalización.
+  const generalizationParent = new Map<string, string>();
+  for (const assoc of model.associations) {
+    if ((assoc.kind ?? "association") === "generalization") generalizationParent.set(assoc.sourceClassId, assoc.targetClassId);
+  }
+  for (const [childId] of generalizationParent) {
+    const seen = new Set<string>([childId]);
+    let current = generalizationParent.get(childId);
+    while (current) {
+      if (seen.has(current)) {
+        errors.push({
+          code: DiagnosticCode.INVALID_VALUE,
+          path: "$.associations",
+          message: `Ciclo de herencia detectado que involucra a la clase '${childId}'.`,
+          severity: "ERROR",
+        });
+        break;
+      }
+      seen.add(current);
+      current = generalizationParent.get(current);
     }
   }
 

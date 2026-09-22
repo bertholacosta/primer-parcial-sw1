@@ -132,10 +132,35 @@ function borderPoint(rect: Rect, toward: Pt): Pt {
   return { x: cx + dx * t, y: cy + dy * t };
 }
 
+/** Defs SVG con los marcadores UML por tipo de relación (ADR-0009). */
+export const UmlEdgeMarkerDefs: React.FC = () => (
+  <svg style={{ position: 'absolute', width: 0, height: 0 }} aria-hidden="true">
+    <defs>
+      {/* Generalización: triángulo hueco en el extremo padre */}
+      <marker id="uml-gen" markerWidth="16" markerHeight="16" refX="15" refY="8" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M1,1 L15,8 L1,15 Z" fill="#ffffff" stroke={STROKE} strokeWidth="1.5" />
+      </marker>
+      {/* Dependencia: flecha abierta */}
+      <marker id="uml-dep" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M1,1 L13,7 L1,13" fill="none" stroke={STROKE} strokeWidth="1.5" />
+      </marker>
+      {/* Agregación: rombo hueco en el extremo del todo */}
+      <marker id="uml-agg" markerWidth="20" markerHeight="12" refX="1" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M10,0 L19,6 L10,12 L1,6 Z" fill="#ffffff" stroke={STROKE} strokeWidth="1.5" />
+      </marker>
+      {/* Composición: rombo relleno en el extremo del todo */}
+      <marker id="uml-comp" markerWidth="20" markerHeight="12" refX="1" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M10,0 L19,6 L10,12 L1,6 Z" fill={STROKE} stroke={STROKE} strokeWidth="1.5" />
+      </marker>
+    </defs>
+  </svg>
+);
+
 /**
  * Arista de asociación UML: segmentos rectos que nunca atraviesan las
  * cajas de clase y se anclan en el punto exacto del borde que mira hacia
  * el otro nodo (no en handles fijos). Rodea cualquier nodo interpuesto.
+ * Los marcadores dependen de `data.kind` (ADR-0009).
  */
 export const UmlAssociationEdge: React.FC<EdgeProps> = ({
   id,
@@ -146,11 +171,14 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
   data,
 }) => {
   const PARALLEL_GAP = 26;
+  const kind = (data?.kind as string | undefined) ?? 'association';
+  const associationClassId = data?.associationClassId as string | undefined;
 
-  const { obstacles, sourceRect, targetRect, parallelIndex, parallelCount } = useStore((state) => {
+  const { obstacles, sourceRect, targetRect, assocClassRect, parallelIndex, parallelCount } = useStore((state) => {
     const rects: Rect[] = [];
     let sourceRect: Rect | undefined;
     let targetRect: Rect | undefined;
+    let assocClassRect: Rect | undefined;
     state.nodeLookup.forEach((node) => {
       const pos = node.internals?.positionAbsolute ?? node.position;
       if (!pos) return;
@@ -162,7 +190,10 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
       };
       if (node.id === source) sourceRect = rect;
       else if (node.id === target) targetRect = rect;
-      else rects.push(expand(rect, MARGIN));
+      else {
+        if (node.id === associationClassId) assocClassRect = rect;
+        rects.push(expand(rect, MARGIN));
+      }
     });
 
     // Aristas que unen el mismo par de nodos (en cualquier sentido)
@@ -178,6 +209,7 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
       obstacles: rects,
       sourceRect,
       targetRect,
+      assocClassRect,
       parallelIndex: Math.max(0, siblings.indexOf(id)),
       parallelCount: siblings.length,
     };
@@ -219,12 +251,27 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
 
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
   const labelPos = midpointAlong(points);
-  const label = [
-    (data?.name as string | undefined),
-    `[${data?.sourceMultiplicity} → ${data?.targetMultiplicity}]`,
-  ]
-    .filter(Boolean)
-    .join('  ');
+  const structural = kind !== 'generalization' && kind !== 'dependency';
+  const mults = structural ? `[${data?.sourceMultiplicity} → ${data?.targetMultiplicity}]` : '';
+  const label = [(data?.name as string | undefined), mults].filter(Boolean).join('  ');
+
+  // Marcadores por tipo (ADR-0009): generalización/dependencia al final,
+  // agregación/composición (rombo en el "todo" = source) al inicio.
+  const edgeMarkerEnd =
+    kind === 'generalization' ? 'url(#uml-gen)'
+    : kind === 'dependency' ? 'url(#uml-dep)'
+    : markerEnd;
+  const edgeMarkerStart =
+    kind === 'aggregation' ? 'url(#uml-agg)'
+    : kind === 'composition' ? 'url(#uml-comp)'
+    : undefined;
+  const dashed = kind === 'dependency';
+
+  // Clase-asociación: línea punteada desde el punto medio hasta la clase enlazada.
+  const assocLinkPath =
+    kind === 'associationClass' && assocClassRect
+      ? `M ${labelPos.x} ${labelPos.y} L ${borderPoint(assocClassRect, labelPos).x} ${borderPoint(assocClassRect, labelPos).y}`
+      : undefined;
 
   return (
     <>
@@ -235,8 +282,13 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
         fill="none"
         stroke={selected ? STROKE_SELECTED : STROKE}
         strokeWidth={selected ? 2.2 : 1.5}
-        markerEnd={markerEnd}
+        strokeDasharray={dashed ? '7 4' : undefined}
+        markerEnd={edgeMarkerEnd}
+        markerStart={edgeMarkerStart}
       />
+      {assocLinkPath && (
+        <path d={assocLinkPath} fill="none" stroke={STROKE} strokeWidth={1.2} strokeDasharray="5 4" pointerEvents="none" />
+      )}
       <path d={path} fill="none" stroke="transparent" strokeWidth={16} pointerEvents="stroke" />
 
       <EdgeLabelRenderer>
@@ -256,28 +308,32 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
         >
           {label}
         </div>
-        <div
-          style={{
-            position: 'absolute',
-            transform: `translate(-50%, -130%) translate(${sourceX}px, ${sourceY}px)`,
-            fontSize: 10,
-            color: '#64748b',
-            pointerEvents: 'none',
-          }}
-        >
-          {data?.sourceMultiplicity as string}
-        </div>
-        <div
-          style={{
-            position: 'absolute',
-            transform: `translate(-50%, 30%) translate(${targetX}px, ${targetY}px)`,
-            fontSize: 10,
-            color: '#64748b',
-            pointerEvents: 'none',
-          }}
-        >
-          {data?.targetMultiplicity as string}
-        </div>
+        {structural && (
+          <>
+            <div
+              style={{
+                position: 'absolute',
+                transform: `translate(-50%, -130%) translate(${sourceX}px, ${sourceY}px)`,
+                fontSize: 10,
+                color: '#64748b',
+                pointerEvents: 'none',
+              }}
+            >
+              {data?.sourceMultiplicity as string}
+            </div>
+            <div
+              style={{
+                position: 'absolute',
+                transform: `translate(-50%, 30%) translate(${targetX}px, ${targetY}px)`,
+                fontSize: 10,
+                color: '#64748b',
+                pointerEvents: 'none',
+              }}
+            >
+              {data?.targetMultiplicity as string}
+            </div>
+          </>
+        )}
       </EdgeLabelRenderer>
     </>
   );

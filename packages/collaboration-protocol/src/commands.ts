@@ -18,7 +18,7 @@ import {
   cloneModel,
   incrementPatchVersion,
 } from "./model.js";
-import type { DomainModel } from "./model.js";
+import type { DomainModel, DomainAssociation } from "./model.js";
 
 export interface CommandError {
   code: string;
@@ -83,14 +83,30 @@ export interface DeleteAttributePayload {
 }
 export type DeleteAttributeCommand = BaseCommand<"DeleteAttribute", DeleteAttributePayload>;
 
+export const ASSOCIATION_KINDS = [
+  "association",
+  "aggregation",
+  "composition",
+  "generalization",
+  "dependency",
+  "associationClass",
+] as const;
+export type AssociationKind = (typeof ASSOCIATION_KINDS)[number];
+
 export interface CreateAssociationPayload {
   id: string;
   name?: string;
   sourceClassId: string;
   targetClassId: string;
-  sourceMultiplicity: string;
-  targetMultiplicity: string;
-  navigability: string;
+  /** Obligatorias salvo en `generalization` y `dependency` (se rellenan con "1"). */
+  sourceMultiplicity?: string;
+  targetMultiplicity?: string;
+  /** Obligatoria salvo en `generalization` y `dependency` (se fuerza "unidirectional"). */
+  navigability?: string;
+  /** Tipo UML; omitido equivale a "association". */
+  kind?: AssociationKind;
+  /** Solo para `kind: "associationClass"`: clase que porta los atributos. */
+  associationClassId?: string;
   description?: string;
 }
 export type CreateAssociationCommand = BaseCommand<"CreateAssociation", CreateAssociationPayload>;
@@ -420,9 +436,29 @@ function evaluateDeleteAttribute(model: DomainModel, command: DeleteAttributeCom
   };
 }
 
+/** Kinds que llevan multiplicidades/navegabilidad reales (el resto usa neutros). */
+const STRUCTURAL_KINDS: readonly AssociationKind[] = ["association", "aggregation", "composition", "associationClass"];
+
+/** Sigue la cadena de padres (generalization source→target) y detecta ciclos. */
+function createsGeneralizationCycle(model: DomainModel, childId: string, parentId: string): boolean {
+  let current: string | undefined = parentId;
+  const seen = new Set<string>();
+  while (current) {
+    if (current === childId) return true;
+    if (seen.has(current)) return false;
+    seen.add(current);
+    current = model.associations.find(
+      (a) => (a.kind ?? "association") === "generalization" && a.sourceClassId === current,
+    )?.targetClassId;
+  }
+  return false;
+}
+
 function evaluateCreateAssociation(model: DomainModel, command: CreateAssociationCommand): CommandEvaluation {
   const errors: CommandError[] = [];
   const p = command.payload;
+  const kind: AssociationKind = p.kind ?? "association";
+  const structural = STRUCTURAL_KINDS.includes(kind);
 
   if (!model.classes.some((cls) => cls.id === p.sourceClassId)) {
     errors.push(err("CLASS_NOT_FOUND", "$.payload.sourceClassId", `No existe una clase con id '${p.sourceClassId}' en el modelo '${model.id}'.`));
@@ -433,19 +469,42 @@ function evaluateCreateAssociation(model: DomainModel, command: CreateAssociatio
   if (model.associations.some((assoc) => assoc.id === p.id)) {
     errors.push(err("DUPLICATE_ID", "$.payload.id", `Ya existe una asociación con id '${p.id}' en el documento.`));
   }
-  if (!isMultiplicity(p.sourceMultiplicity)) {
-    errors.push(err("INVALID_MULTIPLICITY", "$.payload.sourceMultiplicity", `La multiplicidad '${p.sourceMultiplicity}' no es un literal permitido (${MULTIPLICITIES.join(", ")}).`));
+  if (kind && !ASSOCIATION_KINDS.includes(kind)) {
+    errors.push(err("INVALID_ASSOCIATION_KIND", "$.payload.kind", `El tipo de relación '${kind}' no es válido (${ASSOCIATION_KINDS.join(", ")}).`));
   }
-  if (!isMultiplicity(p.targetMultiplicity)) {
-    errors.push(err("INVALID_MULTIPLICITY", "$.payload.targetMultiplicity", `La multiplicidad '${p.targetMultiplicity}' no es un literal permitido (${MULTIPLICITIES.join(", ")}).`));
-  }
-  if (!isNavigability(p.navigability)) {
-    errors.push(err("INVALID_NAVIGABILITY", "$.payload.navigability", `La navegabilidad '${p.navigability}' debe ser 'unidirectional' o 'bidirectional'.`));
+  if (structural) {
+    if (!isMultiplicity(p.sourceMultiplicity)) {
+      errors.push(err("INVALID_MULTIPLICITY", "$.payload.sourceMultiplicity", `La multiplicidad '${p.sourceMultiplicity}' no es un literal permitido (${MULTIPLICITIES.join(", ")}).`));
+    }
+    if (!isMultiplicity(p.targetMultiplicity)) {
+      errors.push(err("INVALID_MULTIPLICITY", "$.payload.targetMultiplicity", `La multiplicidad '${p.targetMultiplicity}' no es un literal permitido (${MULTIPLICITIES.join(", ")}).`));
+    }
+    if (!isNavigability(p.navigability)) {
+      errors.push(err("INVALID_NAVIGABILITY", "$.payload.navigability", `La navegabilidad '${p.navigability}' debe ser 'unidirectional' o 'bidirectional'.`));
+    }
   }
   if (p.sourceClassId === p.targetClassId) {
     errors.push(
       err("SELF_ASSOCIATION_NOT_ALLOWED", "$.payload.targetClassId", `sourceClassId y targetClassId no pueden ser el mismo en v1. La clase '${p.sourceClassId}' no puede asociarse consigo misma.`),
     );
+  }
+  if (kind === "generalization") {
+    if (model.associations.some((a) => (a.kind ?? "association") === "generalization" && a.sourceClassId === p.sourceClassId)) {
+      errors.push(err("MULTIPLE_INHERITANCE", "$.payload.sourceClassId", `La clase '${p.sourceClassId}' ya tiene una generalización; solo se admite herencia simple.`));
+    }
+    if (createsGeneralizationCycle(model, p.sourceClassId, p.targetClassId)) {
+      errors.push(err("GENERALIZATION_CYCLE", "$.payload.targetClassId", `La generalización crearía un ciclo de herencia.`));
+    }
+  }
+  if (kind === "composition" && model.associations.some((a) => a.kind === "composition" && a.targetClassId === p.targetClassId)) {
+    errors.push(err("COMPOSITION_PART_OCCUPIED", "$.payload.targetClassId", `La clase '${p.targetClassId}' ya es parte de otra composición; una parte solo puede pertenecer a un todo.`));
+  }
+  if (kind === "associationClass") {
+    if (!p.associationClassId) {
+      errors.push(err("MISSING_ASSOCIATION_CLASS", "$.payload.associationClassId", `Una clase-asociación requiere 'associationClassId'.`));
+    } else if (!model.classes.some((cls) => cls.id === p.associationClassId)) {
+      errors.push(err("ASSOCIATION_CLASS_NOT_FOUND", "$.payload.associationClassId", `No existe una clase con id '${p.associationClassId}'.`));
+    }
   }
 
   return {
@@ -458,9 +517,11 @@ function evaluateCreateAssociation(model: DomainModel, command: CreateAssociatio
         name: p.name,
         sourceClassId: p.sourceClassId,
         targetClassId: p.targetClassId,
-        sourceMultiplicity: p.sourceMultiplicity,
-        targetMultiplicity: p.targetMultiplicity,
-        navigability: p.navigability,
+        sourceMultiplicity: p.sourceMultiplicity ?? "1",
+        targetMultiplicity: p.targetMultiplicity ?? "1",
+        navigability: structural ? (p.navigability ?? "unidirectional") : "unidirectional",
+        kind,
+        associationClassId: kind === "associationClass" ? p.associationClassId : undefined,
         description: p.description,
       });
     },

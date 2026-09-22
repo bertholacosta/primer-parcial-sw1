@@ -100,6 +100,11 @@
         "sourceMultiplicity": { "$ref": "#/definitions/multiplicity" },
         "targetMultiplicity": { "$ref": "#/definitions/multiplicity" },
         "navigability": { "type": "string", "enum": ["unidirectional", "bidirectional"] },
+        "kind": {
+          "type": "string",
+          "enum": ["association", "aggregation", "composition", "generalization", "dependency", "associationClass"]
+        },
+        "associationClassId": { "type": "string", "minLength": 1 },
         "description": { "type": "string" }
       }
     }

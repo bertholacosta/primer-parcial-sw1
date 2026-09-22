@@ -74,6 +74,10 @@ export interface DomainAssociation {
   sourceMultiplicity: string;
   targetMultiplicity: string;
   navigability: string;
+  /** Tipo UML (ADR-0009); omitido equivale a "association". */
+  kind?: string;
+  /** Para kind "associationClass": clase portadora de atributos. */
+  associationClassId?: string;
   description?: string;
 }
 

@@ -201,3 +201,92 @@ describe("serialización canónica y hashing", () => {
     expect(stableStringify(canonicalizeModel(a))).toBe(stableStringify(canonicalizeModel(shuffled)));
   });
 });
+
+function modelWithClasses(): DomainModel {
+  return {
+    contractVersion: "1",
+    id: "model-01",
+    name: "SistemaVentas",
+    version: "1.0.0",
+    packages: [],
+    classes: [
+      { id: "cls-a", name: "Padre", attributes: [] },
+      { id: "cls-b", name: "Hija", attributes: [] },
+      { id: "cls-c", name: "Otra", attributes: [] },
+    ],
+    associations: [],
+  };
+}
+
+describe("tipos de relación UML (ADR-0009)", () => {
+  it("generalization se acepta sin multiplicidades y herencia simple", () => {
+    const model = modelWithClasses();
+    const outcome = applyCommand(
+      model,
+      cmd({ type: "CreateAssociation", payload: { id: "g1", kind: "generalization", sourceClassId: "cls-b", targetClassId: "cls-a" } }),
+    );
+    expect(outcome.result).toBe("accepted");
+    const assoc = outcome.model.associations[0];
+    expect(assoc.kind).toBe("generalization");
+    expect(assoc.navigability).toBe("unidirectional");
+    expect(assoc.sourceMultiplicity).toBe("1");
+
+    // Segunda generalización desde la misma hija → MULTIPLE_INHERITANCE
+    const second = applyCommand(
+      outcome.model,
+      { ...cmd({ type: "CreateAssociation", payload: { id: "g2", kind: "generalization", sourceClassId: "cls-b", targetClassId: "cls-c" } }), modelVersion: outcome.modelVersion },
+    );
+    expect(second.result).toBe("rejected");
+    expect(second.errors.some((e) => e.code === "MULTIPLE_INHERITANCE")).toBe(true);
+  });
+
+  it("generalization rechaza ciclos de herencia", () => {
+    let model = modelWithClasses();
+    const r1 = applyCommand(model, cmd({ type: "CreateAssociation", payload: { id: "g1", kind: "generalization", sourceClassId: "cls-b", targetClassId: "cls-a" } }));
+    const r2 = applyCommand(
+      r1.model,
+      { ...cmd({ type: "CreateAssociation", payload: { id: "g2", kind: "generalization", sourceClassId: "cls-a", targetClassId: "cls-b" } }), modelVersion: r1.modelVersion },
+    );
+    expect(r2.result).toBe("rejected");
+    expect(r2.errors.some((e) => e.code === "GENERALIZATION_CYCLE")).toBe(true);
+  });
+
+  it("dependency se acepta sin multiplicidades", () => {
+    const outcome = applyCommand(
+      modelWithClasses(),
+      cmd({ type: "CreateAssociation", payload: { id: "d1", kind: "dependency", sourceClassId: "cls-b", targetClassId: "cls-a" } }),
+    );
+    expect(outcome.result).toBe("accepted");
+    expect(outcome.model.associations[0].kind).toBe("dependency");
+  });
+
+  it("composition rechaza una parte ya ocupada", () => {
+    const r1 = applyCommand(
+      modelWithClasses(),
+      cmd({ type: "CreateAssociation", payload: { id: "c1", kind: "composition", sourceClassId: "cls-a", targetClassId: "cls-b", sourceMultiplicity: "1", targetMultiplicity: "0..*", navigability: "unidirectional" } }),
+    );
+    expect(r1.result).toBe("accepted");
+    const r2 = applyCommand(
+      r1.model,
+      { ...cmd({ type: "CreateAssociation", payload: { id: "c2", kind: "composition", sourceClassId: "cls-c", targetClassId: "cls-b", sourceMultiplicity: "1", targetMultiplicity: "1", navigability: "unidirectional" } }), modelVersion: r1.modelVersion },
+    );
+    expect(r2.result).toBe("rejected");
+    expect(r2.errors.some((e) => e.code === "COMPOSITION_PART_OCCUPIED")).toBe(true);
+  });
+
+  it("associationClass exige associationClassId existente", () => {
+    const missing = applyCommand(
+      modelWithClasses(),
+      cmd({ type: "CreateAssociation", payload: { id: "ac1", kind: "associationClass", sourceClassId: "cls-a", targetClassId: "cls-b", sourceMultiplicity: "1", targetMultiplicity: "0..*", navigability: "bidirectional" } }),
+    );
+    expect(missing.result).toBe("rejected");
+    expect(missing.errors.some((e) => e.code === "MISSING_ASSOCIATION_CLASS")).toBe(true);
+
+    const ok = applyCommand(
+      modelWithClasses(),
+      cmd({ type: "CreateAssociation", payload: { id: "ac1", kind: "associationClass", sourceClassId: "cls-a", targetClassId: "cls-b", sourceMultiplicity: "1", targetMultiplicity: "0..*", navigability: "bidirectional", associationClassId: "cls-c" } }),
+    );
+    expect(ok.result).toBe("accepted");
+    expect(ok.model.associations[0].associationClassId).toBe("cls-c");
+  });
+});

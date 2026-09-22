@@ -217,6 +217,8 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
           sourceMultiplicity: input.sourceMultiplicity,
           targetMultiplicity: input.targetMultiplicity,
           navigability: input.navigability,
+          kind: input.kind,
+          associationClassId: input.associationClassId,
           description: input.description,
         },
       };

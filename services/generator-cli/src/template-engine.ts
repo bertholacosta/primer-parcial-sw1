@@ -32,12 +32,29 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
   const tableName = toSnakeCase(cls.name);
   const restPath = restPathForClassName(className);
 
+  const kindOf = (a: { kind?: string }) => a.kind ?? "association";
+
+  // ADR-0009: herencia — padre de esta clase (hija = source de generalization).
+  const parentAssoc = (model.associations ?? []).find(
+    a => kindOf(a) === "generalization" && a.sourceClassId === cls.id
+  );
+  const parentClass = parentAssoc ? model.classes.find(c => c.id === parentAssoc.targetClassId) : undefined;
+  const extendsClass = parentClass ? `${classNames.get(parentClass.id) ?? ""}Entity` : null;
+  const isInheritanceRoot = (model.associations ?? []).some(
+    a => kindOf(a) === "generalization" && a.targetClassId === cls.id
+  );
+
+  // La hija no redeclara el id: lo hereda del padre (JOINED).
+  const ownAttributes = extendsClass
+    ? (cls.attributes ?? []).filter(a => a.name !== "id")
+    : (cls.attributes ?? []);
+
   const idAttr = cls.attributes?.find(a => a.name === "id");
-  const hasDefaultId = !idAttr;
+  const hasDefaultId = !idAttr && !extendsClass;
   const idJavaType = idAttr ? getJavaType(idAttr.type) : "Long";
   const idImport = idJavaType === "UUID" ? "java.util.UUID" : null;
 
-  const attributes = (cls.attributes ?? []).map(attr => ({
+  const attributes = ownAttributes.map(attr => ({
     name: toLowerCamelCase(attr.name),
     capitalizedName: toUpperCamelCase(attr.name),
     javaType: getJavaType(attr.type),
@@ -52,8 +69,21 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
       : null,
   }));
 
-  const associations = (model.associations ?? []).filter(a => a.sourceClassId === cls.id || (a.targetClassId === cls.id && a.navigability === "bidirectional")).map(a => {
+  // ADR-0009: generalization/dependency no generan campos persistentes;
+  // associationClass se materializa como @ManyToOne en la clase portadora.
+  const structuralAssocs = (model.associations ?? []).filter(
+    a => kindOf(a) !== "generalization" && kindOf(a) !== "dependency" && kindOf(a) !== "associationClass"
+  );
+
+  const associations = structuralAssocs.filter(a => a.sourceClassId === cls.id || (a.targetClassId === cls.id && a.navigability === "bidirectional")).map(a => {
+    const kind = kindOf(a);
     const isSource = a.sourceClassId === cls.id;
+    // Composición: ciclo de vida fuerte en el todo (source). Agregación: débil.
+    const cascade =
+      kind === "composition" && isSource ? "CascadeType.ALL"
+      : kind === "aggregation" && isSource ? "{CascadeType.PERSIST, CascadeType.MERGE}"
+      : null;
+    const orphanRemoval = kind === "composition" && isSource;
     const relatedClassId = isSource ? a.targetClassId : a.sourceClassId;
     const relatedClass = model.classes.find(c => c.id === relatedClassId);
     const relatedClassName = classNames.get(relatedClassId) ?? "";
@@ -118,12 +148,20 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
     const baseName = isSource ? (a.name || relatedClassName) : relatedClassName;
     const camelName = toLowerCamelCase(baseName);
 
+    const params = [
+      mappedBy ? `mappedBy = "${mappedBy}"` : null,
+      cascade ? `cascade = ${cascade}` : null,
+      orphanRemoval ? "orphanRemoval = true" : null,
+    ].filter(Boolean).join(", ");
+    const annotationFull = params ? `${annotation}(${params})` : annotation;
+
     return {
       name: isCollection ? camelName + "s" : camelName,
       capitalizedName: toUpperCamelCase(isCollection ? camelName + "s" : camelName),
       javaType: isCollection ? `List<${relatedClassName}Entity>` : `${relatedClassName}Entity`,
       baseJavaType: relatedClassName,
       annotation,
+      annotationFull,
       mappedBy,
       joinColumn,
       joinTable,
@@ -139,10 +177,50 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
     };
   });
 
+  // Clase-asociación: la clase portadora enlaza ambos extremos con @ManyToOne.
+  for (const a of model.associations ?? []) {
+    if (kindOf(a) !== "associationClass" || a.associationClassId !== cls.id) continue;
+    for (const endClassId of [a.sourceClassId, a.targetClassId]) {
+      const endClass = model.classes.find(c => c.id === endClassId);
+      const endClassName = classNames.get(endClassId) ?? "";
+      if (!endClassName) continue;
+      const endPackage = javaPackageForClass(endClass ?? cls, model, config.basePackage);
+      const fieldName = `${toLowerCamelCase(endClassName)}End`;
+      associations.push({
+        name: fieldName,
+        capitalizedName: toUpperCamelCase(fieldName),
+        javaType: `${endClassName}Entity`,
+        baseJavaType: endClassName,
+        annotation: "@ManyToOne",
+        annotationFull: "@ManyToOne",
+        mappedBy: null,
+        joinColumn: `${toSnakeCase(a.name || cls.name)}_${toSnakeCase(endClassName)}_id`,
+        joinTable: null,
+        inverseJoinColumn: null,
+        isCollection: false,
+        inverse: false,
+        entityImport: endPackage !== packagePath ? `${endPackage}.entity.${endClassName}Entity` : null,
+        dtoImport: endPackage !== packagePath ? `${endPackage}.dto.${endClassName}DTO` : null,
+        serviceEntityImport: `${endPackage}.entity.${endClassName}Entity`,
+        serviceDtoImport: `${endPackage}.dto.${endClassName}DTO`,
+        relatedClassId: endClassId,
+        relatedClass: endClass,
+      });
+    }
+  }
+
+  // Import del padre cuando la herencia cruza paquetes.
+  const extendsImport = parentClass
+    ? (() => {
+        const pp = javaPackageForClass(parentClass, model, config.basePackage);
+        return pp !== packagePath ? `${pp}.entity.${extendsClass}` : null;
+      })()
+    : null;
+
   const nonNull = (xs: (string | null)[]): string[] =>
     xs.filter((x): x is string => x !== null);
 
-  const entityImports = [...new Set(nonNull(associations.map(x => x.entityImport)))].sort();
+  const entityImports = [...new Set(nonNull([...associations.map(x => x.entityImport), extendsImport]))].sort();
   const dtoImports = [...new Set([
     ...nonNull(associations.map(x => x.dtoImport)),
     ...(associations.some(x => x.inverse) ? ["com.fasterxml.jackson.annotation.JsonIgnore"] : []),
@@ -170,6 +248,8 @@ export function buildTemplateContext(model: DomainModel, cls: DomainClass, confi
     className,
     tableName,
     restPath,
+    extendsClass,
+    isInheritanceRoot,
     hasDefaultId,
     idJavaType,
     idImport,

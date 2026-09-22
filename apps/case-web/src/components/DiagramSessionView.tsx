@@ -172,6 +172,8 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
         sourceMultiplicity: input.sourceMultiplicity,
         targetMultiplicity: input.targetMultiplicity,
         navigability: input.navigability,
+        kind: input.kind,
+        associationClassId: input.associationClassId,
         description: input.description,
       });
     },

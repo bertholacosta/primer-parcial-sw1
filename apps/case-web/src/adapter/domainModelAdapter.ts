@@ -210,27 +210,32 @@ export function modelToFlowNodes(
  * las asociaciones unidireccionales llevan flecha en el extremo destino.
  */
 export function modelToFlowEdges(model: CanonicalDomainModel): Edge[] {
-  return model.associations.map((assoc) => ({
-    id: assoc.id,
-    type: 'umlAssociation',
-    source: assoc.sourceClassId,
-    target: assoc.targetClassId,
-    label: assoc.name
-      ? `${assoc.name}  [${assoc.sourceMultiplicity} → ${assoc.targetMultiplicity}]`
-      : `[${assoc.sourceMultiplicity} → ${assoc.targetMultiplicity}]`,
-    labelBgPadding: [4, 2] as [number, number],
-    labelBgBorderRadius: 4,
-    labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.85 },
-    style: { stroke: '#475569', strokeWidth: 1.5 },
-    markerEnd:
-      assoc.navigability === 'unidirectional'
-        ? { type: MarkerType.ArrowClosed, color: '#475569' }
-        : undefined,
-    data: {
-      name: assoc.name,
-      sourceMultiplicity: assoc.sourceMultiplicity,
-      targetMultiplicity: assoc.targetMultiplicity,
-      navigability: assoc.navigability,
-    },
-  }));
+  return model.associations.map((assoc) => {
+    const kind = assoc.kind ?? 'association';
+    const structural = kind !== 'generalization' && kind !== 'dependency';
+    const mults = structural ? ` [${assoc.sourceMultiplicity} → ${assoc.targetMultiplicity}]` : '';
+    return {
+      id: assoc.id,
+      type: 'umlAssociation',
+      source: assoc.sourceClassId,
+      target: assoc.targetClassId,
+      label: `${assoc.name ?? ''}${mults}`.trim() || undefined,
+      labelBgPadding: [4, 2] as [number, number],
+      labelBgBorderRadius: 4,
+      labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.85 },
+      style: { stroke: '#475569', strokeWidth: 1.5 },
+      markerEnd:
+        kind === 'association' && assoc.navigability === 'unidirectional'
+          ? { type: MarkerType.ArrowClosed, color: '#475569' }
+          : undefined,
+      data: {
+        name: assoc.name,
+        sourceMultiplicity: assoc.sourceMultiplicity,
+        targetMultiplicity: assoc.targetMultiplicity,
+        navigability: assoc.navigability,
+        kind,
+        associationClassId: assoc.associationClassId,
+      },
+    };
+  });
 }

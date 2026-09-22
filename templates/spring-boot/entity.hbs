@@ -11,7 +11,10 @@ import {{this}};
 
 @Entity
 @Table(name = "{{tableName}}")
-public class {{className}}Entity {
+{{#if isInheritanceRoot}}
+@Inheritance(strategy = InheritanceType.JOINED)
+{{/if}}
+public class {{className}}Entity{{#if extendsClass}} extends {{extendsClass}}{{/if}} {
 
 {{#if hasDefaultId}}
     @Id
@@ -31,7 +34,7 @@ public class {{className}}Entity {
 
 {{/each}}
 {{#each associations}}
-    {{this.annotation}}{{#if this.mappedBy}}(mappedBy = "{{this.mappedBy}}"){{/if}}
+    {{{this.annotationFull}}}
     {{#unless this.joinTable}}
     {{#if this.joinColumn}}
     @JoinColumn(name = "{{this.joinColumn}}")

@@ -166,11 +166,17 @@ Relación navegable entre dos clases.
 | `sourceMultiplicity` | string | sí | Uno de los literales de §3.6. |
 | `targetMultiplicity` | string | sí | Uno de los literales de §3.6. |
 | `navigability` | string | sí | `"unidirectional"` (origen → destino) o `"bidirectional"`. |
+| `kind` | string | no | Tipo UML (ADR-0009): `"association"` (por defecto), `"aggregation"`, `"composition"`, `"generalization"`, `"dependency"` o `"associationClass"`. |
+| `associationClassId` | string | no | Obligatorio si `kind = "associationClass"`; `id` de la clase que porta los atributos del vínculo. |
 | `description` | string | no | Texto libre. |
 
 **Restricciones:**
 - `sourceClassId` ≠ `targetClassId` (no se admiten auto-asociaciones en el corte mínimo v1).
 - Ambos extremos de la asociación deben referenciar clases que existen en el documento.
+- `generalization`: source = clase hija, target = padre. No se permiten ciclos de herencia ni más de una generalización por clase hija (herencia simple). Las multiplicidades/navegabilidad se ignoran.
+- `dependency`: relación de uso dirigida; no produce asociación persistente en la generación.
+- `composition`: el `targetClassId` (parte) no puede ser parte de más de una composición.
+- `associationClass`: `associationClassId` debe referenciar una clase existente.
 
 ---
 

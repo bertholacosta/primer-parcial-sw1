@@ -16,7 +16,7 @@ import {
   type NodeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { CanonicalDomainModel } from '../domain/model';
+import type { CanonicalDomainModel, AssociationKind } from '../domain/model';
 import {
   modelToFlowNodes,
   modelToFlowEdges,
@@ -25,13 +25,14 @@ import {
 } from '../adapter/domainModelAdapter';
 import { UmlClassNode } from './UmlClassNode';
 import { UmlPackageNode } from './UmlPackageNode';
-import { UmlAssociationEdge } from './UmlAssociationEdge';
+import { UmlAssociationEdge, UmlEdgeMarkerDefs } from './UmlAssociationEdge';
 import {
   ALLOWED_MULTIPLICITIES,
   type CommandExecutionResult,
 } from '../commands/attributeCommands';
 import {
   ALLOWED_NAVIGABILITIES,
+  STRUCTURAL_KINDS,
   type CreateAssociationInput,
 } from '../commands/associationCommands';
 import type { CreateClassInput } from '../commands/classCommands';
@@ -121,6 +122,8 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
 
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [assocName, setAssocName] = useState('');
+  const [assocKind, setAssocKind] = useState<AssociationKind>('association');
+  const [assocClassId, setAssocClassId] = useState('');
   const [assocSourceMult, setAssocSourceMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
   const [assocTargetMult, setAssocTargetMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
   const [assocNavigability, setAssocNavigability] = useState<string>(ALLOWED_NAVIGABILITIES[0]);
@@ -228,6 +231,8 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
 
   const openAssociationPopover = useCallback((sourceClassId: string, targetClassId: string) => {
     setAssocName('');
+    setAssocKind('association');
+    setAssocClassId('');
     setAssocSourceMult(ALLOWED_MULTIPLICITIES[0]);
     setAssocTargetMult(ALLOWED_MULTIPLICITIES[0]);
     setAssocNavigability(ALLOWED_NAVIGABILITIES[0]);
@@ -244,13 +249,16 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
 
   const handleConfirmConnection = () => {
     if (pendingConnection && onCreateAssociation) {
+      const structural = STRUCTURAL_KINDS.includes(assocKind);
       onCreateAssociation({
         name: assocName.trim() ? assocName.trim() : undefined,
+        kind: assocKind,
         sourceClassId: pendingConnection.sourceClassId,
         targetClassId: pendingConnection.targetClassId,
-        sourceMultiplicity: assocSourceMult,
-        targetMultiplicity: assocTargetMult,
-        navigability: assocNavigability,
+        sourceMultiplicity: structural ? assocSourceMult : '1',
+        targetMultiplicity: structural ? assocTargetMult : '1',
+        navigability: structural ? assocNavigability : 'unidirectional',
+        associationClassId: assocKind === 'associationClass' && assocClassId ? assocClassId : undefined,
       });
     }
     setPendingConnection(null);
@@ -484,6 +492,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             <Background color="#cbd5e1" gap={16} />
             <Controls />
           </ReactFlow>
+          <UmlEdgeMarkerDefs />
 
           {/* Popover de configuración de asociación (estilo Apollon) */}
           {pendingConnection && (
@@ -509,6 +518,20 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                 fontSize: '12px',
               }}
             >
+              <select
+                data-testid="assoc-kind-select"
+                aria-label="Tipo de relación"
+                value={assocKind}
+                onChange={(e) => setAssocKind(e.target.value as AssociationKind)}
+                style={{ fontSize: '12px', padding: '3px' }}
+              >
+                <option value="association">Asociación</option>
+                <option value="aggregation">Agregación ◇</option>
+                <option value="composition">Composición ◆</option>
+                <option value="generalization">Generalización ▷</option>
+                <option value="dependency">Dependencia ⇢</option>
+                <option value="associationClass">Clase-asociación</option>
+              </select>
               <input
                 data-testid="assoc-name-input"
                 placeholder="nombreAsociacion (opcional)"
@@ -529,17 +552,19 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <select
-                data-testid="assoc-source-mult-select"
-                aria-label="Multiplicidad origen"
-                value={assocSourceMult}
-                onChange={(e) => setAssocSourceMult(e.target.value)}
-                style={{ fontSize: '12px', padding: '3px' }}
-              >
-                {ALLOWED_MULTIPLICITIES.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+              {STRUCTURAL_KINDS.includes(assocKind) && (
+                <select
+                  data-testid="assoc-source-mult-select"
+                  aria-label="Multiplicidad origen"
+                  value={assocSourceMult}
+                  onChange={(e) => setAssocSourceMult(e.target.value)}
+                  style={{ fontSize: '12px', padding: '3px' }}
+                >
+                  {ALLOWED_MULTIPLICITIES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              )}
               <span aria-hidden="true">→</span>
               <select
                 data-testid="assoc-target-select"
@@ -554,28 +579,46 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <select
-                data-testid="assoc-target-mult-select"
-                aria-label="Multiplicidad destino"
-                value={assocTargetMult}
-                onChange={(e) => setAssocTargetMult(e.target.value)}
-                style={{ fontSize: '12px', padding: '3px' }}
-              >
-                {ALLOWED_MULTIPLICITIES.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-              <select
-                data-testid="assoc-navigability-select"
-                aria-label="Navegabilidad"
-                value={assocNavigability}
-                onChange={(e) => setAssocNavigability(e.target.value)}
-                style={{ fontSize: '12px', padding: '3px' }}
-              >
-                {ALLOWED_NAVIGABILITIES.map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
+              {STRUCTURAL_KINDS.includes(assocKind) && (
+                <>
+                  <select
+                    data-testid="assoc-target-mult-select"
+                    aria-label="Multiplicidad destino"
+                    value={assocTargetMult}
+                    onChange={(e) => setAssocTargetMult(e.target.value)}
+                    style={{ fontSize: '12px', padding: '3px' }}
+                  >
+                    {ALLOWED_MULTIPLICITIES.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    data-testid="assoc-navigability-select"
+                    aria-label="Navegabilidad"
+                    value={assocNavigability}
+                    onChange={(e) => setAssocNavigability(e.target.value)}
+                    style={{ fontSize: '12px', padding: '3px' }}
+                  >
+                    {ALLOWED_NAVIGABILITIES.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+              {assocKind === 'associationClass' && (
+                <select
+                  data-testid="assoc-class-select"
+                  aria-label="Clase de la asociación"
+                  value={assocClassId}
+                  onChange={(e) => setAssocClassId(e.target.value)}
+                  style={{ fontSize: '12px', padding: '3px' }}
+                >
+                  <option value="">— clase portadora —</option>
+                  {model.classes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
               <button
                 data-testid="confirm-add-association"
                 onClick={handleConfirmConnection}
@@ -631,6 +674,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             <ul data-testid="semantic-association-list" style={{ margin: 0, paddingLeft: '20px' }}>
               {model.associations.map((assoc) => (
                 <li key={assoc.id} data-testid={`semantic-assoc-${assoc.id}`}>
+                  {(assoc.kind ?? 'association') !== 'association' ? `«${assoc.kind}» ` : ''}
                   {assoc.name ? `${assoc.name}: ` : ''}
                   {classNameById.get(assoc.sourceClassId) ?? assoc.sourceClassId} [
                   {assoc.sourceMultiplicity}] →{' '}
