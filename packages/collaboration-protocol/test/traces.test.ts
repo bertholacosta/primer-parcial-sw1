@@ -12,7 +12,6 @@ function seedModel(version: string): DomainModel {
     id: "model-01",
     name: "SistemaVentas",
     version,
-    packages: [],
     classes: [{ id: "cls-01", name: "Producto", attributes: [] }],
     associations: [],
   };
@@ -215,7 +214,10 @@ describe("idempotencia y deduplicación", () => {
     expect(hub.coordinator.currentSeqNumber).toBe(11);
 
     // Mismo commandId, contenido distinto.
-    a.submitCommand({ ...command, payload: { id: "cls-99", name: "Divergente" } });
+    a.submitCommand({
+      ...a.buildCommand("CreateClass", { id: "cls-99", name: "Divergente" }),
+      commandId: command.commandId,
+    });
 
     expect(a.rejections).toHaveLength(1);
     expect(a.rejections[0].errors.map((e) => e.code)).toContain("IDEMPOTENCY_PAYLOAD_MISMATCH");

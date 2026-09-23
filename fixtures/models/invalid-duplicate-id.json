@@ -3,16 +3,15 @@
   "id": "m-1",
   "name": "Modelo",
   "version": "1.0.0",
-  "packages": [
-    {
-      "id": "dup",
-      "name": "paquete"
-    }
-  ],
   "classes": [
     {
       "id": "dup",
       "name": "Entidad",
+      "attributes": []
+    },
+    {
+      "id": "dup",
+      "name": "OtraEntidad",
       "attributes": []
     }
   ],

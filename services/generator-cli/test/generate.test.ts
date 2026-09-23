@@ -141,7 +141,7 @@ describe("núcleo del generador — salida exitosa y reproducibilidad", () => {
     expect(manifest.files).toHaveLength(14);
     expect(manifest.files.map((f: { path: string }) => f.path)).toContain("flutter-descriptor.json");
 
-    const autorPath = path.join(out, "src/main/java/com/example/biblioteca/biblioteca/entity/AutorEntity.java");
+    const autorPath = path.join(out, "src/main/java/com/example/biblioteca/entity/AutorEntity.java");
     expect(fs.existsSync(autorPath)).toBe(true);
     const content = fs.readFileSync(autorPath, "utf8");
     expect(content).toContain('mappedBy = "escritoPors"');
@@ -166,17 +166,13 @@ describe("núcleo del generador — salida exitosa y reproducibilidad", () => {
       id: "m-x",
       name: "M",
       version: "1.0.0",
-      packages: [
-        { id: "pkg-b", name: "b" },
-        { id: "pkg-a", name: "a" },
-      ],
       classes: [
-        { id: "cls-2", name: "B", packageId: "pkg-b", attributes: [] },
-        { id: "cls-1", name: "A", packageId: "pkg-a", attributes: [] },
+        { id: "cls-2", name: "B", attributes: [] },
+        { id: "cls-1", name: "A", attributes: [] },
       ],
       associations: [],
     };
-    const ordered = { ...unordered, packages: [...unordered.packages].reverse(), classes: [...unordered.classes].reverse() };
+    const ordered = { ...unordered, classes: [...unordered.classes].reverse() };
     const p1 = path.join(dir, "unordered.json");
     const p2 = path.join(dir, "ordered.json");
     fs.writeFileSync(p1, JSON.stringify(unordered), "utf8");

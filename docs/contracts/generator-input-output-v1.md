@@ -86,8 +86,7 @@ Antes de procesar, el generador debe normalizar el modelo de entrada al orden ca
 
 | Array | Ordenación |
 |---|---|
-| `packages` | `id` ASC |
-| `classes` | `packageId` ASC (nulos primero), luego `id` ASC |
+| `classes` | `id` ASC |
 | `classes[*].attributes` | `id` ASC |
 | `associations` | `sourceClassId` ASC, luego `id` ASC |
 
@@ -125,7 +124,7 @@ La salida es un árbol de directorios con estructura Maven estándar. Para cada 
 | Service | `{packagePath}/service/{ClassName}Service.java` | Lógica de negocio y navegación de asociaciones. Usa el repositorio. |
 | Controller | `{packagePath}/controller/{ClassName}Controller.java` | Controlador REST. Deriva rutas de `{ClassName}`. Sin lógica de negocio. |
 
-Donde `{packagePath}` es la ruta de directorios correspondiente al paquete Java de la clase según §6.2, y `{ClassName}` sigue las reglas de §6.1.
+Donde `{packagePath}` es la ruta de directorios del paquete base según §6.2 (idéntica para todas las clases: hay un único paquete raíz), y `{ClassName}` sigue las reglas de §6.1.
 
 No existe mecanismo en v1 para excluir ninguna clase de la generación de las cinco capas.
 
@@ -178,7 +177,8 @@ Las reglas de nombres son deterministas: dado el modelo canónico y la configura
 El nombre de la clase Java se deriva del campo `name` de la clase del modelo aplicando las siguientes transformaciones en orden:
 
 1. **UpperCamelCase:** convertir el primer carácter a mayúscula; convertir a mayúscula el carácter inmediatamente posterior a `_` o `-`; eliminar `_` y `-`.
-2. **Desambiguación de paquete:** si dos clases de paquetes distintos producen el mismo `{ClassName}` (colisión), cada una incorpora el nombre de su paquete inmediato como prefijo: `{PackageName}{ClassName}`.
+
+No hay desambiguación por paquete: con el paquete raíz único (v1.1 del modelo), los nombres de clase ya son únicos en todo el documento.
 
 Ejemplos:
 
@@ -190,13 +190,13 @@ Ejemplos:
 
 ### 6.2 Paquete Java (`{packagePath}`)
 
-El paquete Java de una clase se construye concatenando:
+El modelo canónico tiene un único paquete raíz (`domain-model-v1` §3.2), por lo que el paquete Java de **toda** clase es directamente el paquete base configurado:
 
 ```
-{basePackage}.{packageName1}.{packageName2}...
+{basePackage}
 ```
 
-Donde `{packageName1}`, `{packageName2}`, … son los nombres de los paquetes del modelo en orden jerárquico desde la raíz hasta el paquete inmediato de la clase, convertidos a minúsculas. Si una clase no tiene `packageId`, se usa solo `{basePackage}`.
+Las cinco capas se materializan como subpaquetes técnicos (`entity`, `dto`, `repository`, `service`, `controller`) bajo `{basePackage}` — ver §5.1. No se derivan paquetes Java de paquetes del modelo: no existen.
 
 ### 6.3 Nombre de atributo Java
 

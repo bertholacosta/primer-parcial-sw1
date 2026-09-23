@@ -182,7 +182,6 @@ Un snapshot captura el estado íntegro y autosuficiente del modelo canónico en 
     "id": "model-01",
     "name": "SistemaVentas",
     "version": "1.0.8",
-    "packages": [],
     "classes": [],
     "associations": []
   }

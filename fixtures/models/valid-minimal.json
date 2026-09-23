@@ -3,17 +3,10 @@
   "id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
   "name": "Biblioteca",
   "version": "1.0.0",
-  "packages": [
-    {
-      "id": "pkg-01",
-      "name": "biblioteca"
-    }
-  ],
   "classes": [
     {
       "id": "cls-01",
       "name": "Libro",
-      "packageId": "pkg-01",
       "attributes": [
         {
           "id": "attr-01",
@@ -41,7 +34,6 @@
     {
       "id": "cls-02",
       "name": "Autor",
-      "packageId": "pkg-01",
       "attributes": [
         {
           "id": "attr-04",

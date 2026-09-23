@@ -26,17 +26,18 @@ describe('XMI Exporter & Semantic Round-trip', () => {
     expect(exportedXmi).toContain('xmi:version="2.1"');
     expect(exportedXmi).toContain('xmi:exporter="Enterprise Architect"');
     expect(exportedXmi).toContain('xmi:exporterVersion="15.0.1514.12"');
-    expect(exportedXmi).toContain('xmlns:xmi="http://www.omg.org/spec/XMI/20131001"');
-    expect(exportedXmi).toContain('xmlns:uml="http://www.omg.org/spec/UML/20131001"');
-    expect(exportedXmi).toContain('<xmi:Documentation exporter="Enterprise Architect" exporterVersion="15.0.1514.12"/>');
+    // Namespaces legacy de XMI/UML 2.1 — los que EA 15 emite y reconoce.
+    expect(exportedXmi).toContain('xmlns:xmi="http://schema.omg.org/spec/XMI/2.1"');
+    expect(exportedXmi).toContain('xmlns:uml="http://schema.omg.org/spec/UML/2.1"');
+    expect(exportedXmi).toContain('<xmi:Documentation exporter="Enterprise Architect" exporterVersion="6.5"/>');
     expect(exportedXmi).toContain('<uml:Model xmi:id="MODEL_06" name="Biblioteca" xmi:type="uml:Model">');
 
-    // Verify type mappings in exported XMI (§5) — EA emite primitivos como
-    // hijo <type xmi:idref="EAnone_<tipo>"/>
+    // Verify type mappings in exported XMI (§5) — EA emite primitivos UML como
+    // hijo <type xmi:type="uml:PrimitiveType" href="...PrimitiveTypes.xmi#..."/>
     expect(exportedXmi).toContain('name="titulo"');
-    expect(exportedXmi).toContain('EAnone_String');
+    expect(exportedXmi).toContain('PrimitiveTypes.xmi#String');
     expect(exportedXmi).toContain('name="anioPublicacion"');
-    expect(exportedXmi).toContain('EAnone_int');
+    expect(exportedXmi).toContain('PrimitiveTypes.xmi#Integer');
 
     // Structural XML parse check against expected XMI fixture
     const parsedExported = parseXml(exportedXmi);
@@ -92,7 +93,6 @@ describe('XMI Exporter & Semantic Round-trip', () => {
       id: 'MODEL_ALL_TYPES',
       name: 'AllTypesModel',
       version: '1.0.0',
-      packages: [],
       classes: [
         {
           id: 'CLS_TYPES',
@@ -114,15 +114,25 @@ describe('XMI Exporter & Semantic Round-trip', () => {
 
     const exportedXmi = exportXmi(allTypesModel);
 
-    // Verify each exact contractual XMI form per §5 (primitivos EA: EAnone_<tipo>)
-    expect(exportedXmi).toContain('EAnone_String');
-    expect(exportedXmi).toContain('EAnone_int');
+    // Verify each exact contractual XMI form per §5: primitivos UML por href a
+    // PrimitiveTypes.xmi; tipos sin equivalente UML como EAnone_<tipo> (§5).
+    expect(exportedXmi).toContain('PrimitiveTypes.xmi#String');
+    expect(exportedXmi).toContain('PrimitiveTypes.xmi#Integer');
+    expect(exportedXmi).toContain('PrimitiveTypes.xmi#Real');
+    expect(exportedXmi).toContain('PrimitiveTypes.xmi#Boolean');
     expect(exportedXmi).toContain('EAnone_long');
-    expect(exportedXmi).toContain('EAnone_double');
-    expect(exportedXmi).toContain('EAnone_boolean');
     expect(exportedXmi).toContain('EAnone_EAJava_Date');
     expect(exportedXmi).toContain('EAnone_DateTime');
     expect(exportedXmi).toContain('EAnone_UUID');
+    // La extensión declara el nombre del tipo que EA muestra en el atributo
+    expect(exportedXmi).toContain('type="String"');
+    expect(exportedXmi).toContain('type="int"');
+    expect(exportedXmi).toContain('type="long"');
+    expect(exportedXmi).toContain('type="double"');
+    expect(exportedXmi).toContain('type="boolean"');
+    expect(exportedXmi).toContain('type="Date"');
+    expect(exportedXmi).toContain('type="DateTime"');
+    expect(exportedXmi).toContain('type="UUID"');
 
     // Re-import and verify recovery of all canonical types
     const reimported = importXmi(exportedXmi);
@@ -204,15 +214,18 @@ describe('XMI Exporter & Semantic Round-trip', () => {
     const exportedXmi = exportXmi(initialImport.canonicalModel!);
 
     // 3. Verify explicit losses: unmodeled EA constructs must NOT be present in re-exported XMI
-    expect(exportedXmi).not.toContain('<generalization');
-    expect(exportedXmi).not.toContain('GEN_01');
+    // Desde xmi-profile v1.1 la generalización se importa y por tanto se reexporta.
+    expect(exportedXmi).toContain('<generalization');
+    expect(exportedXmi).toContain('GEN_01');
     expect(exportedXmi).not.toContain('<ownedOperation');
     expect(exportedXmi).not.toContain('OP_01');
     expect(exportedXmi).not.toContain('validar');
     // La extensión EA se regenera con datos nuevos (diagrama propio), pero
     // los ids/contenido de la extensión original importada no se preservan
     expect(exportedXmi).not.toContain('DGM_01');
-    expect(exportedXmi).not.toContain('<appearance');
+    // La <appearance> del fixture llevaba position="x=..."; la extensión
+    // regenerada emite <appearance linemode=...> propio de conectores nuevos.
+    expect(exportedXmi).not.toContain('<appearance position=');
     expect(exportedXmi).not.toContain('<appliedStereotype');
     expect(exportedXmi).not.toContain('STEREO_01');
     expect(exportedXmi).not.toContain('<defaultValue');
@@ -247,7 +260,6 @@ describe('XMI Exporter & Semantic Round-trip', () => {
       id: 'MODEL_CONFLICT_1',
       name: 'NullableConflictModel',
       version: '1.0.0',
-      packages: [],
       classes: [
         {
           id: 'CLS_01',
@@ -291,7 +303,6 @@ describe('XMI Exporter & Semantic Round-trip', () => {
       id: 'MODEL_CONFLICT_2',
       name: 'NotNullOptionalModel',
       version: '1.0.0',
-      packages: [],
       classes: [
         {
           id: 'CLS_01',

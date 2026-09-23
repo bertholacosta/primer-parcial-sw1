@@ -1,10 +1,15 @@
 # Contrato de comandos del editor — `model-commands` v1
 
-- **Versión del contrato:** 1.1.0
+- **Versión del contrato:** 1.2.0
 - **Estado:** accepted
-- **Fecha:** 2026-09-20
+- **Fecha:** 2026-09-23 (v1.2.0; original 2026-09-20)
 - **Autoridad:** Product Owner (ADR-0000)
 - **Depende de:** `docs/contracts/domain-model-v1.md` (contractVersion "1")
+
+> **v1.2.0 (decisión del Product Owner):** el modelo canónico es el único
+> paquete raíz. Se eliminan los comandos `CreatePackage`/`DeletePackage`, el
+> campo `packageId` de `CreateClass`/`UpdateClass` y los errores de paquete.
+> La unicidad de nombres de clase es global al documento.
 
 ---
 
@@ -17,7 +22,7 @@ Este contrato define los comandos deterministas que el editor CASE (y cualquier 
 - Un **resultado** observable y verificable sobre el modelo.
 - **Errores** concretos que se producen cuando una precondición falla; ningún error muta el modelo.
 
-El contrato cubre el **corte mínimo** de la Fase 4: clases, atributos y asociaciones. Los paquetes se incluyen porque son referenciados por clases; sus comandos se limitan a las operaciones necesarias para ese soporte.
+El contrato cubre el **corte mínimo** de la Fase 4: clases, atributos y asociaciones. No existen comandos de paquetes: el modelo es el único paquete raíz (ver `domain-model-v1.md` §3.2).
 
 Este contrato no elige lenguaje de implementación, framework ni mecanismo de persistencia. Las invariantes de `docs/ARCHITECTURE.md` aplican íntegramente:
 
@@ -61,13 +66,13 @@ Si cualquier precondición falla, el modelo **no se modifica en ningún campo**.
 
 ### 2.4 Identificadores
 
-Los `id` de entidades (clases, atributos, asociaciones, paquetes) son cadenas opacas generadas por el cliente. El contrato del modelo canónico (§2.2 de `domain-model-v1.md`) los acepta como UUID v4 o slugs únicos. El validador de comandos no impone formato adicional más allá de:
+Los `id` de entidades (clases, atributos, asociaciones) son cadenas opacas generadas por el cliente. El contrato del modelo canónico (§2.2 de `domain-model-v1.md`) los acepta como UUID v4 o slugs únicos. El validador de comandos no impone formato adicional más allá de:
 - No vacío.
 - Único dentro del documento para la entidad del tipo correspondiente.
 
 ### 2.5 Nomenclatura válida
 
-Los campos `name` de clases, atributos y paquetes deben satisfacer el patrón `[A-Za-z_][A-Za-z0-9_]*` (igual que en `domain-model-v1.md`).
+Los campos `name` de clases y atributos deben satisfacer el patrón `[A-Za-z_][A-Za-z0-9_]*` (igual que en `domain-model-v1.md`).
 
 ---
 
@@ -83,7 +88,6 @@ Crea una nueva clase en el modelo.
 |---|---|---|---|
 | `id` | string | sí | Identificador de la nueva clase. |
 | `name` | string | sí | Nombre de la clase. Patrón `[A-Za-z_][A-Za-z0-9_]*`. |
-| `packageId` | string | no | Id del paquete al que pertenece. Si está ausente, la clase queda en el espacio raíz. |
 | `description` | string | no | Texto libre. |
 
 #### Precondiciones
@@ -93,9 +97,8 @@ Crea una nueva clase en el modelo.
 | PC-CC-1 | El `modelId` existe en el repositorio. | `MODEL_NOT_FOUND` |
 | PC-CC-2 | La `modelVersion` coincide con la versión actual del modelo. | `CONCURRENT_MODIFICATION` |
 | PC-CC-3 | No existe otra clase con el mismo `id` en el documento. | `DUPLICATE_ID` |
-| PC-CC-4 | No existe otra clase con el mismo `name` dentro del mismo `packageId` (o en el espacio raíz si `packageId` está ausente). | `DUPLICATE_CLASS_NAME` |
-| PC-CC-5 | Si `packageId` está presente, el paquete referenciado existe en el documento. | `PACKAGE_NOT_FOUND` |
-| PC-CC-6 | `name` satisface el patrón `[A-Za-z_][A-Za-z0-9_]*`. | `INVALID_NAME_FORMAT` |
+| PC-CC-4 | No existe otra clase con el mismo `name` en el documento (ámbito raíz único). | `DUPLICATE_CLASS_NAME` |
+| PC-CC-5 | `name` satisface el patrón `[A-Za-z_][A-Za-z0-9_]*`. | `INVALID_NAME_FORMAT` |
 
 #### Resultado: `accepted`
 
@@ -112,7 +115,6 @@ Crea una nueva clase en el modelo.
   "id": "model-01",
   "name": "Tienda",
   "version": "1.0.0",
-  "packages": [{ "id": "pkg-01", "name": "tienda" }],
   "classes": [],
   "associations": []
 }
@@ -127,8 +129,7 @@ Crea una nueva clase en el modelo.
   "modelVersion": "1.0.0",
   "payload": {
     "id": "cls-01",
-    "name": "Producto",
-    "packageId": "pkg-01",
+    "name": "Producto"
   }
 }
 ```
@@ -140,12 +141,10 @@ Crea una nueva clase en el modelo.
   "id": "model-01",
   "name": "Tienda",
   "version": "1.0.1",
-  "packages": [{ "id": "pkg-01", "name": "tienda" }],
   "classes": [
     {
       "id": "cls-01",
       "name": "Producto",
-      "packageId": "pkg-01",
       "attributes": []
     }
   ],
@@ -173,7 +172,7 @@ Cambia el `name` de una clase existente.
 | PC-RC-1 | El `modelId` existe. | `MODEL_NOT_FOUND` |
 | PC-RC-2 | La `modelVersion` coincide. | `CONCURRENT_MODIFICATION` |
 | PC-RC-3 | Existe una clase con `classId` en el documento. | `CLASS_NOT_FOUND` |
-| PC-RC-4 | No existe otra clase con `newName` en el mismo `packageId`. | `DUPLICATE_CLASS_NAME` |
+| PC-RC-4 | No existe otra clase con `newName` en el documento. | `DUPLICATE_CLASS_NAME` |
 | PC-RC-5 | `newName` satisface el patrón `[A-Za-z_][A-Za-z0-9_]*`. | `INVALID_NAME_FORMAT` |
 
 #### Resultado: `accepted`
@@ -225,10 +224,9 @@ Modifica de forma atómica las propiedades editables de una clase sin cambiar su
 |---|---|---|---|
 | `classId` | string | sí | Id de la clase a modificar. |
 | `name` | string | no | Nuevo nombre canónico. |
-| `packageId` | string \| null | no | Nuevo paquete; `null` mueve la clase al espacio raíz. |
 | `description` | string | no | Nueva descripción. |
 
-Los valores resultantes deben conservar la unicidad de nombre en el paquete y referenciar un paquete existente. Los campos ausentes no cambian; un payload sin cambios produce `noop`.
+Los valores resultantes deben conservar la unicidad de nombre en el documento. Los campos ausentes no cambian; un payload sin cambios produce `noop`.
 
 ---
 
@@ -624,65 +622,9 @@ Elimina una asociación del modelo.
 
 ---
 
-## 6. Comandos de paquete (soporte mínimo)
+## 6. Comandos de paquete — eliminados (v1.2.0)
 
-Los comandos de paquete se limitan a las operaciones necesarias para que las clases puedan ser asignadas a un paquete.
-
-### 6.1 `CreatePackage`
-
-#### Payload
-
-| Campo | Tipo | Obligatorio | Descripción |
-|---|---|---|---|
-| `id` | string | sí | Identificador del nuevo paquete. |
-| `name` | string | sí | Nombre. Patrón `[A-Za-z_][A-Za-z0-9_]*`. |
-| `parentId` | string | no | Id del paquete padre. Ausente → paquete raíz. |
-| `description` | string | no | Texto libre. |
-
-#### Precondiciones
-
-| # | Precondición | Error si falla |
-|---|---|---|
-| PC-CP-1 | El `modelId` existe. | `MODEL_NOT_FOUND` |
-| PC-CP-2 | La `modelVersion` coincide. | `CONCURRENT_MODIFICATION` |
-| PC-CP-3 | No existe otro paquete con el mismo `id`. | `DUPLICATE_ID` |
-| PC-CP-4 | No existe otro paquete con el mismo `name` bajo el mismo `parentId`. | `DUPLICATE_PACKAGE_NAME` |
-| PC-CP-5 | Si `parentId` está presente, el paquete padre existe. | `PACKAGE_NOT_FOUND` |
-| PC-CP-6 | `name` satisface el patrón `[A-Za-z_][A-Za-z0-9_]*`. | `INVALID_NAME_FORMAT` |
-
-#### Resultado: `accepted`
-
-- El paquete se añade al array `packages`.
-- La versión `PATCH` del modelo se incrementa.
-
----
-
-### 6.2 `DeletePackage`
-
-Elimina un paquete. Solo puede eliminarse un paquete vacío (sin clases asignadas ni subpaquetes).
-
-#### Payload
-
-| Campo | Tipo | Obligatorio | Descripción |
-|---|---|---|---|
-| `packageId` | string | sí | Id del paquete a eliminar. |
-
-#### Precondiciones
-
-| # | Precondición | Error si falla |
-|---|---|---|
-| PC-DP-1 | El `modelId` existe. | `MODEL_NOT_FOUND` |
-| PC-DP-2 | La `modelVersion` coincide. | `CONCURRENT_MODIFICATION` |
-| PC-DP-3 | Existe un paquete con `packageId`. | `PACKAGE_NOT_FOUND` |
-| PC-DP-4 | No existe ninguna clase con `packageId` igual al paquete a eliminar. | `PACKAGE_NOT_EMPTY` |
-| PC-DP-5 | No existe ningún subpaquete con `parentId` igual al paquete a eliminar. | `PACKAGE_HAS_CHILDREN` |
-
-#### Resultado: `accepted`
-
-- El paquete es eliminado del array `packages`.
-- La versión `PATCH` del modelo se incrementa.
-
----
+No existen comandos de paquete. El modelo canónico es el único paquete raíz (`domain-model-v1.md` §3.2): todas las clases se crean y permanecen en ese ámbito. Los tipos `CreatePackage` y `DeletePackage` de versiones anteriores se rechazan con `UNKNOWN_COMMAND`.
 
 ## 7. Catálogo consolidado de errores
 
@@ -690,21 +632,17 @@ Elimina un paquete. Solo puede eliminarse un paquete vacío (sin clases asignada
 |---|---|---|---|
 | `MODEL_NOT_FOUND` | ERROR | Todos | El `modelId` no existe en el repositorio. |
 | `CONCURRENT_MODIFICATION` | ERROR | Todos | La `modelVersion` del comando no coincide con la versión actual del modelo. |
-| `DUPLICATE_ID` | ERROR | CreateClass, AddAttribute, CreateAssociation, CreatePackage | Ya existe una entidad con el mismo `id` en el documento. |
+| `DUPLICATE_ID` | ERROR | CreateClass, AddAttribute, CreateAssociation | Ya existe una entidad con el mismo `id` en el documento. |
 | `CLASS_NOT_FOUND` | ERROR | RenameClass, UpdateClass, DeleteClass, AddAttribute, UpdateAttribute, DeleteAttribute, CreateAssociation | No existe una clase con el `classId` o `sourceClassId`/`targetClassId` especificado. |
 | `ATTRIBUTE_NOT_FOUND` | ERROR | UpdateAttribute, DeleteAttribute | No existe un atributo con el `attributeId` en la clase indicada. |
 | `ASSOCIATION_NOT_FOUND` | ERROR | UpdateAssociation, DeleteAssociation | No existe una asociación con el `associationId`. |
-| `PACKAGE_NOT_FOUND` | ERROR | CreateClass, UpdateClass, CreatePackage, DeletePackage | No existe un paquete con el `packageId` especificado. |
-| `DUPLICATE_CLASS_NAME` | ERROR | CreateClass, RenameClass, UpdateClass | Ya existe una clase con el mismo `name` en el mismo `packageId`. |
+| `DUPLICATE_CLASS_NAME` | ERROR | CreateClass, RenameClass, UpdateClass | Ya existe una clase con el mismo `name` en el documento. |
 | `DUPLICATE_ATTRIBUTE_NAME` | ERROR | AddAttribute, UpdateAttribute | Ya existe un atributo con el mismo `name` en la misma clase. |
-| `DUPLICATE_PACKAGE_NAME` | ERROR | CreatePackage | Ya existe un paquete con el mismo `name` bajo el mismo `parentId`. |
-| `INVALID_NAME_FORMAT` | ERROR | CreateClass, RenameClass, AddAttribute, UpdateAttribute, CreatePackage | El `name` no satisface `[A-Za-z_][A-Za-z0-9_]*`. |
+| `INVALID_NAME_FORMAT` | ERROR | CreateClass, RenameClass, AddAttribute, UpdateAttribute | El `name` no satisface `[A-Za-z_][A-Za-z0-9_]*`. |
 | `UNKNOWN_TYPE` | ERROR | AddAttribute, UpdateAttribute | El `type` no es un literal permitido en `domain-model-v1.md` §3.5. |
 | `INVALID_MULTIPLICITY` | ERROR | AddAttribute, UpdateAttribute, CreateAssociation, UpdateAssociation | El valor de `multiplicity`, `sourceMultiplicity` o `targetMultiplicity` no es un literal permitido. |
 | `INVALID_NAVIGABILITY` | ERROR | CreateAssociation, UpdateAssociation | El valor de `navigability` no es `"unidirectional"` ni `"bidirectional"`. |
 | `SELF_ASSOCIATION_NOT_ALLOWED` | ERROR | CreateAssociation | `sourceClassId` y `targetClassId` son iguales (auto-asociación no permitida en v1). |
-| `PACKAGE_NOT_EMPTY` | ERROR | DeletePackage | El paquete contiene clases; no puede eliminarse sin reasignar o eliminar las clases primero. |
-| `PACKAGE_HAS_CHILDREN` | ERROR | DeletePackage | El paquete contiene subpaquetes; deben eliminarse primero. |
 | `NULLABLE_REQUIRED_CONFLICT` | WARNING | AddAttribute, UpdateAttribute | `multiplicity` es `"1"` y `nullable` es `true`. No bloqueante. |
 | `NOT_NULLABLE_OPTIONAL_CONFLICT` | WARNING | AddAttribute, UpdateAttribute | `multiplicity` es `"0..1"` y `nullable` es `false`. No bloqueante. |
 
@@ -749,12 +687,12 @@ El procesador de comandos debe evaluar las precondiciones en el siguiente orden 
 
 1. Existencia del modelo (`MODEL_NOT_FOUND`).
 2. Concurrencia (`CONCURRENT_MODIFICATION`).
-3. Existencia de entidades referenciadas (`CLASS_NOT_FOUND`, `ATTRIBUTE_NOT_FOUND`, `ASSOCIATION_NOT_FOUND`, `PACKAGE_NOT_FOUND`).
+3. Existencia de entidades referenciadas (`CLASS_NOT_FOUND`, `ATTRIBUTE_NOT_FOUND`, `ASSOCIATION_NOT_FOUND`).
 4. Unicidad de identidades (`DUPLICATE_ID`).
-5. Unicidad de nombres (`DUPLICATE_CLASS_NAME`, `DUPLICATE_ATTRIBUTE_NAME`, `DUPLICATE_PACKAGE_NAME`).
+5. Unicidad de nombres (`DUPLICATE_CLASS_NAME`, `DUPLICATE_ATTRIBUTE_NAME`).
 6. Formato de nombre (`INVALID_NAME_FORMAT`).
 7. Valores enumerados (`UNKNOWN_TYPE`, `INVALID_MULTIPLICITY`, `INVALID_NAVIGABILITY`).
-8. Restricciones estructurales (`SELF_ASSOCIATION_NOT_ALLOWED`, `PACKAGE_NOT_EMPTY`, `PACKAGE_HAS_CHILDREN`).
+8. Restricciones estructurales (`SELF_ASSOCIATION_NOT_ALLOWED`).
 9. Advertencias semánticas (`NULLABLE_REQUIRED_CONFLICT`, `NOT_NULLABLE_OPTIONAL_CONFLICT`) — solo si todos los pasos anteriores pasan.
 
 Si el paso 1 falla, el procesador retorna inmediatamente sin evaluar los demás. El resto de pasos se evalúan completamente para devolver todos los errores en una sola respuesta.
@@ -768,7 +706,7 @@ Si el paso 1 falla, el procesador retorna inmediatamente sin evaluar los demás.
 | D1 | Los errores nunca mutan el modelo. | Invariante 2 de `docs/ARCHITECTURE.md`. |
 | D2 | Las propuestas de IA deben pasar por este contrato antes de mutar el modelo. | Invariante 7 de `docs/ARCHITECTURE.md`. |
 | D3 | `DeleteClass` elimina en cascada sus asociaciones. | Consistencia referencial del modelo canónico. |
-| D4 | `DeletePackage` requiere paquete vacío (sin clases ni subpaquetes). | Evita referencias rotas; el cliente debe decidir qué hacer con el contenido. |
+| D4 | No existen comandos de paquete: el modelo es el único paquete raíz y la unicidad de nombres de clase es global. | Decisión PO 2026-09-23 (v1.2.0). |
 | D5 | Los extremos de una asociación (`sourceClassId`, `targetClassId`) no son modificables; se usa Delete + Create. | Simplifica la lógica de validación y el historial de cambios. |
 | D6 | El control de concurrencia usa `modelVersion` (optimistic locking). | Soporte para entornos colaborativos sin bloqueos. |
 | D7 | Auto-asociaciones no permitidas en el corte mínimo v1. | Coherente con `domain-model-v1.md` §3.7. |
@@ -781,6 +719,6 @@ Si el paso 1 falla, el procesador retorna inmediatamente sin evaluar los demás.
 |---|---|---|
 | S1 | El versionado del modelo es semver `MAJOR.MINOR.PATCH`; los comandos solo incrementan `PATCH`. | Si se introducen cambios de ruptura, se necesita lógica de incremento `MAJOR`/`MINOR`. |
 | S2 | El repositorio de modelos es una abstracción; este contrato no elige su implementación. | Sin impacto en el contrato; afecta solo a la implementación. |
-| Q1 | ¿Se requiere un comando `MoveClass` (reasignar clase a otro paquete)? | Se añadiría como `MoveClass` en una revisión compatible de este contrato. |
+| Q1 | ~~¿Se requiere un comando `MoveClass` (reasignar clase a otro paquete)?~~ **Resuelta (v1.2.0):** no hay paquetes; `MoveClass` no aplica. | — |
 | Q2 | ¿El procesador de comandos es transaccional (batch de comandos atómico)? | Requeriría un comando `BatchCommands` y lógica de rollback; actualmente fuera del alcance v1. |
 | Q3 | ¿Se registra un log de comandos aplicados para undo/redo? | Necesitaría un contrato de historial separado (`command-log-v1.md`). |

@@ -29,16 +29,8 @@ export interface CanonicalAttribute {
 export interface CanonicalClass {
   id: string;
   name: string;
-  packageId?: string;
   description?: string;
   attributes: CanonicalAttribute[];
-}
-
-export interface CanonicalPackage {
-  id: string;
-  name: string;
-  parentId?: string;
-  description?: string;
 }
 
 export interface CanonicalAssociation {
@@ -59,7 +51,6 @@ export interface CanonicalDomainModel {
   id: string;
   name: string;
   version: string;
-  packages: CanonicalPackage[];
   classes: CanonicalClass[];
   associations: CanonicalAssociation[];
 }
@@ -78,6 +69,7 @@ export type DiagnosticCode =
   | 'TYPE_PROMOTED'
   | 'OWNEDCOMMENT_HTML_DISCARDED'
   | 'ELEMENT_IGNORED'
+  | 'PACKAGE_FLATTENED'
   | 'OUT_OF_CANONICAL_ORDER'
   | 'NULLABLE_REQUIRED_CONFLICT'
   | 'NOT_NULLABLE_OPTIONAL_CONFLICT';

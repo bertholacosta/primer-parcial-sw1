@@ -33,22 +33,13 @@ export interface DomainModel {
   name: string;
   version: string;
   description?: string;
-  packages: DomainPackage[];
   classes: DomainClass[];
   associations: DomainAssociation[];
-}
-
-export interface DomainPackage {
-  id: string;
-  name: string;
-  parentId?: string;
-  description?: string;
 }
 
 export interface DomainClass {
   id: string;
   name: string;
-  packageId?: string;
   description?: string;
   attributes: DomainAttribute[];
 }
@@ -90,21 +81,8 @@ function compareStrings(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** Orden canónico §4: packages por id ASC. */
-export function comparePackages(a: DomainPackage, b: DomainPackage): number {
-  return compareStrings(a.id, b.id);
-}
-
-/** Orden canónico §4: classes por packageId ASC (nulos primero), luego id ASC. */
+/** Orden canónico §4: classes por id ASC (todas en el paquete raíz). */
 export function compareClasses(a: DomainClass, b: DomainClass): number {
-  const pa = a.packageId ?? null;
-  const pb = b.packageId ?? null;
-  if (pa === null && pb !== null) return -1;
-  if (pa !== null && pb === null) return 1;
-  if (pa !== null && pb !== null) {
-    const byPackage = compareStrings(pa, pb);
-    if (byPackage !== 0) return byPackage;
-  }
   return compareStrings(a.id, b.id);
 }
 
@@ -126,7 +104,6 @@ export function compareAssociations(a: DomainAssociation, b: DomainAssociation):
 export function canonicalize(model: DomainModel): DomainModel {
   return {
     ...model,
-    packages: [...model.packages].sort(comparePackages),
     classes: model.classes
       .map((cls) => ({ ...cls, attributes: [...cls.attributes].sort(compareAttributes) }))
       .sort(compareClasses),

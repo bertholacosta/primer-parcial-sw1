@@ -2,14 +2,13 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:canon:domain-model:v1",
   "title": "Domain Model v1",
-  "description": "Esquema estructural del contrato domain-model v1.0.0 (docs/contracts/domain-model-v1.md). Las reglas semánticas (unicidad, referencias, ciclos, coherencia nullable/multiplicity) se verifican en la segunda fase del validador.",
+  "description": "Esquema estructural del contrato domain-model v1.1.0 (docs/contracts/domain-model-v1.md). El modelo es el paquete raíz: no existen paquetes anidados ni el campo 'packages'. Las reglas semánticas (unicidad, referencias, ciclos, coherencia nullable/multiplicity) se verifican en la segunda fase del validador.",
   "type": "object",
   "required": [
     "contractVersion",
     "id",
     "name",
     "version",
-    "packages",
     "classes",
     "associations"
   ],
@@ -19,10 +18,6 @@
     "name": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
     "description": { "type": "string" },
-    "packages": {
-      "type": "array",
-      "items": { "$ref": "#/definitions/package" }
-    },
     "classes": {
       "type": "array",
       "items": { "$ref": "#/definitions/class" }
@@ -45,23 +40,12 @@
       "type": "string",
       "enum": ["String", "Integer", "Long", "Double", "Boolean", "Date", "DateTime", "UUID"]
     },
-    "package": {
-      "type": "object",
-      "required": ["id", "name"],
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "name": { "$ref": "#/definitions/identifier" },
-        "parentId": { "type": "string" },
-        "description": { "type": "string" }
-      }
-    },
     "class": {
       "type": "object",
       "required": ["id", "name", "attributes"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "name": { "$ref": "#/definitions/identifier" },
-        "packageId": { "type": "string" },
         "description": { "type": "string" },
         "attributes": {
           "type": "array",

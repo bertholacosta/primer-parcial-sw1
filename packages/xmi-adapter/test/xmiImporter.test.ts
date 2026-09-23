@@ -71,7 +71,7 @@ describe('XMI Importer - Enterprise Architect v1 Profile', () => {
     const diagnostic = result.diagnostics.find(d => d.code === 'UNKNOWN_TYPE');
     expect(diagnostic).toBeDefined();
     expect(diagnostic?.severity).toBe('ERROR');
-    expect(diagnostic?.element?.typeFound).toBe('BigDecimal');
+    expect(diagnostic?.element?.typeFound).toBe('MoneyBag');
     expect(diagnostic?.element?.className).toBe('Factura');
     expect(diagnostic?.element?.attributeName).toBe('total');
   });
@@ -168,6 +168,108 @@ describe('XMI Importer - Enterprise Architect v1 Profile', () => {
     expect(diagnostic?.severity).toBe('ERROR');
   });
 
+  it('recupera generalization, dependency y associationClass (contrato v1.1)', () => {
+    const xmi = `<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1">
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="6.5"/>
+  <uml:Model xmi:id="M01" name="K">
+    <packagedElement xmi:type="uml:Class" xmi:id="C1" name="Base"/>
+    <packagedElement xmi:type="uml:Class" xmi:id="C2" name="Hija">
+      <generalization xmi:type="uml:Generalization" xmi:id="G1" general="C1"/>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Class" xmi:id="C3" name="Servicio"/>
+    <packagedElement xmi:type="uml:Dependency" xmi:id="D1" name="usa" client="C3" supplier="C2"/>
+    <packagedElement xmi:type="uml:AssociationClass" xmi:id="AC1" name="Detalle">
+      <ownedAttribute xmi:type="uml:Property" xmi:id="AT1" name="cantidad" type="Integer">
+        <lowerValue xmi:type="uml:LiteralInteger" value="1"/>
+        <upperValue xmi:type="uml:LiteralInteger" value="1"/>
+      </ownedAttribute>
+      <memberEnd xmi:idref="E1"/>
+      <memberEnd xmi:idref="E2"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="E1" association="AC1"><type xmi:idref="C1"/></ownedEnd>
+      <ownedEnd xmi:type="uml:Property" xmi:id="E2" association="AC1"><type xmi:idref="C3"/></ownedEnd>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>`;
+    const result = importXmi(xmi);
+    expect(result.outcome).toBe('success');
+
+    const byId = new Map(result.canonicalModel!.associations.map(a => [a.id, a]));
+    expect(byId.get('G1')?.kind).toBe('generalization');
+    expect(byId.get('G1')?.sourceClassId).toBe('C2');
+    expect(byId.get('G1')?.targetClassId).toBe('C1');
+    expect(byId.get('D1')?.kind).toBe('dependency');
+    expect(byId.get('D1')?.sourceClassId).toBe('C3');
+    expect(byId.get('D1')?.targetClassId).toBe('C2');
+
+    const acl = byId.get('AC1');
+    expect(acl?.kind).toBe('associationClass');
+    expect(acl?.associationClassId).toBe('ACL_AC1');
+    const carrier = result.canonicalModel!.classes.find(c => c.id === 'ACL_AC1');
+    expect(carrier?.name).toBe('Detalle');
+    expect(carrier?.attributes.map(a => a.name)).toEqual(['cantidad']);
+  });
+
+  it('recupera aggregation/composition e invierte los extremos si el todo es el segundo', () => {
+    const xmi = `<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1">
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="6.5"/>
+  <uml:Model xmi:id="M02" name="Agg">
+    <packagedElement xmi:type="uml:Class" xmi:id="W1" name="Todo"/>
+    <packagedElement xmi:type="uml:Class" xmi:id="P1" name="Parte"/>
+    <packagedElement xmi:type="uml:Association" xmi:id="A1">
+      <ownedEnd xmi:type="uml:Property" xmi:id="E1" aggregation="composite"><type xmi:idref="W1"/></ownedEnd>
+      <ownedEnd xmi:type="uml:Property" xmi:id="E2" aggregation="none"><type xmi:idref="P1"/></ownedEnd>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="A2">
+      <ownedEnd xmi:type="uml:Property" xmi:id="E3" aggregation="none"><type xmi:idref="P1"/></ownedEnd>
+      <ownedEnd xmi:type="uml:Property" xmi:id="E4" aggregation="shared"><type xmi:idref="W1"/></ownedEnd>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>`;
+    const result = importXmi(xmi);
+    expect(result.outcome).toBe('success');
+    const byId = new Map(result.canonicalModel!.associations.map(a => [a.id, a]));
+    // El "todo" (W1) queda como origen en ambos casos
+    expect(byId.get('A1')?.kind).toBe('composition');
+    expect(byId.get('A1')?.sourceClassId).toBe('W1');
+    expect(byId.get('A1')?.targetClassId).toBe('P1');
+    expect(byId.get('A2')?.kind).toBe('aggregation');
+    expect(byId.get('A2')?.sourceClassId).toBe('W1');
+    expect(byId.get('A2')?.targetClassId).toBe('P1');
+  });
+
+  it('tolera prefijos de namespace no estándar (x:) y uml:Model sin name', () => {
+    const xmi = `<?xml version="1.0" encoding="UTF-8"?>
+<x:XMI x:version="2.1" xmlns:x="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1">
+  <x:Documentation exporter="Enterprise Architect" exporterVersion="6.5"/>
+  <uml:Model x:id="M9">
+    <packagedElement x:type="uml:Class" x:id="C9" name="Factura">
+      <ownedAttribute x:type="uml:Property" x:id="A9" name="total" type="Double"/>
+    </packagedElement>
+  </uml:Model>
+</x:XMI>`;
+    const result = importXmi(xmi);
+    expect(result.outcome).toBe('success');
+    expect(result.canonicalModel!.id).toBe('M9');
+    expect(result.canonicalModel!.name).toBe('Modelo_EA');
+    expect(result.canonicalModel!.classes[0].name).toBe('Factura');
+    expect(result.canonicalModel!.classes[0].attributes[0].name).toBe('total');
+  });
+
+  it('acepta xmi:uuid como id del modelo raíz', () => {
+    const xmi = `<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1">
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="6.5"/>
+  <uml:Model xmi:uuid="UUID_9" name="ConUuid">
+    <packagedElement xmi:type="uml:Class" xmi:id="C9" name="Factura"/>
+  </uml:Model>
+</xmi:XMI>`;
+    const result = importXmi(xmi);
+    expect(result.outcome).toBe('success');
+    expect(result.canonicalModel!.id).toBe('UUID_9');
+  });
+
   it('should exclude association-backed ownedAttribute elements and avoid false UNKNOWN_TYPE', () => {
     const assocBackedXmi = `<?xml version="1.0" encoding="UTF-8"?>
 <xmi:XMI xmi:version="2.1" xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.omg.org/spec/UML/20131001">
@@ -194,5 +296,35 @@ describe('XMI Importer - Enterprise Architect v1 Profile', () => {
     const orderClass = result.canonicalModel!.classes.find(c => c.id === 'C01');
     expect(orderClass?.attributes).toHaveLength(1);
     expect(orderClass?.attributes[0].name).toBe('total');
+  });
+
+  it('resuelve el tipo de atributo desde la extensión EA (exports reales)', () => {
+    const xmi = `<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1">
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="6.5"/>
+  <uml:Model xmi:id="M1" name="EA_Model">
+    <packagedElement xmi:type="uml:Class" xmi:id="EAID_C1" name="Cliente">
+      <ownedAttribute xmi:type="uml:Property" xmi:id="EAID_A1" name="nombre"/>
+      <ownedAttribute xmi:type="uml:Property" xmi:id="EAID_A2" name="edad"/>
+    </packagedElement>
+  </uml:Model>
+  <xmi:Extension extender="Enterprise Architect" extenderID="6.5">
+    <elements>
+      <element xmi:idref="EAID_C1" xmi:type="uml:Class" name="Cliente">
+        <attributes>
+          <attribute xmi:idref="EAID_A1" name="nombre"><properties type="String"/></attribute>
+          <attribute xmi:idref="EAID_A2" name="edad"><properties type="int"/></attribute>
+        </attributes>
+      </element>
+    </elements>
+  </xmi:Extension>
+</xmi:XMI>`;
+    const result = importXmi(xmi);
+    expect(result.outcome).toBe('success');
+    const cliente = result.canonicalModel!.classes[0];
+    expect(cliente.attributes.map(a => [a.name, a.type])).toEqual([
+      ['nombre', 'String'],
+      ['edad', 'Integer'],
+    ]);
   });
 });

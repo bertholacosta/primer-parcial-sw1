@@ -10,7 +10,6 @@ export interface CanonicalAttribute {
 export interface CanonicalClass {
   id: string;
   name: string;
-  packageId?: string;
   description?: string;
   attributes: CanonicalAttribute[];
 }
@@ -36,20 +35,16 @@ export interface CanonicalAssociation {
   description?: string;
 }
 
-export interface CanonicalPackage {
-  id: string;
-  name: string;
-  parentId?: string;
-  description?: string;
-}
-
+/**
+ * El modelo ES el paquete raíz: no existen paquetes anidados ni el campo
+ * `packages` (decisión PO: todas las clases viven en el ámbito raíz).
+ */
 export interface CanonicalDomainModel {
   contractVersion: string;
   id: string;
   name: string;
   version: string;
   description?: string;
-  packages: CanonicalPackage[];
   classes: CanonicalClass[];
   associations: CanonicalAssociation[];
 }

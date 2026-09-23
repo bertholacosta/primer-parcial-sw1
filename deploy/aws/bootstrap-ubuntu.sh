@@ -40,6 +40,10 @@ SITE_DOMAIN=$site_domain
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 JWT_SECRET=$(openssl rand -hex 48)
 EOF
+  # Propaga la configuración de IA si el operador la exportó antes de ejecutar.
+  for var in AI_PROVIDER GEMINI_API_KEY GEMINI_MODEL OLLAMA_BASE_URL OLLAMA_MODEL; do
+    if [[ -n "${!var:-}" ]]; then echo "$var=${!var}" >>"$env_file"; fi
+  done
 fi
 chmod 600 "$env_file"
 

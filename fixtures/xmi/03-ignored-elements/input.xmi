@@ -2,10 +2,12 @@
 <!--
   Fixture: 03-ignored-elements/input.xmi
   Propósito: XMI con extensiones EA propietarias, herencia, operación de clase,
-             ownedComment HTML y estereotipo aplicado. Verifica que todos los
+             ownedComment HTML y estereotipo aplicado. Verifica que los
              elementos del §4 del perfil se descartan sin error.
-  Pérdidas esperadas: herencia, operación, extensión EA, HTML de comentario,
+  Pérdidas esperadas: operación, extensión EA, HTML de comentario,
                       estereotipo, visibilidad.
+  Nota: desde el contrato v1.1 la <generalization> se importa (kind
+  'generalization'), no se descarta.
 -->
 <xmi:XMI xmi:version="2.1"
          xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
@@ -46,7 +48,7 @@
       <!--
         Clase concreta. Tiene:
           - appliedStereotype (ignorado)
-          - generalization hacia EntidadBase (ignorada)
+          - generalization hacia EntidadBase (importada desde contrato v1.1)
           - ownedComment con HTML (descartado con advertencia)
       -->
       <packagedElement xmi:type="uml:Class"
@@ -57,7 +59,7 @@
         <ownedComment xmi:type="uml:Comment" xmi:id="CMT_02">
           <body>&lt;html&gt;&lt;b&gt;Artículo de inventario&lt;/b&gt;&lt;/html&gt;</body>
         </ownedComment>
-        <!-- Herencia — ignorada según §4 -->
+        <!-- Herencia — importada como kind 'generalization' desde contrato v1.1 -->
         <generalization xmi:type="uml:Generalization" xmi:id="GEN_01"
                         general="CLS_20"/>
         <!-- Estereotipo aplicado — ignorado según §4 -->

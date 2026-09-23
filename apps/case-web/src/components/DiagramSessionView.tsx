@@ -7,17 +7,20 @@ import {
   type SocketLike,
 } from '../collaboration/CollaborationSession';
 import {
+  ApiError,
   type DiagramRecord,
   type ModelServerApi,
   type SessionUser,
 } from '../api/modelServerApi';
+import type { AssistantRemoteResult } from './AssistantChatPanel';
 import { CaseWebCanvas, type CollaborationBarInfo } from './CaseWebCanvas';
 import { SharePanel } from './SharePanel';
+import { ImageImportPanel } from './ImageImportPanel';
+import { EaImportPanel } from './EaImportPanel';
 import type { CanonicalDomainModel } from '../domain/model';
 import type { CommandExecutionResult } from '../commands/attributeCommands';
 import type { CreateAssociationInput, UpdateAssociationInput, CreateAssociationClassInput } from '../commands/associationCommands';
 import type { CreateClassInput, UpdateClassInput } from '../commands/classCommands';
-import type { CreatePackageInput } from './CaseWebCanvas';
 import type { ParticipantRole } from 'collaboration-protocol';
 
 interface DiagramSessionViewProps {
@@ -226,7 +229,6 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
       submit('CreateClass', {
         id: input.classId,
         name: input.name,
-        packageId: input.packageId,
       });
     },
     [submit]
@@ -253,20 +255,6 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
     [submit]
   );
 
-  const handleCreatePackage = useCallback(
-    (input: CreatePackageInput) => {
-      submit('CreatePackage', { id: input.packageId, name: input.name });
-    },
-    [submit]
-  );
-
-  const handleDeletePackage = useCallback(
-    (packageId: string) => {
-      submit('DeletePackage', { packageId });
-    },
-    [submit]
-  );
-
   const handleDeleteAssociation = useCallback(
     (associationId: string) => {
       submit('DeleteAssociation', { associationId });
@@ -279,6 +267,53 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
     submit(lastRejected.type, lastRejected.payload as Record<string, unknown>);
     setLastRejected(null);
   }, [lastRejected, submit]);
+
+  /**
+   * Propuesta multimodal confirmada: los comandos ya pasaron el dry-run del
+   * servidor; aquí se despachan por la sesión, que los serializa y les asigna
+   * la modelVersion vigente al momento de cada envío.
+   */
+  const handleApplyProposal = useCallback(
+    (commands: { type: string; payload: Record<string, unknown> }[]) => {
+      for (const command of commands) submit(command.type, command.payload);
+    },
+    [submit]
+  );
+
+  /**
+   * Fallback del chat del asistente: cuando el parser local no entiende la
+   * instrucción, el servidor la interpreta con IA (modalidad text_prompt) y
+   * devuelve una propuesta ya validada por dry-run — nunca muta el modelo.
+   */
+  const interpretAssistant = useCallback(
+    async (text: string): Promise<AssistantRemoteResult> => {
+      try {
+        const proposal = await api.createTextProposal(diagramId, {
+          textPrompt: text,
+          clientPlatform: 'case_web',
+        });
+        const commands = proposal.proposedCommands.map((c) => ({ type: c.type, payload: c.payload }));
+        if (commands.length === 0) {
+          return { clarification: 'La IA no produjo comandos aplicables.' };
+        }
+        if (proposal.dryRunValidation.validationStatus === 'INVALID') {
+          const first = proposal.dryRunValidation.errors.slice(0, 3).map((e) => e.message).join(' ');
+          return { clarification: `La IA propuso cambios pero no validan sobre el modelo actual: ${first}` };
+        }
+        const note =
+          proposal.dryRunValidation.validationStatus === 'WARNINGS'
+            ? ` (${proposal.dryRunValidation.warnings.length} advertencia(s) de validación)`
+            : '';
+        return { commands, summary: `IA: ${proposal.intent.summary}${note}` };
+      } catch (error) {
+        return {
+          clarification:
+            error instanceof ApiError ? error.message : 'No fue posible interpretar la instrucción con la IA.',
+        };
+      }
+    },
+    [api, diagramId]
+  );
 
   const isOwner = diagram?.role === 'owner';
 
@@ -309,6 +344,21 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
         <button data-testid="back-to-diagrams" onClick={onExit} className="button-ghost">
           ← Mis diagramas
         </button>
+        {!readOnly && (
+          <ImageImportPanel
+            api={api}
+            diagramId={diagramId}
+            onApply={handleApplyProposal}
+            applyDisabled={connState !== 'in_sync'}
+          />
+        )}
+        {!readOnly && (
+          <EaImportPanel
+            existingModel={model}
+            onApply={handleApplyProposal}
+            applyDisabled={connState !== 'in_sync'}
+          />
+        )}
         {isOwner && (
           <button
             data-testid="toggle-share-panel"
@@ -350,9 +400,9 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
             onCreateClass={readOnly ? undefined : handleCreateClass}
             onRenameClass={readOnly ? undefined : handleRenameClass}
             onDeleteClass={readOnly ? undefined : handleDeleteClass}
-            onCreatePackage={readOnly ? undefined : handleCreatePackage}
-            onDeletePackage={readOnly ? undefined : handleDeletePackage}
             onDeleteAssociation={readOnly ? undefined : handleDeleteAssociation}
+            onApplyAssistantCommands={readOnly ? undefined : handleApplyProposal}
+            onAssistantInterpret={readOnly ? undefined : interpretAssistant}
           />
         ) : (
           <div data-testid="session-loading" className="loading-state">

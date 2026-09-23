@@ -37,7 +37,6 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
   const [isEditingClass, setIsEditingClass] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [className, setClassName] = useState('');
-  const [classPackageId, setClassPackageId] = useState('');
   const [classDescription, setClassDescription] = useState('');
 
   const [editingAttrId, setEditingAttrId] = useState<string | null>(null);
@@ -70,7 +69,6 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
 
   const handleStartClassEdit = () => {
     setClassName(data.name);
-    setClassPackageId(data.packageId ?? '');
     setClassDescription(data.description ?? '');
     setIsEditingClass(true);
   };
@@ -79,7 +77,6 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
     data.onUpdateClass?.({
       classId: data.id,
       name: className.trim(),
-      packageId: classPackageId || null,
       description: classDescription,
     });
     setIsEditingClass(false);
@@ -174,12 +171,6 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
         {isEditingClass && (
           <div className="uml-property-editor nodrag nowheel">
             <label>Nombre<input data-testid={`edit-class-name-${data.id}`} value={className} onChange={(e) => setClassName(e.target.value)} /></label>
-            <label>Paquete
-              <select data-testid={`edit-class-package-${data.id}`} value={classPackageId} onChange={(e) => setClassPackageId(e.target.value)}>
-                <option value="">Espacio raíz</option>
-                {data.packages.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-              </select>
-            </label>
             <label>Descripción<textarea data-testid={`edit-class-description-${data.id}`} value={classDescription} onChange={(e) => setClassDescription(e.target.value)} /></label>
             <div className="uml-form-actions">
               <button data-testid={`confirm-edit-class-${data.id}`} onClick={handleConfirmClassEdit} className="uml-node-button">Guardar clase</button>

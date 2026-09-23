@@ -19,16 +19,39 @@ function capitalize(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 }
 
+/**
+ * Divide un nombre del modelo en palabras alfanuméricas ASCII: corta en
+ * espacios/guiones/underscores y fronteras camelCase, y elimina acentos
+ * (NFD). Garantiza que los identificadores Java/Maven/SQL generados sean
+ * válidos aunque el nombre del modelo tenga espacios o tildes.
+ */
+function normalizeWords(s: string): string[] {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean);
+}
+
 function toPascalCase(s: string): string {
-  return s.replace(/(?:^|[-_\s])(\w)/g, (_, c) => c.toUpperCase());
+  return normalizeWords(s).map((w) => capitalize(w.toLowerCase())).join('');
+}
+
+/** Identificador Java válido (lowerCamelCase) para campos, paquetes y variables. */
+function javaId(s: string): string {
+  const words = normalizeWords(s);
+  return words.length === 0
+    ? 'unnamed'
+    : words[0].toLowerCase() + words.slice(1).map((w) => capitalize(w.toLowerCase())).join('');
 }
 
 function toSnakeCase(s: string): string {
-  return s.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+  return normalizeWords(s).map((w) => w.toLowerCase()).join('_');
 }
 
 function toKebabCase(s: string): string {
-  return toSnakeCase(s).replace(/_/g, '-');
+  return normalizeWords(s).map((w) => w.toLowerCase()).join('-');
 }
 
 const JAVA_TYPE_MAP: Record<string, string> = {
@@ -52,6 +75,189 @@ function parseAttrMeta(description?: string) {
     isPk: s.includes(PK_PREFIX),
     isFk: s.includes(FK_PREFIX),
   };
+}
+
+// ─── Validación previa a la exportación ──────────────────────────────────────
+
+export interface SpringBootDiagnostic {
+  severity: 'ERROR' | 'WARNING';
+  code: string;
+  message: string;
+}
+
+/** Lanzada cuando el modelo produciría código que no compila o rompe JPA. */
+export class SpringBootValidationError extends Error {
+  constructor(public readonly diagnostics: SpringBootDiagnostic[]) {
+    super(diagnostics.map((d) => `[${d.code}] ${d.message}`).join('\n'));
+    this.name = 'SpringBootValidationError';
+  }
+}
+
+const JAVA_RESERVED = new Set([
+  'abstract', 'assert', 'boolean', 'break', 'byte', 'case', 'catch', 'char',
+  'class', 'const', 'continue', 'default', 'do', 'double', 'else', 'enum',
+  'extends', 'final', 'finally', 'float', 'for', 'goto', 'if', 'implements',
+  'import', 'instanceof', 'int', 'interface', 'long', 'native', 'new',
+  'package', 'private', 'protected', 'public', 'return', 'short', 'static',
+  'strictfp', 'super', 'switch', 'synchronized', 'this', 'throw', 'throws',
+  'transient', 'try', 'void', 'volatile', 'while', 'true', 'false', 'null',
+]);
+
+const PK_GENERABLE_TYPES = new Set(['Integer', 'Long', 'UUID']);
+
+/**
+ * Validación determinista previa a la generación (MP/PROJECT: solo reglas
+ * validables modifican el modelo o generan código). Devuelve diagnósticos;
+ * cualquier ERROR implica que el proyecto generado no compilaría o fallaría
+ * al arrancar Hibernate, por lo que la exportación debe bloquearse.
+ */
+export function validateSpringBootModel(
+  model: CanonicalDomainModel,
+  options: SpringBootGeneratorOptions = {}
+): SpringBootDiagnostic[] {
+  const diagnostics: SpringBootDiagnostic[] = [];
+  const err = (code: string, message: string) =>
+    diagnostics.push({ severity: 'ERROR', code, message });
+  const warn = (code: string, message: string) =>
+    diagnostics.push({ severity: 'WARNING', code, message });
+
+  const artifactId = options.artifactId ?? toKebabCase(model.name);
+  const groupId = options.groupId ?? `com.example.${javaId(model.name)}`;
+
+  if (!artifactId) {
+    err('INVALID_MODEL_NAME', `El nombre del modelo "${model.name}" no produce un artifactId Maven válido.`);
+  }
+  for (const seg of groupId.split('.')) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(seg) || JAVA_RESERVED.has(seg.toLowerCase())) {
+      err('INVALID_GROUP_ID', `El segmento "${seg}" del groupId "${groupId}" no es un identificador Java válido.`);
+      break;
+    }
+  }
+  if (model.classes.length === 0) {
+    err('EMPTY_MODEL', 'El modelo no contiene clases; no hay nada que generar.');
+  }
+
+  const classIds = new Set(model.classes.map((c) => c.id));
+  const seenClass = new Map<string, string>();
+  // Registro global de columnas por tabla: la FK de un @ManyToOne cae en la
+  // tabla propia, pero la de un @OneToMany unidireccional cae en la hija.
+  const tableColumns = new Map<string, Map<string, string>>();
+  const joinTables = new Map<string, string>();
+  const addColumn = (table: string, column: string, owner: string) => {
+    const cols = tableColumns.get(table) ?? new Map<string, string>();
+    tableColumns.set(table, cols);
+    const prev = cols.get(column);
+    if (prev) {
+      err('FK_COLUMN_COLLISION', `La columna "${column}" de la tabla "${table}" la generan dos veces: ${prev} y ${owner}.`);
+    } else {
+      cols.set(column, owner);
+    }
+  };
+
+  const ctxByClass = new Map<string, GeneratedClass>();
+  for (const cls of model.classes) {
+    const pascal = toPascalCase(cls.name);
+    if (!pascal) {
+      err('INVALID_CLASS_NAME', `La clase "${cls.name}" no produce un nombre Java válido.`);
+      continue;
+    }
+    const prevName = seenClass.get(pascal.toLowerCase());
+    if (prevName) {
+      err('DUPLICATE_CLASS_NAME', `Las clases "${prevName}" y "${cls.name}" generan el mismo tipo "${pascal}".`);
+    }
+    seenClass.set(pascal.toLowerCase(), cls.name);
+    if (JAVA_RESERVED.has(javaId(cls.name))) {
+      err('RESERVED_IDENTIFIER', `El nombre de clase "${cls.name}" genera el identificador reservado "${javaId(cls.name)}".`);
+    }
+
+    const ctx = buildClassContext(cls, model, groupId);
+    ctxByClass.set(cls.id, ctx);
+    const seenField = new Map<string, string>();
+    if (ctx.hasDefaultId) {
+      seenField.set('id', 'el id autogenerado');
+      addColumn(ctx.tableName, 'id', `el id autogenerado de ${cls.name}`);
+    }
+
+    let pkCount = 0;
+    cls.attributes.forEach((raw, i) => {
+      const a = ctx.attributes[i];
+      if (!a || normalizeWords(raw.name).length === 0) {
+        err('INVALID_ATTRIBUTE_NAME', `El atributo "${raw.name}" de ${cls.name} no produce un nombre Java válido.`);
+        return;
+      }
+      const meta = parseAttrMeta(raw.description);
+      if (a.isId) {
+        pkCount++;
+        if (!PK_GENERABLE_TYPES.has(a.javaType)) {
+          err('INVALID_PK_TYPE', `El [PK] "${raw.name}" de ${cls.name} es ${raw.type}; la clave autogenerada solo admite Integer, Long o UUID.`);
+        }
+      }
+      if (JAVA_RESERVED.has(a.name)) {
+        err('RESERVED_IDENTIFIER', `El atributo "${raw.name}" de ${cls.name} genera el identificador reservado "${a.name}".`);
+      }
+      const fieldOwner = seenField.get(a.name);
+      if (fieldOwner) {
+        const code = fieldOwner === 'el id autogenerado' ? 'ID_FIELD_COLLISION' : 'DUPLICATE_FIELD';
+        err(code, `El atributo "${raw.name}" de ${cls.name} choca con ${fieldOwner} (campo "${a.name}").`);
+      }
+      seenField.set(a.name, `el atributo "${raw.name}"`);
+      addColumn(ctx.tableName, a.columnName, `el atributo "${raw.name}" de ${cls.name}`);
+      if (meta.isFk) {
+        warn('FK_MARKER_IGNORED', `El atributo "${raw.name}" de ${cls.name} lleva [FK]: las llaves foráneas se derivan de las asociaciones, no de atributos.`);
+      }
+    });
+    if (pkCount > 1) {
+      err('MULTIPLE_PK', `La clase ${cls.name} tiene ${pkCount} atributos [PK]; las claves compuestas no están soportadas.`);
+    }
+  }
+
+  // Segunda pasada: campos y columnas que aportan las asociaciones.
+  for (const cls of model.classes) {
+    const ctx = ctxByClass.get(cls.id);
+    if (!ctx) continue;
+    const seenField = new Map<string, string>();
+    ctx.attributes.forEach((a) => seenField.set(a.name, `el atributo "${a.name}"`));
+    if (ctx.hasDefaultId) seenField.set('id', 'el id autogenerado');
+
+    for (const a of ctx.associations) {
+      const fieldOwner = seenField.get(a.name);
+      if (fieldOwner) {
+        err('DUPLICATE_FIELD', `La relación de ${cls.name} hacia ${a.baseJavaType} genera el campo "${a.name}", que choca con ${fieldOwner}.`);
+      }
+      seenField.set(a.name, `la relación "${a.name}"`);
+
+      if (a.joinTable) {
+        const prev = joinTables.get(a.joinTable);
+        if (prev) {
+          err('DUPLICATE_JOIN_TABLE', `Las relaciones ${prev} y "${a.name}" generan la misma tabla intermedia "${a.joinTable}".`);
+        } else {
+          joinTables.set(a.joinTable, `"${a.name}"`);
+        }
+      } else if (a.joinColumn) {
+        // @ManyToOne → FK en la tabla propia; @OneToMany unidireccional → FK en la hija
+        const hostTable = a.isCollection ? a.targetTableName : ctx.tableName;
+        const hostName = a.isCollection ? a.baseJavaType : ctx.pascalName;
+        addColumn(hostTable, a.joinColumn, `la relación "${a.name}" de ${cls.name} (FK en "${hostName}")`);
+      }
+    }
+  }
+
+  for (const assoc of model.associations) {
+    if (!classIds.has(assoc.sourceClassId) || !classIds.has(assoc.targetClassId)) {
+      err('DANGLING_ASSOCIATION', `La relación "${assoc.name ?? assoc.id}" referencia una clase inexistente.`);
+    }
+    if (assoc.kind === 'generalization') {
+      warn('GENERALIZATION_NOT_GENERATED', `La herencia "${assoc.name ?? assoc.id}" no se refleja en el código generado.`);
+    }
+    if (assoc.kind === 'associationClass') {
+      const carrier = model.classes.find((c) => c.id === assoc.associationClassId);
+      if (!assoc.associationClassId || !carrier) {
+        err('MISSING_ASSOC_CLASS', `La clase-asociación "${assoc.name ?? assoc.id}" no tiene clase portadora válida.`);
+      }
+    }
+  }
+
+  return diagnostics;
 }
 
 interface GeneratedClass {
@@ -90,6 +296,10 @@ interface AssocCtx {
   annotationFull: string;
   javaType: string;
   baseJavaType: string;
+  /** Paquete de la clase destino (para imports cruzados entre capas). */
+  targetPackage: string;
+  /** Tabla de la clase destino (donde cae la FK de un OneToMany unidireccional). */
+  targetTableName: string;
   joinColumn: string;
   joinTable: string;
   inverseJoinColumn: string;
@@ -99,6 +309,7 @@ interface AssocCtx {
 
 interface RelatedType {
   className: string;
+  packagePath: string;
   accessors: string[];
 }
 
@@ -110,15 +321,15 @@ function buildClassContext(
   groupId: string
 ): GeneratedClass {
   const pascalName = toPascalCase(cls.name);
-  const packagePath = `${groupId}.${cls.name.toLowerCase()}`;
+  const packagePath = groupId;
 
   // Atributos
   const attrCtxList: AttrCtx[] = cls.attributes.map((attr) => {
     const meta = parseAttrMeta(attr.description);
     const javaType = toJavaType(attr.type);
     return {
-      name: attr.name,
-      capitalizedName: capitalize(attr.name),
+      name: javaId(attr.name),
+      capitalizedName: toPascalCase(attr.name),
       javaType,
       columnName: toSnakeCase(attr.name),
       nullable: attr.nullable,
@@ -142,9 +353,6 @@ function buildClassContext(
 
   // Asociaciones: solo procesa las que tienen esta clase como source
   const outgoing = model.associations.filter((a) => a.sourceClassId === cls.id);
-  const incoming = model.associations.filter(
-    (a) => a.targetClassId === cls.id && a.kind !== 'generalization'
-  );
 
   const assocCtxList: AssocCtx[] = [];
   const relatedTypeMap = new Map<string, RelatedType>();
@@ -154,6 +362,7 @@ function buildClassContext(
     if (!targetClass) continue;
 
     const targetPascal = toPascalCase(targetClass.name);
+    const targetPackage = groupId;
     const isCollection = assoc.targetMultiplicity.includes('*');
     const kind = assoc.kind ?? 'association';
     const isOwner = true;
@@ -170,26 +379,22 @@ function buildClassContext(
     }
 
     if (isCollection) {
-      if (kind === 'composition' || kind === 'aggregation') {
-        const targetHasMany = model.associations.some(
-          (a) => a.targetClassId === cls.id && a.sourceClassId === assoc.targetClassId
-        );
-        if (targetHasMany) {
-          annotationFull = `@ManyToMany`;
-          joinTable = `${toSnakeCase(cls.name)}_${toSnakeCase(targetClass.name)}`;
-        } else {
-          annotationFull = `@OneToMany(mappedBy = "${cls.name.toLowerCase()}", cascade = CascadeType.ALL)`;
-        }
+      const sourceMany = assoc.sourceMultiplicity.includes('*');
+      const reverse = model.associations.find(
+        (a) => a.sourceClassId === assoc.targetClassId && a.targetClassId === cls.id
+      );
+      if (sourceMany) {
+        // N:M real → tabla intermedia
+        annotationFull = `@ManyToMany`;
+        joinTable = `${toSnakeCase(cls.name)}_${toSnakeCase(targetClass.name)}`;
+      } else if (reverse && !reverse.targetMultiplicity.includes('*')) {
+        // Bidireccional 1:N: el lado * apunta por mappedBy al @ManyToOne del hijo
+        annotationFull = `@OneToMany(mappedBy = "${javaId(cls.name)}", cascade = CascadeType.ALL)`;
+        joinColumn = '';
       } else {
-        // association many
-        const reverseMany = incoming.some((a) => a.sourceClassId === assoc.targetClassId && a.targetMultiplicity.includes('*'));
-        if (reverseMany) {
-          annotationFull = `@ManyToMany`;
-          joinTable = `${toSnakeCase(cls.name)}_${toSnakeCase(targetClass.name)}`;
-        } else {
-          annotationFull = `@ManyToMany`;
-          joinTable = `${toSnakeCase(cls.name)}_${toSnakeCase(targetClass.name)}`;
-        }
+        // Unidireccional 1:N: FK en la tabla hija vía @JoinColumn
+        const cascade = kind === 'composition' || kind === 'aggregation' ? '(cascade = CascadeType.ALL)' : '';
+        annotationFull = `@OneToMany${cascade}`;
       }
       javaType = `List<${targetPascal}Entity>`;
     } else {
@@ -204,8 +409,8 @@ function buildClassContext(
     }
 
     const fieldName = isCollection
-      ? targetClass.name.toLowerCase() + 'List'
-      : targetClass.name.toLowerCase();
+      ? javaId(targetClass.name) + 'List'
+      : javaId(targetClass.name);
 
     assocCtxList.push({
       name: fieldName,
@@ -213,6 +418,8 @@ function buildClassContext(
       annotationFull,
       javaType,
       baseJavaType: targetPascal,
+      targetPackage,
+      targetTableName: toSnakeCase(targetClass.name),
       joinColumn,
       joinTable,
       inverseJoinColumn,
@@ -220,10 +427,19 @@ function buildClassContext(
       inverse: !isOwner,
     });
 
-    // Agregar tipo relacionado para shallow copy en Service
+    // Agregar tipo relacionado para shallow copy en Service. Si el destino
+    // usa el id Long autogenerado, se copia también para que la relación
+    // referencie la fila existente en lugar de insertar un duplicado.
     if (!relatedTypeMap.has(targetPascal)) {
-      const targetAttrs = targetClass.attributes.map((a) => capitalize(a.name));
-      relatedTypeMap.set(targetPascal, { className: targetPascal, accessors: targetAttrs });
+      const targetHasExplicitPk = targetClass.attributes.some((a) =>
+        (a.description ?? '').includes(PK_PREFIX)
+      );
+      const targetAttrs = targetClass.attributes.map((a) => toPascalCase(a.name));
+      relatedTypeMap.set(targetPascal, {
+        className: targetPascal,
+        packagePath: targetPackage,
+        accessors: targetHasExplicitPk ? targetAttrs : ['Id', ...targetAttrs],
+      });
     }
   }
 
@@ -292,7 +508,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.List;
-
 @Entity
 @Table(name = "${ctx.tableName}")
 public class ${ctx.pascalName}Entity {
@@ -337,7 +552,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.List;
-
 public class ${ctx.pascalName}DTO {
 
 ${defaultId}${fields}
@@ -388,6 +602,17 @@ function genService(ctx: GeneratedClass): string {
       : `        entity.set${a.capitalizedName}(dto.get${a.capitalizedName}() == null ? null : to${a.baseJavaType}EntityShallow(dto.get${a.capitalizedName}()));`
   ).join('\n');
 
+  // En update no se copia el id ni la PK: la entidad existente manda.
+  const updateAttrs = ctx.attributes.filter((a) => !a.isId).map((a) =>
+    `            existing.set${a.capitalizedName}(dto.get${a.capitalizedName}());`
+  ).join('\n');
+
+  const updateAssocs = ctx.associations.map((a) =>
+    a.isCollection
+      ? `            existing.set${a.capitalizedName}(dto.get${a.capitalizedName}() == null ? null : dto.get${a.capitalizedName}().stream().map(this::to${a.baseJavaType}EntityShallow).collect(Collectors.toList()));`
+      : `            existing.set${a.capitalizedName}(dto.get${a.capitalizedName}() == null ? null : to${a.baseJavaType}EntityShallow(dto.get${a.capitalizedName}()));`
+  ).join('\n');
+
   const defaultIdDTO = ctx.hasDefaultId ? '        dto.setId(entity.getId());' : '';
   const defaultIdEntity = ctx.hasDefaultId ? '        entity.setId(dto.getId());' : '';
 
@@ -408,6 +633,13 @@ ${entityAccessors}
     }`;
   }).join('\n');
 
+  const relatedImports = ctx.relatedTypes
+    .flatMap((rt) => [
+      `import ${rt.packagePath}.dto.${rt.className}DTO;`,
+      `import ${rt.packagePath}.entity.${rt.className}Entity;`,
+    ])
+    .join('\n');
+
   return `package ${ctx.packagePath}.service;
 
 import ${ctx.packagePath}.dto.${ctx.pascalName}DTO;
@@ -417,7 +649,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-${idImport}
+${idImport}${relatedImports}
 @Service
 public class ${ctx.pascalName}Service {
 
@@ -437,6 +669,14 @@ public class ${ctx.pascalName}Service {
 
     public ${ctx.pascalName}DTO save(${ctx.pascalName}DTO dto) {
         return toDTO(repository.save(toEntity(dto)));
+    }
+
+    public Optional<${ctx.pascalName}DTO> update(${ctx.idJavaType} id, ${ctx.pascalName}DTO dto) {
+        return repository.findById(id).map(existing -> {
+${updateAttrs}
+${updateAssocs}
+            return toDTO(repository.save(existing));
+        });
     }
 
     public void deleteById(${ctx.idJavaType} id) {
@@ -465,7 +705,7 @@ ${shallowMethods}
 
 function genController(ctx: GeneratedClass): string {
   const idImport = ctx.idImport ? `import ${ctx.idImport};\n` : '';
-  const restPath = `/${ctx.name.toLowerCase()}s`;
+  const restPath = `/${toKebabCase(ctx.name)}s`;
   return `package ${ctx.packagePath}.controller;
 
 import ${ctx.packagePath}.dto.${ctx.pascalName}DTO;
@@ -499,6 +739,13 @@ public class ${ctx.pascalName}Controller {
     @PostMapping
     public ${ctx.pascalName}DTO create(@RequestBody ${ctx.pascalName}DTO dto) {
         return service.save(dto);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<${ctx.pascalName}DTO> update(@PathVariable ${ctx.idJavaType} id, @RequestBody ${ctx.pascalName}DTO dto) {
+        return service.update(id, dto)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
@@ -687,6 +934,11 @@ java -jar target/${artifactId}-1.0.0-SNAPSHOT.jar
 \`\`\`
 
 Requiere PostgreSQL accesible en \`localhost:5432\` (ver \`src/main/resources/application.yml\`).
+
+## Documentación de la API
+
+\`API.pdf\` lista todos los endpoints CRUD generados con ejemplos de body
+para probarlos en Postman o curl.
 `;
 }
 
@@ -706,7 +958,164 @@ public class ${pascal}Application {
 `;
 }
 
-// ─── Punto de entrada ────────────────────────────────────────────────────────
+// ─── Documentación PDF de la API ─────────────────────────────────────────────
+// PDF 1.4 mínimo, determinista y sin dependencias: texto Helvetica/WinAnsi.
+
+interface PdfLine {
+  text: string;
+  font: 'F1' | 'F2'; // F1 = Helvetica, F2 = Helvetica-Bold
+  size: number;
+}
+
+/** Escapa paréntesis/backslash y degrada a WinAnsi (≈Latin-1) lo no soportado. */
+function pdfText(s: string): string {
+  let out = '';
+  for (const ch of s) {
+    const c = ch.codePointAt(0)!;
+    if (ch === '(' || ch === ')' || ch === '\\') out += `\\${ch}`;
+    else if (c < 0x80 || (c >= 0xa0 && c <= 0xff)) out += ch;
+    else out += '?';
+  }
+  return out;
+}
+
+function renderPdfPage(lines: PdfLine[]): string {
+  const parts = ['BT', '50 760 Td', '15 TL'];
+  for (const l of lines) {
+    parts.push(`/${l.font} ${l.size} Tf`, `(${pdfText(l.text)}) Tj`, 'T*');
+  }
+  parts.push('ET');
+  return parts.join('\n');
+}
+
+function buildPdf(pages: PdfLine[][]): Uint8Array {
+  const chunks: string[] = [];
+  const offsets: number[] = [];
+  let pos = 0;
+  const push = (s: string) => { chunks.push(s); pos += s.length; };
+  const obj = (id: number, body: string) => {
+    offsets[id] = pos;
+    push(`${id} 0 obj\n${body}\nendobj\n`);
+  };
+
+  const pageObjs = pages.map((_, i) => ({ pageId: 5 + i * 2, contentId: 6 + i * 2 }));
+
+  push('%PDF-1.4\n');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Kids [${pageObjs.map((p) => `${p.pageId} 0 R`).join(' ')}] /Count ${pages.length} >>`);
+  obj(3, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  obj(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+  pages.forEach((lines, i) => {
+    const { pageId, contentId } = pageObjs[i];
+    const stream = renderPdfPage(lines);
+    obj(pageId, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`);
+    obj(contentId, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  });
+
+  const xrefPos = pos;
+  const size = 5 + pages.length * 2;
+  push(`xref\n0 ${size}\n0000000000 65535 f \n`);
+  for (let i = 1; i < size; i++) push(`${String(offsets[i]).padStart(10, '0')} 00000 n \n`);
+  push(`trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`);
+
+  const text = chunks.join('');
+  const bytes = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i) & 0xff;
+  return bytes;
+}
+
+function sampleValue(javaType: string): string {
+  switch (javaType) {
+    case 'Integer':
+    case 'Long':
+      return '0';
+    case 'Double':
+      return '0.0';
+    case 'Boolean':
+      return 'true';
+    case 'LocalDate':
+      return '"2026-01-01"';
+    case 'LocalDateTime':
+      return '"2026-01-01T00:00:00"';
+    case 'UUID':
+      return '"00000000-0000-0000-0000-000000000000"';
+    default:
+      return '"texto"';
+  }
+}
+
+/** Body JSON de ejemplo para el POST de una clase (attrs + relaciones por id). */
+function exampleBodyLines(ctx: GeneratedClass): string[] {
+  const parts: string[] = ctx.attributes.map((a) => `"${a.name}": ${sampleValue(a.javaType)}`);
+  for (const a of ctx.associations) {
+    parts.push(a.isCollection ? `"${a.name}": [{ "id": 1 }]` : `"${a.name}": { "id": 1 }`);
+  }
+  if (parts.length === 0) return ['{}'];
+  return ['{', ...parts.map((p, i) => `  ${p}${i < parts.length - 1 ? ',' : ''}`), '}'];
+}
+
+/**
+ * Genera API.pdf: documentación de todos los endpoints CRUD del proyecto con
+ * ejemplos de body. Determinista (mismo modelo → mismo PDF, byte a byte).
+ */
+function genApiDocsPdf(appName: string, artifactId: string, ctxs: GeneratedClass[]): Uint8Array {
+  const lines: PdfLine[] = [];
+  const push = (text = '', font: PdfLine['font'] = 'F1', size = 9) => {
+    // Envuelve líneas largas (~110 chars a 9pt caben en el ancho de página)
+    while (text.length > 105) {
+      const cut = text.lastIndexOf(' ', 105);
+      const at = cut > 20 ? cut : 105;
+      lines.push({ text: text.slice(0, at), font, size });
+      text = '  ' + text.slice(at).trimStart();
+    }
+    lines.push({ text, font, size });
+  };
+
+  push(`${appName} — API REST`, 'F2', 16);
+  push(`Proyecto generado automáticamente · artifactId: ${artifactId}`);
+  push();
+  push('Cómo ejecutar', 'F2', 12);
+  push('  docker compose up --build   (levanta la app y PostgreSQL)');
+  push('  API en http://localhost:8080 · BD en localhost:5432 (postgres/postgres)');
+  push();
+  push('Convenciones', 'F2', 12);
+  push('  Todos los POST y PUT llevan header  Content-Type: application/json');
+  push('  Fechas: "yyyy-MM-dd" · Fecha-hora: "yyyy-MM-ddTHH:mm:ss"');
+  push('  Relaciones: objeto anidado {"id": N} enlaza una fila existente');
+  push('  Colecciones: lista de objetos [{"id": 1}, {"id": 2}]');
+  push();
+  push('Endpoints', 'F2', 13);
+
+  for (const ctx of ctxs) {
+    const base = `/${toKebabCase(ctx.name)}s`;
+    push();
+    push(`${ctx.pascalName} — ${base}`, 'F2', 11);
+    push(`  GET     ${base}          Lista todos los ${ctx.name}`);
+    push(`  GET     ${base}/{id}     Obtiene uno por id`);
+    push(`  POST    ${base}          Crea — body JSON:`);
+    for (const l of exampleBodyLines(ctx)) push(`    ${l}`);
+    push(`  PUT     ${base}/{id}     Actualiza — mismo body del POST (el id del path manda)`);
+    push(`  DELETE  ${base}/{id}     Elimina por id`);
+  }
+
+  // Paginación: ~760pt de altura útil, alto de línea ≈ size * 1.6
+  const pages: PdfLine[][] = [];
+  let page: PdfLine[] = [];
+  let y = 760;
+  for (const l of lines) {
+    const h = Math.max(10, l.size * 1.6);
+    if (y - h < 60 && page.length > 0) {
+      pages.push(page);
+      page = [];
+      y = 760;
+    }
+    page.push(l);
+    y -= h;
+  }
+  if (page.length > 0) pages.push(page);
+  return buildPdf(pages.length > 0 ? pages : [[]]);
+}
+
 
 export interface SpringBootGeneratorOptions {
   groupId?: string;
@@ -721,7 +1130,12 @@ export function buildSpringBootZip(
   model: CanonicalDomainModel,
   options: SpringBootGeneratorOptions = {}
 ): JSZip {
-  const groupId = options.groupId ?? `com.example.${model.name.toLowerCase().replace(/\s+/g, '')}`;
+  // Invariante: nunca emitir un proyecto que no compila o rompe JPA.
+  const diagnostics = validateSpringBootModel(model, options);
+  if (diagnostics.some((d) => d.severity === 'ERROR')) {
+    throw new SpringBootValidationError(diagnostics);
+  }
+  const groupId = options.groupId ?? `com.example.${javaId(model.name)}`;
   const artifactId = options.artifactId ?? toKebabCase(model.name);
   const appName = toPascalCase(model.name);
   const srcBase = `src/main/java/${groupId.replace(/\./g, '/')}`;
@@ -743,16 +1157,18 @@ export function buildSpringBootZip(
   // Clase principal
   zip.file(`${srcBase}/${appName}Application.java`, genMainClass(groupId, appName));
 
-  // Capas por clase
-  for (const cls of model.classes) {
-    const ctx = buildClassContext(cls, model, groupId);
-    const base = `${srcBase}/${cls.name.toLowerCase()}`;
+  const classCtxs = model.classes.map((cls) => buildClassContext(cls, model, groupId));
 
-    zip.file(`${base}/entity/${ctx.pascalName}Entity.java`, genEntity(ctx));
-    zip.file(`${base}/dto/${ctx.pascalName}DTO.java`, genDTO(ctx));
-    zip.file(`${base}/repository/${ctx.pascalName}Repository.java`, genRepository(ctx));
-    zip.file(`${base}/service/${ctx.pascalName}Service.java`, genService(ctx));
-    zip.file(`${base}/controller/${ctx.pascalName}Controller.java`, genController(ctx));
+  // Documentación de endpoints (determinista: mismo modelo → mismo PDF)
+  zip.file('API.pdf', genApiDocsPdf(appName, artifactId, classCtxs));
+
+  // Capas por clase, todas bajo el paquete raíz
+  for (const ctx of classCtxs) {
+    zip.file(`${srcBase}/entity/${ctx.pascalName}Entity.java`, genEntity(ctx));
+    zip.file(`${srcBase}/dto/${ctx.pascalName}DTO.java`, genDTO(ctx));
+    zip.file(`${srcBase}/repository/${ctx.pascalName}Repository.java`, genRepository(ctx));
+    zip.file(`${srcBase}/service/${ctx.pascalName}Service.java`, genService(ctx));
+    zip.file(`${srcBase}/controller/${ctx.pascalName}Controller.java`, genController(ctx));
   }
 
   return zip;

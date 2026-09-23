@@ -1,35 +1,41 @@
 import { describe, expect, it } from "vitest";
 import { buildTemplateContext } from "../src/template-engine.js";
+import type { GenerationConfig } from "../src/config.js";
+
+const cfg: GenerationConfig = {
+  outputDir: "out",
+  basePackage: "org.test",
+  artifactId: "test-app",
+  groupId: "org.test",
+  generatorVersion: "1",
+  templateSetId: "spring-boot-v1",
+};
 
 describe("template engine", () => {
-  it("deriva el nombre de tabla del nombre de la clase sin prefijo de paquete", () => {
+  it("deriva el nombre de tabla del nombre de la clase en el paquete raíz", () => {
     const ctx = buildTemplateContext(
       {
+        contractVersion: "1",
         id: "m1",
         name: "Test",
-        packages: [
-          { id: "p1", name: "auth" },
-          { id: "p2", name: "billing" }
-        ],
+        version: "1.0.0",
         classes: [
-          { id: "c1", name: "User", packageId: "p1", attributes: [] },
-          { id: "c2", name: "User", packageId: "p2", attributes: [] }
+          { id: "c1", name: "User", attributes: [] },
+          { id: "c2", name: "Order", attributes: [] }
         ],
         associations: []
       },
-      { id: "c1", name: "User", packageId: "p1", attributes: [] },
-      { basePackage: "org.test", generatorVersion: "1" }
+      { id: "c1", name: "User", attributes: [] },
+      cfg
     );
     expect(ctx.tableName).toBe("user");
   });
 });
 
 describe("tipos de relación UML (ADR-0009)", () => {
-  const cfg = { basePackage: "org.test", generatorVersion: "1" };
   const model = {
     id: "m1",
     name: "Test",
-    packages: [],
     classes: [
       { id: "padre", name: "Padre", attributes: [] },
       { id: "hija", name: "Hija", attributes: [] },

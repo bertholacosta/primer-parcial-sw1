@@ -163,7 +163,7 @@ export class PlatformStore {
 
   async createDiagram(userId: string, name: string): Promise<DiagramRecord> {
     const diagramId = randomUUID();
-    const model: DomainModel = { contractVersion: "1", id: diagramId, name: name.trim(), version: "1.0.0", packages: [], classes: [], associations: [] };
+    const model: DomainModel = { contractVersion: "1", id: diagramId, name: name.trim(), version: "1.0.0", classes: [], associations: [] };
     const now = this.now();
     await this.database.transaction(async (executor) => {
       await executor.query(

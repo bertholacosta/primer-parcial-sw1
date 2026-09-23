@@ -19,7 +19,8 @@ describe('enterpriseArchitectGenerator', () => {
     expect(xmi).toContain('xmi:version="2.1"');
     expect(xmi).toContain('xmi:exporter="Enterprise Architect"');
     expect(xmi).toContain('xmi:exporterVersion="15.0.1514.12"');
-    expect(xmi).toContain('xmlns:uml="http://www.omg.org/spec/UML/20131001"');
+    // Namespaces legacy XMI/UML 2.1 — los que EA 15 emite y reconoce.
+    expect(xmi).toContain('xmlns:uml="http://schema.omg.org/spec/UML/2.1"');
   });
 
   it('produce XML bien formado con el modelo raíz', () => {
@@ -37,7 +38,8 @@ describe('enterpriseArchitectGenerator', () => {
       expect(xmi).toContain(`xmi:id="${cls.id}"`);
       expect(xmi).toContain(`name="${cls.name}"`);
     }
-    expect(xmi).toContain('EAnone_String');
+    expect(xmi).toContain('PrimitiveTypes.xmi#String');
+    expect(xmi).toContain('type="String"');
     expect(xmi).toContain('xmi:type="uml:Property"');
   });
 

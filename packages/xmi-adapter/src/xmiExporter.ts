@@ -1,7 +1,6 @@
 import {
   CanonicalDomainModel,
   CanonicalClass,
-  CanonicalPackage,
   CanonicalAssociation,
   CanonicalAttribute,
   CanonicalType
@@ -9,8 +8,9 @@ import {
 
 export interface XmiExportOptions {
   /**
-   * Versión de Enterprise Architect declarada en `xmi:exporterVersion` y
-   * `<xmi:Documentation>` (§2). Por defecto '15.0.1514.12'.
+   * Versión de Enterprise Architect declarada en `xmi:exporterVersion` (§2).
+   * Por defecto '15.0.1514.12'. `<xmi:Documentation>` siempre declara la
+   * versión del extender XMI de EA ('6.5'), como en los exports reales.
    */
   eaVersion?: string;
   /**
@@ -34,28 +34,22 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
   const includeDiagram = options.includeDiagram ?? true;
   const lines: string[] = [];
 
+  // Namespaces legacy de XMI/UML 2.1: los que EA 15 emite y reconoce en su
+  // importador. Los URIs 2013 (www.omg.org/spec/...) hacen que EA ignore las
+  // referencias xmi:idref de la extensión → el diagrama no se crea.
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push('<xmi:XMI xmi:version="2.1"');
   lines.push('         xmi:exporter="Enterprise Architect"');
   lines.push(`         xmi:exporterVersion="${escapeXml(eaVersion)}"`);
-  lines.push('         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"');
-  if (includeDiagram) {
-    lines.push('         xmlns:umldi="http://www.omg.org/spec/UML/20131001/UMLDI"');
-    lines.push('         xmlns:dc="http://www.omg.org/spec/UML/20131001/UMLDC"');
-  }
-  lines.push('         xmlns:uml="http://www.omg.org/spec/UML/20131001">');
+  lines.push('         xmlns:uml="http://schema.omg.org/spec/UML/2.1"');
+  lines.push('         xmlns:xmi="http://schema.omg.org/spec/XMI/2.1">');
   lines.push('');
-  lines.push(`  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="${escapeXml(eaVersion)}"/>`);
+  lines.push('  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="6.5"/>');
   lines.push('');
   lines.push(`  <uml:Model xmi:id="${escapeXml(model.id)}" name="${escapeXml(model.name)}" xmi:type="uml:Model">`);
   // EA exige que todo el contenido viva dentro de un uml:Package raíz; las
   // referencias package= de la extensión apuntan a ese paquete.
-  lines.push(`    <packagedElement xmi:type="uml:Package" xmi:id="${EA_ROOT_PACKAGE_ID}" name="${escapeXml(model.name)}">`);
-
-  const packageMap = new Map<string, CanonicalPackage>();
-  for (const pkg of model.packages) {
-    packageMap.set(pkg.id, pkg);
-  }
+  lines.push(`    <packagedElement xmi:type="uml:Package" xmi:id="${EA_ROOT_PACKAGE_ID}" name="${escapeXml(model.name)}" visibility="public">`);
 
   const classById = new Map<string, CanonicalClass>();
   for (const cls of model.classes) {
@@ -82,47 +76,10 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
     }
   }
 
-  const classesByPackage = new Map<string, CanonicalClass[]>();
-  const rootClasses: CanonicalClass[] = [];
-
-  for (const cls of model.classes) {
-    if (carrierIds.has(cls.id)) {
-      continue;
-    }
-    if (cls.packageId && packageMap.has(cls.packageId)) {
-      if (!classesByPackage.has(cls.packageId)) {
-        classesByPackage.set(cls.packageId, []);
-      }
-      classesByPackage.get(cls.packageId)!.push(cls);
-    } else {
-      rootClasses.push(cls);
-    }
-  }
-
-  const associationsByPackage = new Map<string, CanonicalAssociation[]>();
-  const rootAssociations: CanonicalAssociation[] = [];
-
-  // Group associations: place in package of source class if valid, else root
-  for (const assoc of model.associations) {
-    if (assoc.kind === 'generalization') {
-      continue;
-    }
-    const srcCls = classById.get(assoc.sourceClassId);
-    if (srcCls?.packageId && packageMap.has(srcCls.packageId)) {
-      if (!associationsByPackage.has(srcCls.packageId)) {
-        associationsByPackage.set(srcCls.packageId, []);
-      }
-      associationsByPackage.get(srcCls.packageId)!.push(assoc);
-    } else {
-      rootAssociations.push(assoc);
-    }
-  }
-
-  // Render top-level packages (and nested ones)
-  const rootPackages = model.packages.filter(p => !p.parentId);
-  for (const pkg of rootPackages) {
-    renderPackage(pkg, '      ');
-  }
+  // Todas las clases y asociaciones viven en el paquete raíz (EAPK_ROOT);
+  // el modelo canónico no tiene paquetes anidados.
+  const rootClasses = model.classes.filter(cls => !carrierIds.has(cls.id));
+  const rootAssociations = model.associations.filter(assoc => assoc.kind !== 'generalization');
 
   // Render root classes
   for (const cls of rootClasses) {
@@ -135,11 +92,6 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
   }
 
   lines.push('    </packagedElement>');
-
-  if (includeDiagram) {
-    renderUmldiDiagram();
-  }
-
   lines.push('  </uml:Model>');
 
   if (includeDiagram) {
@@ -150,33 +102,6 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
   lines.push('');
 
   return lines.join('\n');
-
-  function renderPackage(pkg: CanonicalPackage, indent: string) {
-    lines.push(`${indent}<packagedElement xmi:type="uml:Package" xmi:id="${escapeXml(pkg.id)}" name="${escapeXml(pkg.name)}">`);
-    const innerIndent = indent + '  ';
-
-    renderComment(pkg.id, pkg.description, innerIndent);
-
-    // Nested packages
-    const children = model.packages.filter(p => p.parentId === pkg.id);
-    for (const childPkg of children) {
-      renderPackage(childPkg, innerIndent);
-    }
-
-    // Classes in this package
-    const pkgClasses = classesByPackage.get(pkg.id) || [];
-    for (const cls of pkgClasses) {
-      renderClass(cls, innerIndent);
-    }
-
-    // Associations in this package
-    const pkgAssocs = associationsByPackage.get(pkg.id) || [];
-    for (const assoc of pkgAssocs) {
-      renderAssociation(assoc, innerIndent);
-    }
-
-    lines.push(`${indent}</packagedElement>`);
-  }
 
   function renderComment(ownerId: string, description: string | undefined, indent: string) {
     if (!description) {
@@ -190,7 +115,8 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
   function renderClass(cls: CanonicalClass, indent: string) {
     lines.push(`${indent}<packagedElement xmi:type="uml:Class"`);
     lines.push(`${indent}                 xmi:id="${escapeXml(cls.id)}"`);
-    lines.push(`${indent}                 name="${escapeXml(cls.name)}">`);
+    lines.push(`${indent}                 name="${escapeXml(cls.name)}"`);
+    lines.push(`${indent}                 visibility="public">`);
 
     const innerIndent = indent + '  ';
 
@@ -225,13 +151,20 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
     lines.push(`${indent}<ownedAttribute xmi:type="uml:Property"`);
     lines.push(`${indent}                xmi:id="${escapeXml(attr.id)}"`);
     lines.push(`${indent}                name="${escapeXml(attr.name)}"`);
-    lines.push(`${indent}                visibility="private">`);
+    lines.push(`${indent}                visibility="private" isStatic="false" isReadOnly="false"`);
+    lines.push(`${indent}                isDerived="false" isOrdered="false" isUnique="true" isDerivedUnion="false">`);
     renderComment(attr.id, attr.description, indent + '  ');
     lines.push(`${indent}  <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_${escapeXml(attr.id)}_lo" value="${lower}"/>`);
-    lines.push(`${indent}  <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_${escapeXml(attr.id)}_hi" value="${upper}"/>`);
-    // EA referencia el tipo como elemento hijo con id EAnone_<tipo> (tipos
-    // primitivos internos de EA), no como atributo type="...".
-    lines.push(`${indent}  <type xmi:idref="EAnone_${escapeXml(mappedType)}"/>`);
+    lines.push(`${indent}  ${upperValueTag(`UV_${attr.id}_hi`, upper)}`);
+    // Tipos estándar: href a la librería de primitivos UML (lo que EA emite
+    // en sus exports). Tipos sin primitivo UML (Date, DateTime, UUID):
+    // idref EAnone_<tipo>, convención de tipos internos de EA.
+    const umlPrimitive = UML_PRIMITIVE_HREF[mappedType];
+    if (umlPrimitive) {
+      lines.push(`${indent}  <type xmi:type="uml:PrimitiveType" href="${umlPrimitive}"/>`);
+    } else {
+      lines.push(`${indent}  <type xmi:idref="EAnone_${escapeXml(mappedType)}"/>`);
+    }
     lines.push(`${indent}</ownedAttribute>`);
   }
 
@@ -248,7 +181,7 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
       return;
     }
     lines.push(`${indent}<packagedElement xmi:type="uml:Association"`);
-    lines.push(`${indent}                 xmi:id="${escapeXml(assoc.id)}"${assoc.name ? ` name="${escapeXml(assoc.name)}"` : ''}>`);
+    lines.push(`${indent}                 xmi:id="${escapeXml(assoc.id)}"${assoc.name ? ` name="${escapeXml(assoc.name)}"` : ''} visibility="public">`);
 
     const innerIndent = indent + '  ';
     renderComment(assoc.id, assoc.description, innerIndent);
@@ -266,7 +199,7 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
     const carrier = assoc.associationClassId ? classById.get(assoc.associationClassId) : undefined;
     const name = carrier?.name ?? assoc.name ?? '';
     lines.push(`${indent}<packagedElement xmi:type="uml:AssociationClass"`);
-    lines.push(`${indent}                 xmi:id="${escapeXml(assoc.id)}"${name ? ` name="${escapeXml(name)}"` : ''}>`);
+    lines.push(`${indent}                 xmi:id="${escapeXml(assoc.id)}"${name ? ` name="${escapeXml(name)}"` : ''} visibility="public">`);
 
     const innerIndent = indent + '  ';
     renderComment(assoc.id, assoc.description ?? carrier?.description, innerIndent);
@@ -290,21 +223,24 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
     lines.push(`${indent}<memberEnd xmi:idref="${endSrcId}"/>`);
     lines.push(`${indent}<memberEnd xmi:idref="${endTgtId}"/>`);
 
-    // Source ownedEnd. En una asociación unidireccional origen→destino el extremo
-    // NO navegable es el del origen: se marca isNavigable="false" aquí (§3.5).
+    // Formato EA 15: flags completos en el ownedEnd, association="<id>" y el
+    // tipo como hijo <type xmi:idref>; con type="..." en atributo EA no
+    // resuelve el clasificador y descarta el conector completo.
+    const endFlags = 'visibility="public" isStatic="false" isReadOnly="false" isDerived="false" isOrdered="false" isUnique="true" isDerivedUnion="false"';
+    // En una asociación unidireccional origen→destino el extremo NO navegable
+    // es el del origen: se marca isNavigable="false" aquí (§3.5).
     const srcNavAttr = assoc.navigability === 'unidirectional' ? ' isNavigable="false"' : '';
-    const srcAggAttr = aggregation ? ` aggregation="${aggregation}"` : '';
-    lines.push(`${indent}<ownedEnd xmi:type="uml:Property" xmi:id="${endSrcId}" association="${escapeXml(assoc.id)}"${srcAggAttr}${srcNavAttr}>`);
+    lines.push(`${indent}<ownedEnd xmi:type="uml:Property" xmi:id="${endSrcId}" association="${escapeXml(assoc.id)}" ${endFlags} aggregation="${aggregation ?? 'none'}"${srcNavAttr}>`);
     lines.push(`${indent}  <type xmi:idref="${escapeXml(assoc.sourceClassId)}"/>`);
     lines.push(`${indent}  <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_${escapeXml(assoc.id)}_SRC" value="${srcBounds.lower}"/>`);
-    lines.push(`${indent}  <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_${escapeXml(assoc.id)}_SRC" value="${srcBounds.upper}"/>`);
+    lines.push(`${indent}  ${upperValueTag(`UV_${assoc.id}_SRC`, srcBounds.upper)}`);
     lines.push(`${indent}</ownedEnd>`);
 
     // Target ownedEnd
-    lines.push(`${indent}<ownedEnd xmi:type="uml:Property" xmi:id="${endTgtId}" association="${escapeXml(assoc.id)}">`);
+    lines.push(`${indent}<ownedEnd xmi:type="uml:Property" xmi:id="${endTgtId}" association="${escapeXml(assoc.id)}" ${endFlags} aggregation="none">`);
     lines.push(`${indent}  <type xmi:idref="${escapeXml(assoc.targetClassId)}"/>`);
     lines.push(`${indent}  <lowerValue xmi:type="uml:LiteralInteger" xmi:id="LV_${escapeXml(assoc.id)}_TGT" value="${tgtBounds.lower}"/>`);
-    lines.push(`${indent}  <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="UV_${escapeXml(assoc.id)}_TGT" value="${tgtBounds.upper}"/>`);
+    lines.push(`${indent}  ${upperValueTag(`UV_${assoc.id}_TGT`, tgtBounds.upper)}`);
     lines.push(`${indent}</ownedEnd>`);
   }
 
@@ -323,44 +259,60 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
       return next;
     };
 
+    // Entradas <attribute> del elemento, tal como las emite EA 15.
+    function renderExtAttributes(attrs: CanonicalAttribute[]) {
+      if (attrs.length === 0) {
+        return;
+      }
+      lines.push('        <attributes>');
+      for (const attr of attrs) {
+        const { lower, upper } = getBoundsFromMultiplicity(attr.multiplicity);
+        lines.push(`          <attribute xmi:idref="${escapeXml(attr.id)}" name="${escapeXml(attr.name)}" scope="Private">`);
+        lines.push('            <initial/>');
+        lines.push(`            <documentation${attr.description ? ` value="${escapeXml(attr.description)}"` : ''}/>`);
+        lines.push(`            <model ea_localid="${localId(attr.id)}" ea_guid="${eaGuid(attr.id)}"/>`);
+        lines.push(`            <properties type="${escapeXml(mapCanonicalTypeToEa(attr.type))}" derived="0" precision="0" collection="false" length="0" static="0" duplicates="0" changeability="changeable"/>`);
+        lines.push('            <coords ordered="0" scale="0"/>');
+        lines.push('            <containment containment="Not Specified" position="0"/>');
+        lines.push('            <stereotype/>');
+        lines.push(`            <bounds lower="${lower}" upper="${upper === '*' ? '-1' : upper}"/>`);
+        lines.push('            <options/>');
+        lines.push('            <style/>');
+        lines.push('            <styleex value="volatile=0;IsLiteral=0;"/>');
+        lines.push('            <tags/>');
+        lines.push('            <xrefs/>');
+        lines.push('          </attribute>');
+      }
+      lines.push('        </attributes>');
+    }
+
     lines.push('');
     lines.push('  <xmi:Extension extender="Enterprise Architect" extenderID="6.5">');
     lines.push('    <elements>');
 
-    // El paquete raíz tiene estructura propia en EA (packageproperties +
-    // flags isModel=1), sin <model> ni xmi:type.
-    lines.push(`      <element xmi:idref="${EA_ROOT_PACKAGE_ID}">`);
+    // El paquete raíz se emite como un elemento Package normal (formato
+    // EA 15); package= se autorreferencia porque no hay paquete padre.
+    lines.push(`      <element xmi:idref="${EA_ROOT_PACKAGE_ID}" xmi:type="uml:Package" name="${escapeXml(model.name)}" scope="public">`);
+    lines.push(`        <model package2="EAID_ROOT" package="${EA_ROOT_PACKAGE_ID}" tpos="0" ea_localid="${localId(EA_ROOT_PACKAGE_ID)}" ea_eleType="package"/>`);
+    lines.push('        <properties isSpecification="false" sType="Package" nType="0" scope="public"/>');
+    lines.push(`        <project author="case-web" version="1.0" phase="1.0" created="${EA_TIMESTAMP}" modified="${EA_TIMESTAMP}" complexity="1" status="Proposed"/>`);
+    lines.push('        <code gentype="Java"/>');
+    lines.push('        <style appearance="BackColor=-1;BorderColor=-1;BorderWidth=-1;FontColor=-1;VSwimLanes=1;HSwimLanes=1;BorderStyle=0;"/>');
+    lines.push('        <tags/>');
+    lines.push('        <xrefs/>');
+    lines.push(`        <extendedProperties tagged="0" package_name="${escapeXml(model.name)}"/>`);
     lines.push('        <packageproperties version="1.0"/>');
     lines.push('        <paths/>');
-    lines.push(`        <times created="${EA_TIMESTAMP}" modified="${EA_TIMESTAMP}" lastloaddate="${EA_TIMESTAMP}" lastsavedate="${EA_TIMESTAMP}"/>`);
-    lines.push('        <flags iscontrolled="0" isprotected="0" usedtd="0" logxml="0" packageFlags="isModel=1;"/>');
+    lines.push(`        <times created="${EA_TIMESTAMP}" modified="${EA_TIMESTAMP}"/>`);
+    lines.push('        <flags iscontrolled="FALSE" isprotected="FALSE" usedtd="FALSE" logxml="FALSE"/>');
     lines.push('      </element>');
-
-    for (const pkg of model.packages) {
-      const parentId = pkg.parentId ?? EA_ROOT_PACKAGE_ID;
-      const parentName = pkg.parentId ? packageMap.get(pkg.parentId)?.name ?? '' : model.name;
-      lines.push(`      <element xmi:idref="${escapeXml(pkg.id)}" xmi:type="uml:Package" name="${escapeXml(pkg.name)}" scope="public">`);
-      lines.push(`        <model package2="EAID_${escapeXml(pkg.id)}" package="${escapeXml(parentId)}" tpos="0" ea_localid="${localId(pkg.id)}" ea_eleType="package"/>`);
-      lines.push(`        <properties isSpecification="false" sType="Package" nType="0" scope="public"${pkg.description ? ` documentation="${escapeXml(pkg.description)}"` : ''}/>`);
-      lines.push(`        <project author="case-web" version="1.0" phase="1.0" created="${EA_TIMESTAMP}" modified="${EA_TIMESTAMP}" complexity="1" status="Proposed"/>`);
-      lines.push('        <code gentype="Java"/>');
-      lines.push('        <style appearance="BackColor=-1;BorderColor=-1;BorderWidth=-1;FontColor=-1;VSwimLanes=1;HSwimLanes=1;BorderStyle=0;"/>');
-      lines.push('        <tags/>');
-      lines.push('        <xrefs/>');
-      lines.push(`        <extendedProperties tagged="0" package_name="${escapeXml(parentName)}"/>`);
-      lines.push('        <packageproperties version="1.0" tpos="0"/>');
-      lines.push('        <paths/>');
-      lines.push(`        <times created="${EA_TIMESTAMP}" modified="${EA_TIMESTAMP}" lastloaddate="${EA_TIMESTAMP}" lastsavedate="${EA_TIMESTAMP}"/>`);
-      lines.push('        <flags iscontrolled="0" isprotected="0" batchsave="0" batchload="0" usedtd="0" logxml="0"/>');
-      lines.push('      </element>');
-    }
 
     for (const cls of model.classes) {
       if (carrierIds.has(cls.id)) {
         continue;
       }
-      const ownerId = cls.packageId && packageMap.has(cls.packageId) ? cls.packageId : EA_ROOT_PACKAGE_ID;
-      const ownerName = cls.packageId && packageMap.has(cls.packageId) ? packageMap.get(cls.packageId)!.name : model.name;
+      const ownerId = EA_ROOT_PACKAGE_ID;
+      const ownerName = model.name;
       lines.push(`      <element xmi:idref="${escapeXml(cls.id)}" xmi:type="uml:Class" name="${escapeXml(cls.name)}" scope="public">`);
       lines.push(`        <model package="${escapeXml(ownerId)}" tpos="0" ea_localid="${localId(cls.id)}" ea_eleType="element"/>`);
       lines.push(`        <properties isSpecification="false" sType="Class" nType="0" scope="public" isRoot="false" isLeaf="false" isAbstract="false" isActive="false"${cls.description ? ` documentation="${escapeXml(cls.description)}"` : ''}/>`);
@@ -370,6 +322,8 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
       lines.push('        <tags/>');
       lines.push('        <xrefs/>');
       lines.push(`        <extendedProperties tagged="0" package_name="${escapeXml(ownerName)}"/>`);
+
+      renderExtAttributes(cls.attributes);
 
       // EA registra los conectores que tocan al elemento en <links>; la clase
       // portadora de una clase-asociación también lista su conector.
@@ -384,11 +338,11 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
             : assoc.kind === 'dependency'
               ? 'Dependency'
               : 'Association';
-          lines.push(`          <${linkType} xmi:id="${escapeXml(assoc.id)}" start="${escapeXml(assoc.sourceClassId)}" end="${escapeXml(assoc.targetClassId)}"/>`);
+          lines.push(`          <${linkType} xmi:id="${escapeXml(connectorId(assoc))}" start="${escapeXml(assoc.sourceClassId)}" end="${escapeXml(assoc.targetClassId)}"/>`);
         }
         lines.push('        </links>');
       }
-
+      lines.push('        <flags iscontrolled="FALSE" isprotected="FALSE" usedtd="FALSE" logxml="FALSE"/>');
       lines.push('      </element>');
     }
 
@@ -401,20 +355,24 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
       }
       const carrier = assoc.associationClassId ? classById.get(assoc.associationClassId) : undefined;
       const name = carrier?.name ?? assoc.name ?? '';
-      const ownerId = carrier?.packageId && packageMap.has(carrier.packageId) ? carrier.packageId : EA_ROOT_PACKAGE_ID;
-      const ownerName = carrier?.packageId && packageMap.has(carrier.packageId) ? packageMap.get(carrier.packageId)!.name : model.name;
+      const ownerId = EA_ROOT_PACKAGE_ID;
+      const ownerName = model.name;
+      // nType="17" = AssociationClass en EA; conID enlaza el elemento con el
+      // objeto conector (identidad propia, CONN_<id>).
       lines.push(`      <element xmi:idref="${escapeXml(assoc.id)}" xmi:type="uml:Class" name="${escapeXml(name)}" scope="public">`);
       lines.push(`        <model package="${escapeXml(ownerId)}" tpos="0" ea_localid="${localId(assoc.id)}" ea_eleType="element"/>`);
-      lines.push(`        <properties isSpecification="false" sType="Class" nType="0" scope="public" isRoot="false" isLeaf="false" isAbstract="false" isActive="false"${carrier?.description ? ` documentation="${escapeXml(carrier.description)}"` : ''}/>`);
+      lines.push(`        <properties isSpecification="false" sType="Class" nType="17" scope="public" isRoot="false" isLeaf="false" isAbstract="false" isActive="false"${carrier?.description ? ` documentation="${escapeXml(carrier.description)}"` : ''}/>`);
       lines.push(`        <project author="case-web" version="1.0" phase="1.0" created="${EA_TIMESTAMP}" modified="${EA_TIMESTAMP}" complexity="1" status="Proposed"/>`);
       lines.push('        <code gentype="Java"/>');
       lines.push('        <style appearance="BackColor=-1;BorderColor=-1;BorderWidth=-1;FontColor=-1;VSwimLanes=1;HSwimLanes=1;BorderStyle=0;"/>');
       lines.push('        <tags/>');
       lines.push('        <xrefs/>');
-      lines.push(`        <extendedProperties tagged="0" package_name="${escapeXml(ownerName)}"/>`);
+      lines.push(`        <extendedProperties tagged="0" package_name="${escapeXml(ownerName)}" conID="${escapeXml(connectorId(assoc))}"/>`);
+      renderExtAttributes(carrier?.attributes ?? []);
       lines.push('        <links>');
-      lines.push(`          <Association xmi:id="${escapeXml(assoc.id)}" start="${escapeXml(assoc.sourceClassId)}" end="${escapeXml(assoc.targetClassId)}"/>`);
+      lines.push(`          <Association xmi:id="${escapeXml(connectorId(assoc))}" start="${escapeXml(assoc.sourceClassId)}" end="${escapeXml(assoc.targetClassId)}"/>`);
       lines.push('        </links>');
+      lines.push('        <flags iscontrolled="FALSE" isprotected="FALSE" usedtd="FALSE" logxml="FALSE"/>');
       lines.push('      </element>');
     }
 
@@ -426,6 +384,10 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
     }
 
     lines.push('    </connectors>');
+    lines.push('    <primitivetypes>');
+    lines.push('      <packagedElement xmi:type="uml:Package" xmi:id="EAPrimitiveTypesPackage" name="EA_PrimitiveTypes_Package" visibility="public"/>');
+    lines.push('    </primitivetypes>');
+    lines.push('    <profiles/>');
 
     renderDiagram(localIds);
 
@@ -444,36 +406,42 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
         ? 'Dependency'
         : 'Association';
     const isAssocKind = kind === 'association' || kind === 'aggregation' || kind === 'composition' || kind === 'associationClass';
-    const direction = assoc.navigability === 'bidirectional' && isAssocKind
-      ? 'Bi-Directional'
-      : 'Source -&gt; Destination';
+    // EA 15: bidireccional = ambos extremos navegables; unidireccional = solo
+    // el destino. subtype="Class" marca el conector de una clase-asociación.
+    const direction = !isAssocKind
+      ? 'Source -&gt; Destination'
+      : assoc.navigability === 'bidirectional'
+        ? 'Bi-Directional'
+        : 'Source -&gt; Destination';
     const aggregation = kind === 'aggregation' ? 'shared' : kind === 'composition' ? 'composite' : 'none';
-    const nameAttr = assoc.name ? ` name="${escapeXml(assoc.name)}"` : '';
+    const connectorName = kind === 'associationClass'
+      ? (assoc.associationClassId ? classes.get(assoc.associationClassId)?.name : undefined) ?? assoc.name
+      : assoc.name;
+    const nameAttr = connectorName ? ` name="${escapeXml(connectorName)}"` : '';
 
-    lines.push(`      <connector xmi:idref="${escapeXml(assoc.id)}"${nameAttr}>`);
-    // Bidireccional: ambos extremos navegables. Unidireccional (o gen/dep):
-    // solo el extremo destino es navegable.
+    lines.push(`      <connector xmi:idref="${escapeXml(connectorId(assoc))}"${nameAttr}>`);
     const srcNavigable = isAssocKind && assoc.navigability === 'bidirectional';
     renderConnectorEnd('source', assoc.sourceClassId, assoc.sourceMultiplicity, isAssocKind, aggregation, srcNavigable);
     renderConnectorEnd('target', assoc.targetClassId, assoc.targetMultiplicity, isAssocKind, 'none', true);
     lines.push(`        <model ea_localid="${localId(assoc.id)}"/>`);
-    lines.push(`        <properties ea_type="${eaType}" direction="${direction}"/>`);
+    const subtypeAttr = kind === 'associationClass' ? ' subtype="Class"' : '';
+    lines.push(`        <properties ea_type="${eaType}"${subtypeAttr} direction="${direction}"/>`);
     lines.push('        <modifiers isRoot="false" isLeaf="false"/>');
     lines.push('        <parameterSubstitutions/>');
     lines.push(`        <documentation${assoc.description ? ` value="${escapeXml(assoc.description)}"` : ''}/>`);
-    lines.push('        <appearance linemode="3" linecolor="-1" linewidth="0" seqno="0" headStyle="0" lineStyle="0"/>');
+    lines.push('        <appearance linemode="3" linecolor="0" linewidth="0" seqno="0" headStyle="0" lineStyle="0"/>');
     if (isAssocKind) {
-      const mtAttr = assoc.name ? ` mt="${escapeXml(assoc.name)}"` : '';
-      lines.push(`        <labels lb="${escapeXml(assoc.sourceMultiplicity)}"${mtAttr} rb="${escapeXml(assoc.targetMultiplicity)}"/>`);
+      const mtAttr = connectorName ? ` mt="${escapeXml(connectorName)}"` : '';
+      lines.push(`        <labels lb="${escapeXml(eaMultiplicity(assoc.sourceMultiplicity))}"${mtAttr} rb="${escapeXml(eaMultiplicity(assoc.targetMultiplicity))}"/>`);
     } else {
       lines.push('        <labels/>');
     }
-    // En uml:AssociationClass clase y asociación comparten el mismo xmi:id;
-    // associationclass apunta a ese elemento fusionado.
-    const assocClassAttr = kind === 'associationClass'
-      ? ` associationclass="${escapeXml(assoc.id)}"`
+    // Clase-asociación: associationclass = xmi:id del elemento fusionado;
+    // privatedata1 = ea_localid de ese elemento.
+    const extProps = kind === 'associationClass'
+      ? ` associationclass="${escapeXml(assoc.id)}" privatedata1="${localId(assoc.id)}"`
       : '';
-    lines.push(`        <extendedProperties virtualInheritance="0"${assocClassAttr}/>`);
+    lines.push(`        <extendedProperties${extProps}/>`);
     lines.push('        <style/>');
     lines.push('        <xrefs/>');
     lines.push('        <tags/>');
@@ -488,14 +456,14 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
       navigable: boolean
     ) {
       const cls = classes.get(classId);
-      const multAttr = withMultiplicity ? ` multiplicity="${escapeXml(multiplicity)}"` : '';
+      const multAttr = withMultiplicity ? ` multiplicity="${escapeXml(eaMultiplicity(multiplicity))}"` : '';
       lines.push(`        <${tag} xmi:idref="${escapeXml(classId)}">`);
       lines.push(`          <model ea_localid="${localId(classId)}" type="Class" name="${escapeXml(cls?.name ?? classId)}"/>`);
-      lines.push('          <role visibility="Public" targetScope="instance"/>');
-      lines.push(`          <type${multAttr} aggregation="${agg}" containment="Unspecified"/>`);
+      lines.push('          <role visibility="Public"/>');
+      lines.push(`          <type${multAttr} aggregation="${agg}"/>`);
       lines.push('          <constraints/>');
-      lines.push(`          <modifiers isOrdered="false" changeable="none" isNavigable="${navigable}"/>`);
-      lines.push(`          <style value="Union=0;Derived=0;AllowDuplicates=0;Owned=0;Navigable=${navigable ? 'Navigable' : 'Non-Navigable'};"/>`);
+      lines.push(`          <modifiers isOrdered="false" isNavigable="${navigable}"/>`);
+      lines.push(`          <style value="Derived=0;Union=0;Owned=0;Navigable=${navigable ? 'Navigable' : 'Unspecified'};"/>`);
       lines.push('          <documentation/>');
       lines.push('          <xrefs/>');
       lines.push('          <tags/>');
@@ -551,58 +519,6 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
   }
 
   /**
-   * Emite <umldi:Diagram> dentro de uml:Model — la representación estándar
-   * UML Diagram Interchange desde la que EA crea el diagrama de clases al
-   * importar. Sin este bloque EA importa el modelo pero no crea el diagrama.
-   */
-  function renderUmldiDiagram() {
-    const boxes = getDiagramBoxes();
-    const boxById = new Map(boxes.map(b => [b.id, b]));
-    const diagramId = `DGM_${model.id}`;
-
-    lines.push(`    <umldi:Diagram xmi:type="umldi:UMLClassDiagram" xmi:id="${escapeXml(diagramId)}" isFrame="false" modelElement="${EA_ROOT_PACKAGE_ID}">`);
-    for (const box of boxes) {
-      lines.push(`      <ownedElement xmi:type="umldi:UMLClassifierShape" xmi:id="SHP_${escapeXml(box.id)}" modelElement="${escapeXml(box.id)}">`);
-      lines.push(`        <ownedElement xmi:type="umldi:UMLNameLabel" xmi:id="NL_${escapeXml(box.id)}" text="${escapeXml(box.name)}"/>`);
-      lines.push(`        <bounds xmi:type="dc:bounds" xmi:id="DB_${escapeXml(box.id)}" x="${box.left}" y="${box.top}" width="${box.right - box.left}" height="${box.bottom - box.top}"/>`);
-      lines.push('      </ownedElement>');
-    }
-    for (const assoc of model.associations) {
-      const src = boxById.get(assoc.sourceClassId);
-      const tgt = boxById.get(assoc.targetClassId);
-      if (!src || !tgt) {
-        continue;
-      }
-      // Conecta el borde más cercano: si el destino está a la derecha, sale
-      // por la derecha del origen; si no, por la izquierda.
-      const forward = tgt.left >= src.left;
-      const srcX = forward ? src.right : src.left;
-      const tgtX = forward ? tgt.left : tgt.right;
-      const srcY = Math.round((src.top + src.bottom) / 2);
-      const tgtY = Math.round((tgt.top + tgt.bottom) / 2);
-      const midX = Math.round((srcX + tgtX) / 2);
-      const midY = Math.round((srcY + tgtY) / 2);
-      const edgeId = `EDG_${assoc.id}`;
-      lines.push(`      <ownedElement xmi:type="umldi:UMLEdge" xmi:id="${escapeXml(edgeId)}" source="${escapeXml(assoc.sourceClassId)}" target="${escapeXml(assoc.targetClassId)}" modelElement="${escapeXml(assoc.id)}">`);
-      lines.push(`        <ownedElement xmi:type="umldi:UMLMultiplicityLabel" xmi:id="SML_${escapeXml(assoc.id)}" text="${escapeXml(assoc.sourceMultiplicity)}" modelElement="END_${escapeXml(assoc.id)}_SRC">`);
-      lines.push(`          <bounds xmi:type="dc:bounds" xmi:id="DBSML_${escapeXml(assoc.id)}" x="${srcX + (forward ? 8 : -40)}" y="${srcY + 8}" width="32" height="13"/>`);
-      lines.push('        </ownedElement>');
-      if (assoc.name) {
-        lines.push(`        <ownedElement xmi:type="umldi:UMLNameLabel" xmi:id="NL_${escapeXml(assoc.id)}" text="${escapeXml(assoc.name)}">`);
-        lines.push(`          <bounds xmi:type="dc:bounds" xmi:id="DBNL_${escapeXml(assoc.id)}" x="${midX - 30}" y="${midY - 18}" width="60" height="13"/>`);
-        lines.push('        </ownedElement>');
-      }
-      lines.push(`        <ownedElement xmi:type="umldi:UMLMultiplicityLabel" xmi:id="TML_${escapeXml(assoc.id)}" text="${escapeXml(assoc.targetMultiplicity)}" modelElement="END_${escapeXml(assoc.id)}_TGT">`);
-      lines.push(`          <bounds xmi:type="dc:bounds" xmi:id="DBTML_${escapeXml(assoc.id)}" x="${tgtX + (forward ? -40 : 8)}" y="${tgtY + 8}" width="32" height="13"/>`);
-      lines.push('        </ownedElement>');
-      lines.push(`        <waypoint xmi:type="dc:waypoint" xmi:id="WP0_${escapeXml(assoc.id)}" x="${srcX}" y="${srcY}"/>`);
-      lines.push(`        <waypoint xmi:type="dc:waypoint" xmi:id="WP1_${escapeXml(assoc.id)}" x="${tgtX}" y="${tgtY}"/>`);
-      lines.push('      </ownedElement>');
-    }
-    lines.push('    </umldi:Diagram>');
-  }
-
-  /**
    * Emite un diagrama de clases UML (type="Logical") con todas las clases en
    * una grilla determinista y todos los conectores. Sin este bloque EA importa
    * el modelo pero no crea ningún diagrama.
@@ -627,29 +543,35 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
 
     lines.push('    <diagrams>');
     lines.push(`      <diagram xmi:id="${escapeXml(diagramId)}">`);
-    lines.push(`        <model package="${escapeXml(owner)}" localID="${localIds.size + 1}" owner="${escapeXml(owner)}" tpos="0"/>`);
+    lines.push(`        <model package="${escapeXml(owner)}" localID="${localIds.size + 1}" owner="${escapeXml(owner)}"/>`);
     lines.push(`        <properties name="${escapeXml(model.name)}" type="Logical"/>`);
     lines.push(`        <project author="case-web" version="1.0" created="${EA_TIMESTAMP}" modified="${EA_TIMESTAMP}"/>`);
-    lines.push('        <style1 value="ShowPrivate=1;ShowProtected=1;ShowPublic=1;HideRelationships=0;Locked=0;Border=1;HighlightForeign=1;PackageContents=1;SequenceNotes=0;ScalePrintImage=0;PPgs.cx=1;PPgs.cy=1;DocSize.cx=826;DocSize.cy=1169;ShowDetails=0;Orientation=P;Zoom=100;ShowTags=0;OpParams=1;VisibleAttributeDetail=0;ShowIcons=1;ShowReqs=0;ShowCons=0;PaperSize=9;HideParents=0;UseAlias=0;HideAtts=0;HideOps=0;HideStereo=0;HideProps=0;ShowReqSymbols=0;ShowConsSymbols=0;ShowSequence=0;ShowAttribs=1;ShowOps=1;ShowSN=1;ShowNotes=0;"/>');
-    lines.push('        <style2 value="ExcludeRTF=0;DocAll=0;HideQuals=0;AttPkg=1;ShowTests=0;ShowMaint=0;SuppressFOC=1;MatrixActive=0;SwimlanesActive=1;KanbanActive=0;MatrixLineWidth=1;MatrixLineClr=0;MatrixLocked=0;TConnectorNotation=UML 2.1;TExplicitNavigability=0;AdvancedElementProps=1;AdvancedFeatureProps=1;AdvancedConnectorProps=1;mNTElement=1;mNTConnector=1;mNTDefaultLab=0;mNTDefaultName=0;mNTDefaultType=0;mNTDefaultStereotype=0;"/>');
-    lines.push('        <swimlanes value="locked=false;orientation=0;width=0;inbar=false;names=false;color=-1;bold=false;"/>');
+    lines.push('        <style1 value="ShowPrivate=1;ShowProtected=1;ShowPublic=1;HideRelationships=0;Locked=0;Border=1;HighlightForeign=1;PackageContents=1;SequenceNotes=0;ScalePrintImage=0;PPgs.cx=0;PPgs.cy=0;DocSize.cx=850;DocSize.cy=1098;ShowDetails=0;Orientation=P;Zoom=100;ShowTags=0;OpParams=1;VisibleAttributeDetail=0;ShowOpRetType=1;ShowIcons=1;CollabNums=0;HideProps=0;ShowReqs=0;ShowCons=0;PaperSize=1;HideParents=0;UseAlias=0;HideAtts=0;HideOps=0;HideStereo=0;HideElemStereo=0;ShowTests=0;ShowMaint=0;ConnectorNotation=UML 2.1;ExplicitNavigability=0;ShowShape=1;AllDockable=0;AdvancedElementProps=1;AdvancedFeatureProps=1;AdvancedConnectorProps=1;m_bElementClassifier=1;SPT=1;ShowNotes=0;SuppressBrackets=0;SuppConnectorLabels=0;PrintPageHeadFoot=0;ShowAsList=0;"/>');
+    lines.push('        <style2 value="ExcludeRTF=0;DocAll=0;HideQuals=0;AttPkg=1;ShowTests=0;ShowMaint=0;SuppressFOC=1;MatrixActive=0;SwimlanesActive=1;KanbanActive=0;MatrixLineWidth=1;MatrixLineClr=0;MatrixLocked=0;TConnectorNotation=UML 2.1;TExplicitNavigability=0;AdvancedElementProps=1;AdvancedFeatureProps=1;AdvancedConnectorProps=1;m_bElementClassifier=1;SPT=1;MDGDgm=;STBLDgm=;ShowNotes=0;VisibleAttributeDetail=0;ShowOpRetType=1;SuppressBrackets=0;SuppConnectorLabels=0;PrintPageHeadFoot=0;ShowAsList=0;SuppressedCompartments=;Theme=:119;"/>');
+    lines.push('        <swimlanes value="locked=false;orientation=0;width=0;inbar=false;names=false;color=-1;bold=false;fcol=0;tcol=-1;ofCol=-1;ufCol=-1;hl=0;ufh=0;hh=0;cls=0;bw=0;hli=0;SwimlaneFont=lfh:-16,lfw:0,lfi:0,lfu:0,lfs:0,lfface:Calibri,lfe:0,lfo:0,lfchar:1,lfop:0,lfcp:0,lfq:0,lfpf=0,lfWidth=0;"/>');
     lines.push('        <matrixitems value="locked=false;matrixactive=false;swimlanesactive=true;kanbanactive=false;width=1;clrLine=0;"/>');
     lines.push('        <extendedProperties/>');
-    lines.push('        <xrefs/>');
     lines.push('        <elements>');
 
-    // Misma grilla que el diagrama UMLDI.
+    const objStyle = 'NSL=0;BCol=-1;BFol=-1;LCol=-1;LWth=-1;fontsz=0;bold=0;black=0;italic=0;ul=0;charset=0;pitch=0;';
     getDiagramBoxes().forEach((box, i) => {
-      lines.push(`          <element geometry="Left=${box.left};Top=${box.top};Right=${box.right};Bottom=${box.bottom};" subject="${escapeXml(box.id)}" seqno="${i + 1}" style="DUID=${duid(box.id)};"/>`);
+      lines.push(`          <element geometry="Left=${box.left};Top=${box.top};Right=${box.right};Bottom=${box.bottom};" subject="${escapeXml(box.id)}" seqno="${i + 1}" style="DUID=${duid(box.id)};${objStyle}"/>`);
     });
 
+    // Geometría de etiquetas de EA: CX en LLB/LRB (multiplicidades) y LMT
+    // (nombre). subject es el id del conector (propio en clase-asociación).
+    const labelGeo = (cx: number) => `CX=${cx}:CY=14:OX=0:OY=0:HDN=0:BLD=0:ITA=0:UND=0:CLR=-1:ALN=1:DIR=0:ROT=0`;
     for (const assoc of model.associations) {
       const srcDuid = duids.get(assoc.sourceClassId);
       const tgtDuid = duids.get(assoc.targetClassId);
       if (!srcDuid || !tgtDuid) {
         continue;
       }
-      lines.push(`          <element geometry="SX=0;SY=0;EX=0;EY=0;EDGE=1;$LLB=;LLT=;LMT=;LMB=;LRT=;LRB=;IRHS=;ILHS=;Path=;" subject="${escapeXml(assoc.id)}" style="Mode=3;EOID=${tgtDuid};SOID=${srcDuid};Color=-1;LWidth=0;Hidden=0;"/>`);
+      const isAssocKind = assoc.kind !== 'generalization' && assoc.kind !== 'dependency';
+      const llb = isAssocKind ? `$LLB=${labelGeo(17)};` : '$LLB=;';
+      const lmt = assoc.name ? `LMT=${labelGeo(29)};` : 'LMT=;';
+      const lrb = isAssocKind ? `LRB=${labelGeo(17)};` : 'LRB=;';
+      lines.push(`          <element geometry="EDGE=1;${llb}LLT=;${lmt}LMB=;LRT=;${lrb}IRHS=;ILHS=;Path=;" subject="${escapeXml(connectorId(assoc))}" style="Mode=3;EOID=${tgtDuid};SOID=${srcDuid};Color=-1;LWidth=0;Hidden=0;"/>`);
     }
 
     lines.push('        </elements>');
@@ -665,6 +587,42 @@ function escapeXml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+/**
+ * Primitivos UML estándar: EA los referencia por href a la librería
+ * PrimitiveTypes.xmi. Los tipos sin equivalente UML (Date, DateTime, UUID,
+ * long) se emiten como EAnone_<nombre> y el nombre visible va en la extensión.
+ */
+const UML_PRIMITIVE_HREF: Record<string, string> = {
+  String: 'http://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#String',
+  int: 'http://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#Integer',
+  double: 'http://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#Real',
+  boolean: 'http://www.omg.org/spec/UML/20161101/PrimitiveTypes.xmi#Boolean'
+};
+
+/** Nombre del tipo tal como EA lo muestra en el atributo (properties type=). */
+function mapCanonicalTypeToEa(type: CanonicalType): string {
+  switch (type) {
+    case 'String':
+      return 'String';
+    case 'Integer':
+      return 'int';
+    case 'Long':
+      return 'long';
+    case 'Double':
+      return 'double';
+    case 'Boolean':
+      return 'boolean';
+    case 'Date':
+      return 'Date';
+    case 'DateTime':
+      return 'DateTime';
+    case 'UUID':
+      return 'UUID';
+    default:
+      return type;
+  }
 }
 
 function mapCanonicalTypeToXmi(type: CanonicalType): string {
@@ -688,6 +646,47 @@ function mapCanonicalTypeToXmi(type: CanonicalType): string {
     default:
       return type;
   }
+}
+
+/**
+ * En EA el conector de una clase-asociación es un objeto con identidad propia
+ * (guid distinto del elemento uml:AssociationClass). El elemento lo referencia
+ * vía conID y el conector via associationclass.
+ */
+function connectorId(assoc: CanonicalAssociation): string {
+  return assoc.kind === 'associationClass' ? `CONN_${assoc.id}` : assoc.id;
+}
+
+/**
+ * EA 15 codifica el límite superior: LiteralInteger para valores finitos,
+ * LiteralUnlimitedNatural value="-1" para '*'.
+ */
+function upperValueTag(id: string, upper: string): string {
+  return upper === '*'
+    ? `<upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="${escapeXml(id)}" value="-1"/>`
+    : `<upperValue xmi:type="uml:LiteralInteger" xmi:id="${escapeXml(id)}" value="${escapeXml(upper)}"/>`;
+}
+
+/** Multiplicidad canónica en la notación rango de EA ('1' → '1..1'). */
+function eaMultiplicity(mult: string): string {
+  return mult === '1' ? '1..1' : mult;
+}
+
+/**
+ * GUID determinista derivado del id (EA usa {GUID}; cualquier valor estable
+ * con formato GUID sirve para las referencias internas de la extensión).
+ */
+function eaGuid(id: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let i = 0; i < id.length; i++) {
+    h1 = Math.imul(h1 ^ id.charCodeAt(i), 0x01000193);
+    h2 = Math.imul(h2 ^ id.charCodeAt(id.length - 1 - i), 0x811c9dc5);
+  }
+  const hex = (n: number) => (n >>> 0).toString(16).padStart(8, '0').toUpperCase();
+  const a = hex(h1);
+  const b = hex(h2);
+  return `{${a}-${b.slice(0, 4)}-${b.slice(4)}-${a.slice(0, 4)}-${a.slice(4)}${b}}`;
 }
 
 function getBoundsFromMultiplicity(mult: string): { lower: string; upper: string } {

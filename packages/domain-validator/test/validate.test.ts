@@ -54,14 +54,14 @@ describe("contrato domain-model v1 — ejemplos normativos §6", () => {
     ]);
   });
 
-  it("rechaza nombres de clase duplicados en el mismo paquete (§6.2.4)", () => {
+  it("rechaza nombres de clase duplicados en el ámbito raíz (§6.2.4)", () => {
     const result = validate(fixture("invalid-duplicate-class-name.json"));
     expect(result.valid).toBe(false);
     expect(result.errors).toEqual([
       {
         code: "DUPLICATE_NAME",
         path: "$.classes[1].name",
-        message: "Nombre 'Entidad' duplicado en el paquete 'pkg-a'.",
+        message: "Nombre 'Entidad' duplicado en el espacio de nombres raíz.",
         severity: "ERROR",
       },
     ]);
@@ -97,24 +97,8 @@ describe("restricciones adicionales del contrato", () => {
     const result = validate(fixture("invalid-missing-arrays.json"));
     expect(result.valid).toBe(false);
     const paths = result.errors.map((e) => `${e.code}@${e.path}`);
-    expect(paths).toContain("MISSING_REQUIRED_FIELD@$.packages");
     expect(paths).toContain("MISSING_REQUIRED_FIELD@$.classes");
     expect(paths).toContain("MISSING_REQUIRED_FIELD@$.associations");
-  });
-
-  it("rechaza un packageId de clase que no existe", () => {
-    const result = validate(fixture("invalid-unresolved-package-reference.json"));
-    expect(result.valid).toBe(false);
-    expect(result.errors[0]).toMatchObject({
-      code: "UNRESOLVED_REFERENCE",
-      path: "$.classes[0].packageId",
-    });
-  });
-
-  it("rechaza ciclos en la jerarquía de paquetes", () => {
-    const result = validate(fixture("invalid-package-cycle.json"));
-    expect(result.valid).toBe(false);
-    expect(result.errors.map((e) => e.code)).toContain("PACKAGE_CYCLE");
   });
 
   it("rechaza auto-asociaciones", () => {
@@ -127,12 +111,6 @@ describe("restricciones adicionales del contrato", () => {
     const result = validate(fixture("invalid-duplicate-id.json"));
     expect(result.valid).toBe(false);
     expect(result.errors.map((e) => e.code)).toContain("DUPLICATE_ID");
-  });
-
-  it("permite el mismo nombre de clase en paquetes distintos", () => {
-    const result = validate(fixture("valid-duplicate-class-names-different-packages.json"));
-    expect(result.errors).toEqual([]);
-    expect(result.valid).toBe(true);
   });
 
   it("advierte sobre multiplicity '0..1' con nullable false", () => {
@@ -191,7 +169,6 @@ function doc(associations: unknown[]): unknown {
     id: "m1",
     name: "Test",
     version: "1.0.0",
-    packages: [],
     classes: [
       { id: "c-a", name: "Padre", attributes: [] },
       { id: "c-b", name: "Hija", attributes: [] },

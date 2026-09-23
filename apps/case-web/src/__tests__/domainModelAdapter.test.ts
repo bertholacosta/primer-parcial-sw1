@@ -36,7 +36,6 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
       id: 'm-1',
       name: 'Modelo Incompatible',
       version: '1.0.0',
-      packages: [],
       classes: [],
       associations: [],
     };
@@ -58,7 +57,6 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
       name: 'Sin Version',
       version: '1.0.0',
       classes: [],
-      packages: [],
       associations: [],
     };
 
@@ -67,13 +65,12 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
     );
   });
 
-  it('rechaza documentos donde faltan los arrays obligatorios de clases o paquetes', () => {
+  it('rechaza documentos donde faltan los arrays obligatorios de clases o asociaciones', () => {
     const missingClasses = {
       contractVersion: '1',
       id: 'm-1',
       name: 'Sin Classes',
       version: '1.0.0',
-      packages: [],
       associations: [],
     };
 
@@ -84,10 +81,9 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
     const model = parseDomainModel(DEFAULT_CANONICAL_FIXTURE);
     const nodes = modelToFlowNodes(model);
 
-    // 2 clases + 1 paquete del fixture
-    expect(nodes).toHaveLength(3);
+    // Solo nodos de clase: el paquete raíz no se materializa como nodo
+    expect(nodes).toHaveLength(2);
     expect(nodes.filter((n) => n.type === 'umlClass')).toHaveLength(2);
-    expect(nodes.filter((n) => n.type === 'umlPackage')).toHaveLength(1);
 
     const libroNode = nodes.find((n) => n.id === 'cls-01');
     expect(libroNode).toBeDefined();
@@ -113,7 +109,6 @@ describe('domainModelAdapter — parseDomainModel & modelToFlowNodes', () => {
       id: 'custom-99',
       name: 'Hospital',
       version: '1.0.0',
-      packages: [],
       classes: [
         {
           id: 'cls-paciente',
@@ -144,7 +139,6 @@ describe('modelToFlowEdges — tipos de relación (ADR-0009)', () => {
       id: 'm1',
       name: 'T',
       version: '1.0.0',
-      packages: [],
       classes: [
         { id: 'a', name: 'Padre', attributes: [] },
         { id: 'b', name: 'Hija', attributes: [] },

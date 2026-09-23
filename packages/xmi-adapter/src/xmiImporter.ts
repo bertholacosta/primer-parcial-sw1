@@ -2,13 +2,13 @@ import { parseXml, XmlNode, XmlParseError } from './xmlParser.js';
 import { EA_ROOT_PACKAGE_ID } from './xmiExporter.js';
 import {
   CanonicalDomainModel,
-  CanonicalPackage,
   CanonicalClass,
   CanonicalAttribute,
   CanonicalAssociation,
   CanonicalType,
   CanonicalMultiplicity,
   CanonicalNavigability,
+  CanonicalAssociationKind,
   ImportResult,
   ImportOptions,
   XmiDiagnostic
@@ -19,16 +19,42 @@ const KNOWN_IGNORED_PACKAGED_TYPES = new Set([
   'uml:Enumeration',
   'uml:DataType',
   'uml:PrimitiveType',
-  'uml:Dependency',
   'uml:Realization',
   'uml:Usage',
   'uml:Component',
   'uml:Artifact',
   'uml:Node',
   'uml:Collaboration',
-  'uml:Signal',
-  'uml:AssociationClass'
+  'uml:Signal'
 ]);
+
+/**
+ * Normaliza atributos del namespace XMI con prefijos no estándar: los exports
+ * reales pueden declarar el namespace XMI con otro prefijo (`x:id`, `XMI:id`…)
+ * o usar `xmi:uuid`. Se copian a la forma `xmi:*` canónica sin pisar valores
+ * existentes. No toca atributos sin prefijo ni `type` plano (tipo UML).
+ */
+function normalizeXmiAttributes(node: XmlNode) {
+  const XMI_LOCALS: Record<string, string> = {
+    id: 'xmi:id',
+    uuid: 'xmi:uuid',
+    type: 'xmi:type',
+    idref: 'xmi:idref',
+    version: 'xmi:version'
+  };
+  const walk = (n: XmlNode) => {
+    for (const key of Object.keys(n.attributes)) {
+      const idx = key.indexOf(':');
+      if (idx <= 0 || key.startsWith('xmi:')) continue;
+      const target = XMI_LOCALS[key.slice(idx + 1)];
+      if (target && n.attributes[target] === undefined) {
+        n.attributes[target] = n.attributes[key];
+      }
+    }
+    n.children.forEach(walk);
+  };
+  walk(node);
+}
 
 export function importXmi(xmiContent: string, options: ImportOptions = {}): ImportResult {
   const diagnostics: XmiDiagnostic[] = [];
@@ -36,6 +62,7 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
   let rootNode: XmlNode;
   try {
     rootNode = parseXml(xmiContent);
+    normalizeXmiAttributes(rootNode);
   } catch (error) {
     const err = error as XmlParseError;
     return {
@@ -52,9 +79,9 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
     };
   }
 
-  // Find xmi:XMI root
+  // Find xmi:XMI root (por nombre local: el prefijo del namespace puede variar)
   let xmiRoot = rootNode;
-  if (rootNode.name !== 'xmi:XMI' && rootNode.name !== 'XMI') {
+  if (getLocalName(rootNode.name) !== 'XMI') {
     const found = findFirstChildByLocalName(rootNode, 'XMI');
     if (!found) {
       return {
@@ -126,8 +153,13 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
     };
   }
 
+  // EA escribe en <xmi:Documentation> la versión del extender XMI ('6.5'),
+  // no la del producto: exports reales de EA 15 declaran "6.5". También se
+  // acepta la versión de producto (15.x/16.x) que otros generadores emiten.
   const versionNum = parseFloat(exporterVersion);
-  if (isNaN(versionNum) || versionNum < 15.0 || versionNum >= 17.0) {
+  const isEaExtender = versionNum >= 6.0 && versionNum < 7.0;
+  const isEaProduct = versionNum >= 15.0 && versionNum < 17.0;
+  if (isNaN(versionNum) || (!isEaExtender && !isEaProduct)) {
     return {
       outcome: 'error',
       canonicalModel: null,
@@ -159,21 +191,18 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
     };
   }
 
-  const modelId = modelNode.attributes['xmi:id'];
-  const modelName = modelNode.attributes['name'];
-  if (!modelId || !modelName) {
-    return {
-      outcome: 'error',
-      canonicalModel: null,
-      diagnostics: [
-        {
-          code: 'MALFORMED_XMI',
-          severity: 'ERROR',
-          path: 'uml:Model',
-          message: 'Elemento uml:Model requiere atributos xmi:id y name.'
-        }
-      ]
-    };
+  // Algunos exports omiten id/name en el modelo raíz o usan xmi:uuid: se
+  // derivan valores por defecto en lugar de abortar (§3.1, contrato v1.1).
+  const modelId =
+    modelNode.attributes['xmi:id'] || modelNode.attributes['xmi:uuid'] || 'MODEL_ROOT';
+  const modelName = modelNode.attributes['name'] || 'Modelo_EA';
+  if (!modelNode.attributes['xmi:id'] || !modelNode.attributes['name']) {
+    diagnostics.push({
+      code: 'ELEMENT_IGNORED',
+      severity: 'INFO',
+      path: 'uml:Model',
+      message: `uml:Model sin ${!modelNode.attributes['xmi:id'] ? 'xmi:id' : 'name'}; se usan valores derivados ('${modelId}'/'${modelName}').`
+    });
   }
 
   // First pass: gather all class IDs in the model to distinguish scalar attributes from association ends (§3.4)
@@ -182,7 +211,9 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
     for (const child of node.children) {
       if (getLocalName(child.name) === 'packagedElement') {
         const type = child.attributes['xmi:type'];
-        if (type === 'uml:Class') {
+        // uml:AssociationClass es también un clasificador: un ownedAttribute
+        // tipado a ella es un extremo de asociación, no un atributo escalar.
+        if (type === 'uml:Class' || type === 'uml:AssociationClass') {
           const id = child.attributes['xmi:id'];
           if (id) allClassIds.add(id);
         }
@@ -192,7 +223,6 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
   }
   collectClassIds(modelNode);
 
-  const packages: CanonicalPackage[] = [];
   const classes: CanonicalClass[] = [];
   const associations: CanonicalAssociation[] = [];
 
@@ -229,17 +259,40 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
   }
   indexPropertyNodes(modelNode);
 
+  // Los exports reales de EA no siempre declaran el tipo del atributo en la
+  // sección UML: lo escriben en la extensión propietaria
+  // (<element>/<attributes>/<attribute xmi:idref>/<properties type="…"/>).
+  // Se indexa para usarlo como fallback de resolución de tipo (§3.4, v1.1).
+  const extensionAttrTypes = new Map<string, string>();
+  const extensionNode = findFirstChildByLocalName(xmiRoot, 'Extension');
+  if (extensionNode) {
+    const elementsNode = findFirstChildByLocalName(extensionNode, 'elements');
+    for (const el of elementsNode?.children ?? []) {
+      if (getLocalName(el.name) !== 'element') continue;
+      const attrsNode = findFirstChildByLocalName(el, 'attributes');
+      for (const attrEl of attrsNode?.children ?? []) {
+        if (getLocalName(attrEl.name) !== 'attribute') continue;
+        const ref = attrEl.attributes['xmi:idref'] || attrEl.attributes['idref'];
+        const propsNode = findFirstChildByLocalName(attrEl, 'properties');
+        const eaType = propsNode?.attributes['type'];
+        if (ref && eaType) extensionAttrTypes.set(ref, eaType);
+      }
+    }
+  }
+
   // Traverse model elements
-  function processPackageChildren(pkgNode: XmlNode, parentPath: string, parentPackageId: string) {
+  function processPackageChildren(pkgNode: XmlNode, parentPath: string) {
     for (const child of pkgNode.children) {
       if (getLocalName(child.name) === 'packagedElement') {
         const type = child.attributes['xmi:type'];
         if (type === 'uml:Package') {
-          processPackage(child, parentPath, parentPackageId);
+          processPackage(child, parentPath);
         } else if (type === 'uml:Class') {
-          processClass(child, parentPath, parentPackageId);
-        } else if (type === 'uml:Association') {
+          processClass(child, parentPath);
+        } else if (type === 'uml:Association' || type === 'uml:AssociationClass') {
           processAssociation(child, parentPath);
+        } else if (type === 'uml:Dependency') {
+          processDependency(child, parentPath);
         } else if (KNOWN_IGNORED_PACKAGED_TYPES.has(type)) {
           if (options.verbose) {
             diagnostics.push({
@@ -262,36 +315,34 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
     }
   }
 
-  function processPackage(pkgNode: XmlNode, parentPath: string, parentId?: string) {
+  // uml:Package no se materializa (v1.1: solo existe el paquete raíz = el
+  // modelo). Se registra su id y se recorren sus hijos, que pasan al ámbito
+  // raíz del modelo canónico.
+  function processPackage(pkgNode: XmlNode, parentPath: string) {
     const pkgId = pkgNode.attributes['xmi:id'];
-    const pkgName = pkgNode.attributes['name'];
     const currentPath = `${parentPath} / packagedElement[@xmi:id='${pkgId}']`;
 
-    if (!pkgId || !pkgName) {
+    if (!pkgId) {
       diagnostics.push({
         code: 'MALFORMED_XMI',
         severity: 'ERROR',
         path: currentPath,
-        message: 'Elemento uml:Package requiere atributos xmi:id y name.'
+        message: 'Elemento uml:Package requiere atributo xmi:id.'
       });
       return;
     }
 
     registerId(pkgId, currentPath);
-
-    const pkg: CanonicalPackage = {
-      id: pkgId,
-      name: pkgName
-    };
-    if (parentId) {
-      pkg.parentId = parentId;
-    }
-    packages.push(pkg);
-
-    processPackageChildren(pkgNode, currentPath, pkgId);
+    diagnostics.push({
+      code: 'PACKAGE_FLATTENED',
+      severity: 'INFO',
+      path: currentPath,
+      message: `Paquete '${pkgNode.attributes['name'] || pkgId}' omitido; su contenido se importa en el paquete raíz.`
+    });
+    processPackageChildren(pkgNode, currentPath);
   }
 
-  function processClass(classNode: XmlNode, parentPath: string, packageId?: string) {
+  function processClass(classNode: XmlNode, parentPath: string) {
     const classId = classNode.attributes['xmi:id'];
     const className = classNode.attributes['name'];
     const currentPath = `${parentPath} / packagedElement[@xmi:id='${classId}']`;
@@ -329,10 +380,56 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
       }
     }
 
+    const attributes = parseOwnedAttributes(classNode, currentPath, className);
+
+    // Las generalizaciones viajan como hijos <generalization> de la clase
+    // específica (origen); 'general' apunta a la clase padre (destino).
+    for (const child of classNode.children) {
+      if (getLocalName(child.name) === 'generalization') {
+        const general = child.attributes['general'] || '';
+        const genId = child.attributes['xmi:id'] || `GEN_${classId}_${associations.length}`;
+        registerId(genId, `${currentPath} / generalization[@xmi:id='${genId}']`);
+        if (!general) {
+          diagnostics.push({
+            code: 'MALFORMED_XMI',
+            severity: 'ERROR',
+            path: `${currentPath} / generalization`,
+            message: `Generalización en clase '${className}' sin atributo 'general'.`
+          });
+          continue;
+        }
+        associations.push({
+          id: genId,
+          name: child.attributes['name'] || undefined,
+          sourceClassId: classId,
+          targetClassId: general,
+          sourceMultiplicity: '1',
+          targetMultiplicity: '1',
+          navigability: 'unidirectional',
+          kind: 'generalization'
+        });
+      }
+    }
+
+    const cls: CanonicalClass = {
+      id: classId,
+      name: className,
+      attributes
+    };
+    if (description) {
+      cls.description = description;
+    }
+    classes.push(cls);
+  }
+
+  /**
+   * Atributos escalares de un clasificador (uml:Class o uml:AssociationClass):
+   * ownedAttribute sin 'association' y cuyo tipo no sea otra clase del modelo.
+   */
+  function parseOwnedAttributes(ownerNode: XmlNode, ownerPath: string, ownerName: string): CanonicalAttribute[] {
     const attributes: CanonicalAttribute[] = [];
 
-    // Parse attributes
-    for (const child of classNode.children) {
+    for (const child of ownerNode.children) {
       if (getLocalName(child.name) === 'ownedAttribute') {
         const attrTypeAttr = child.attributes['xmi:type'];
         if (attrTypeAttr && attrTypeAttr !== 'uml:Property') {
@@ -350,14 +447,14 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
 
         const attrId = child.attributes['xmi:id'];
         const attrName = child.attributes['name'];
-        const attrPath = `${currentPath} / ownedAttribute[@xmi:id='${attrId}']`;
+        const attrPath = `${ownerPath} / ownedAttribute[@xmi:id='${attrId}']`;
 
         if (!attrId || !attrName) {
           diagnostics.push({
             code: 'MALFORMED_XMI',
             severity: 'ERROR',
             path: attrPath,
-            message: `Atributo en clase '${className}' requiere atributos xmi:id y name.`
+            message: `Atributo en clase '${ownerName}' requiere atributos xmi:id y name.`
           });
           continue;
         }
@@ -384,6 +481,10 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
         if (!rawType && child.attributes['xmi:type'] && child.attributes['xmi:type'] !== 'uml:Property') {
           rawType = child.attributes['xmi:type'];
         }
+        // Fallback EA: el tipo vive en la extensión propietaria (v1.1).
+        if (!rawType) {
+          rawType = extensionAttrTypes.get(attrId) ?? '';
+        }
 
         const typeMapping = mapRawType(rawType);
 
@@ -392,10 +493,10 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
             code: 'UNKNOWN_TYPE',
             severity: 'ERROR',
             path: attrPath,
-            message: `Tipo '${rawType}' no reconocido en el perfil XMI v1. Ruta: clase '${className}' / atributo '${attrName}'. Tipos soportados: String, Integer, Long, Double, Boolean, Date, DateTime, UUID.`,
+            message: `Tipo '${rawType}' no reconocido en el perfil XMI v1. Ruta: clase '${ownerName}' / atributo '${attrName}'. Tipos soportados: String, Integer, Long, Double, Boolean, Date, DateTime, UUID.`,
             element: {
               xmiId: attrId,
-              className,
+              className: ownerName,
               attributeName: attrName,
               typeFound: rawType
             }
@@ -405,7 +506,7 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
             code: 'TYPE_PROMOTED',
             severity: 'WARNING',
             path: attrPath,
-            message: `Tipo '${rawType}' promovido a 'Double' en '${className}.${attrName}'.`
+            message: `Tipo '${rawType}' promovido a 'Double' en '${ownerName}.${attrName}'.`
           });
         }
 
@@ -416,7 +517,7 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
             code: 'UNSUPPORTED_MULTIPLICITY',
             severity: 'ERROR',
             path: attrPath,
-            message: `Multiplicidad '${multDerivation.raw}' no soportada en '${className}.${attrName}'.`
+            message: `Multiplicidad '${multDerivation.raw}' no soportada en '${ownerName}.${attrName}'.`
           });
         }
 
@@ -432,23 +533,13 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
       }
     }
 
-    const cls: CanonicalClass = {
-      id: classId,
-      name: className,
-      attributes
-    };
-    if (packageId && packageId.trim() !== '') {
-      cls.packageId = packageId;
-    }
-    if (description) {
-      cls.description = description;
-    }
-    classes.push(cls);
+    return attributes;
   }
 
   function processAssociation(assocNode: XmlNode, parentPath: string) {
     const assocId = assocNode.attributes['xmi:id'];
     const assocName = assocNode.attributes['name'] || '';
+    const isAssocClass = assocNode.attributes['xmi:type'] === 'uml:AssociationClass';
     const currentPath = `${parentPath} / packagedElement[@xmi:id='${assocId}']`;
 
     if (!assocId) {
@@ -456,7 +547,7 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
         code: 'MALFORMED_XMI',
         severity: 'ERROR',
         path: currentPath,
-        message: 'Elemento uml:Association requiere atributo xmi:id.'
+        message: `Elemento ${assocNode.attributes['xmi:type'] || 'uml:Association'} requiere atributo xmi:id.`
       });
       return;
     }
@@ -480,8 +571,25 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
     }
 
     if (endNodes.length >= 2) {
-      const srcEnd = endNodes[0];
-      const tgtEnd = endNodes[1];
+      let srcEnd = endNodes[0];
+      let tgtEnd = endNodes[1];
+
+      // El extremo con aggregation="shared|composite" es el "todo". El modelo
+      // canónico lo convenciona como origen: si EA lo marcó en el segundo
+      // extremo, se intercambian los extremos (§3.5, ADR-0009).
+      const aggOf = (e: XmlNode) => e.attributes['aggregation'] || 'none';
+      if (!isAssocClass && aggOf(srcEnd) === 'none' && (aggOf(tgtEnd) === 'shared' || aggOf(tgtEnd) === 'composite')) {
+        const tmp = srcEnd;
+        srcEnd = tgtEnd;
+        tgtEnd = tmp;
+      }
+      const kind: CanonicalAssociationKind = isAssocClass
+        ? 'associationClass'
+        : aggOf(srcEnd) === 'shared'
+          ? 'aggregation'
+          : aggOf(srcEnd) === 'composite'
+            ? 'composition'
+            : 'association';
 
       // EA emite el clasificador del extremo como hijo <type xmi:idref="..."/>;
       // otros exportadores usan el atributo type="...". Soportar ambos.
@@ -528,7 +636,22 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
         navigability = 'unidirectional';
       }
 
-      associations.push({
+      // uml:AssociationClass: el packagedElement es a la vez clase (sus
+      // ownedAttribute) y asociación. Se materializa una clase portadora con
+      // id derivado y la asociación la referencia vía associationClassId.
+      let associationClassId: string | undefined;
+      if (isAssocClass) {
+        associationClassId = `ACL_${assocId}`;
+        registerId(associationClassId, `${currentPath} / carrier-class`);
+        const carrier: CanonicalClass = {
+          id: associationClassId,
+          name: assocName,
+          attributes: parseOwnedAttributes(assocNode, currentPath, assocName)
+        };
+        classes.push(carrier);
+      }
+
+      const assoc: CanonicalAssociation = {
         id: assocId,
         name: assocName,
         sourceClassId,
@@ -536,8 +659,70 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
         sourceMultiplicity: srcMult.multiplicity!,
         targetMultiplicity: tgtMult.multiplicity!,
         navigability
-      });
+      };
+      // kind se omite para 'association' (valor por defecto del contrato).
+      if (kind !== 'association') {
+        assoc.kind = kind;
+      }
+      if (associationClassId) {
+        assoc.associationClassId = associationClassId;
+      }
+      associations.push(assoc);
     }
+  }
+
+  /**
+   * uml:Dependency (client→supplier): relación no estructural con
+   * multiplicidades y navegabilidad neutras (§3.5).
+   */
+  function processDependency(depNode: XmlNode, parentPath: string) {
+    const depId = depNode.attributes['xmi:id'];
+    const depName = depNode.attributes['name'] || '';
+    const currentPath = `${parentPath} / packagedElement[@xmi:id='${depId}']`;
+
+    if (!depId) {
+      diagnostics.push({
+        code: 'MALFORMED_XMI',
+        severity: 'ERROR',
+        path: currentPath,
+        message: 'Elemento uml:Dependency requiere atributo xmi:id.'
+      });
+      return;
+    }
+    registerId(depId, currentPath);
+
+    // client/supplier pueden ser listas separadas por espacios: tomar el primero.
+    const client = (depNode.attributes['client'] || '').split(/\s+/)[0] || '';
+    const supplier = (depNode.attributes['supplier'] || '').split(/\s+/)[0] || '';
+    if (!client || !supplier) {
+      diagnostics.push({
+        code: 'MALFORMED_XMI',
+        severity: 'ERROR',
+        path: currentPath,
+        message: `Dependencia '${depName}' requiere atributos client y supplier.`
+      });
+      return;
+    }
+    if (client === supplier) {
+      diagnostics.push({
+        code: 'SELF_ASSOCIATION_NOT_SUPPORTED',
+        severity: 'ERROR',
+        path: currentPath,
+        message: `Auto-dependencia no permitida en v1: '${depName}' (${depId}).`
+      });
+      return;
+    }
+
+    associations.push({
+      id: depId,
+      name: depName || undefined,
+      sourceClassId: client,
+      targetClassId: supplier,
+      sourceMultiplicity: '1',
+      targetMultiplicity: '1',
+      navigability: 'unidirectional',
+      kind: 'dependency'
+    });
   }
 
   // Process root uml:Model elements. Si el único packagedElement raíz es el
@@ -561,8 +746,10 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
         processPackage(child, modelPath);
       } else if (type === 'uml:Class') {
         processClass(child, modelPath);
-      } else if (type === 'uml:Association') {
+      } else if (type === 'uml:Association' || type === 'uml:AssociationClass') {
         processAssociation(child, modelPath);
+      } else if (type === 'uml:Dependency') {
+        processDependency(child, modelPath);
       } else if (KNOWN_IGNORED_PACKAGED_TYPES.has(type)) {
         if (options.verbose) {
           diagnostics.push({
@@ -615,16 +802,8 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
   }
 
   // Canonical sorting according to domain-model-v1.md §4:
-  // packages: id ASC
-  packages.sort((a, b) => a.id.localeCompare(b.id));
-
-  // classes: packageId ASC (null/undefined first), then id ASC
-  classes.sort((a, b) => {
-    const pkgA = a.packageId ?? '';
-    const pkgB = b.packageId ?? '';
-    const pkgComp = pkgA.localeCompare(pkgB);
-    return pkgComp !== 0 ? pkgComp : a.id.localeCompare(b.id);
-  });
+  // classes: id ASC (todas en el paquete raíz)
+  classes.sort((a, b) => a.id.localeCompare(b.id));
 
   // attributes within class: id ASC
   for (const cls of classes) {
@@ -642,7 +821,6 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
     id: modelId,
     name: modelName,
     version: '1.0.0',
-    packages,
     classes,
     associations
   };
@@ -685,22 +863,30 @@ function mapRawType(raw: string): { canonicalType?: CanonicalType; warning?: boo
   const normalized = raw.trim().toLowerCase();
   switch (normalized) {
     case 'string':
+    case 'char':
     case 'eajava_string':
     case 'java.lang.string':
       return { canonicalType: 'String' };
     case 'int':
     case 'integer':
+    case 'short':
+    case 'byte':
     case 'eajava_int':
     case 'java.lang.integer':
       return { canonicalType: 'Integer' };
     case 'long':
     case 'eajava_long':
     case 'java.lang.long':
+    case 'biginteger':
+    case 'java.math.biginteger':
       return { canonicalType: 'Long' };
     case 'double':
+    case 'real':
     case 'eajava_double':
       return { canonicalType: 'Double' };
     case 'float':
+    case 'bigdecimal':
+    case 'java.math.bigdecimal':
       return { canonicalType: 'Double', warning: true };
     case 'boolean':
     case 'eajava_boolean':
@@ -730,7 +916,11 @@ function deriveMultiplicity(node: XmlNode): { multiplicity?: CanonicalMultiplici
   const upperRaw = upperNode ? upperNode.attributes['value'] : node.attributes['upper'];
 
   const lower = lowerRaw !== undefined && lowerRaw !== null && lowerRaw !== '' ? lowerRaw : '1';
-  const upper = upperRaw !== undefined && upperRaw !== null && upperRaw !== '' ? upperRaw : '1';
+  let upper = upperRaw !== undefined && upperRaw !== null && upperRaw !== '' ? upperRaw : '1';
+  // EA codifica '*' como value="-1" en uml:LiteralUnlimitedNatural.
+  if (upper === '-1') {
+    upper = '*';
+  }
 
   if (lower === '1' && upper === '1') {
     return { multiplicity: '1', nullable: false };

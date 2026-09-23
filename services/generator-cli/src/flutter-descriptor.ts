@@ -1,4 +1,4 @@
-import type { DomainAssociation, DomainAttribute, DomainClass, DomainModel, DomainPackage, Multiplicity } from "domain-model";
+import type { DomainAssociation, DomainAttribute, DomainClass, DomainModel, Multiplicity } from "domain-model";
 import type { GenerationConfig } from "./config.js";
 import { GeneratorError, GeneratorErrorCode } from "./errors.js";
 
@@ -87,12 +87,12 @@ function attributeDescriptor(attr: DomainAttribute) {
   };
 }
 
-function classDescriptor(cls: DomainClass, packagesById: Map<string, DomainPackage>) {
-  const packageName = cls.packageId === undefined ? null : (packagesById.get(cls.packageId)?.name ?? null);
+function classDescriptor(cls: DomainClass) {
   return {
     id: cls.id,
     name: cls.name,
-    packageName,
+    // Solo existe el paquete raíz: no hay paquete inmediato que reportar.
+    packageName: null,
     description: cls.description ?? null,
     attributes: [...cls.attributes].sort((a, b) => compareStrings(a.id, b.id)).map(attributeDescriptor),
   };
@@ -129,8 +129,6 @@ export function buildFlutterDescriptor(
   config: GenerationConfig,
   modelSha256: string,
 ): string {
-  const packagesById = new Map(model.packages.map((pkg) => [pkg.id, pkg]));
-
   const descriptor = {
     descriptorContractVersion: DESCRIPTOR_CONTRACT_VERSION,
     descriptorVersion: DESCRIPTOR_VERSION,
@@ -141,7 +139,7 @@ export function buildFlutterDescriptor(
     generatorVersion: config.generatorVersion,
     classes: [...model.classes]
       .sort((a, b) => compareStrings(a.id, b.id))
-      .map((cls) => classDescriptor(cls, packagesById)),
+      .map((cls) => classDescriptor(cls)),
     associations: [...model.associations]
       .sort((a, b) => compareStrings(a.sourceClassId, b.sourceClassId) || compareStrings(a.id, b.id))
       .map(associationDescriptor),

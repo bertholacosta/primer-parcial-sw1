@@ -3,17 +3,10 @@
   "id": "MODEL_06",
   "name": "Biblioteca",
   "version": "1.0.0",
-  "packages": [
-    {
-      "id": "PKG_06",
-      "name": "biblioteca"
-    }
-  ],
   "classes": [
     {
       "id": "CLS_50",
       "name": "Libro",
-      "packageId": "PKG_06",
       "description": "Entidad que representa un libro del catálogo.",
       "attributes": [
         {
@@ -35,7 +28,6 @@
     {
       "id": "CLS_51",
       "name": "Autor",
-      "packageId": "PKG_06",
       "attributes": [
         {
           "id": "ATTR_52",

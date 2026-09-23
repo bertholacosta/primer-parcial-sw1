@@ -3,17 +3,10 @@
   "id": "MODEL_03",
   "name": "Inventario",
   "version": "1.0.0",
-  "packages": [
-    {
-      "id": "PKG_03",
-      "name": "inventario"
-    }
-  ],
   "classes": [
     {
       "id": "CLS_20",
       "name": "EntidadBase",
-      "packageId": "PKG_03",
       "description": "Clase base abstracta para todas las entidades del inventario.",
       "attributes": [
         {
@@ -28,7 +21,6 @@
     {
       "id": "CLS_21",
       "name": "Articulo",
-      "packageId": "PKG_03",
       "attributes": [
         {
           "id": "ATTR_21",
@@ -54,5 +46,15 @@
       ]
     }
   ],
-  "associations": []
+  "associations": [
+    {
+      "id": "GEN_01",
+      "sourceClassId": "CLS_21",
+      "targetClassId": "CLS_20",
+      "sourceMultiplicity": "1",
+      "targetMultiplicity": "1",
+      "navigability": "unidirectional",
+      "kind": "generalization"
+    }
+  ]
 }

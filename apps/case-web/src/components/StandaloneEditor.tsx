@@ -27,18 +27,13 @@ import {
   executeRenameClass,
   executeUpdateClass,
   executeDeleteClass,
-  executeCreatePackage,
-  executeDeletePackage,
   type CreateClassCommand,
   type RenameClassCommand,
   type UpdateClassCommand,
   type UpdateClassInput,
   type DeleteClassCommand,
-  type CreatePackageCommand,
-  type DeletePackageCommand,
   type CreateClassInput,
 } from '../commands/classCommands';
-import type { CreatePackageInput } from './CaseWebCanvas';
 
 // Fixture por defecto canónico incrustado para ejecución local/standalone
 export const DEFAULT_CANONICAL_FIXTURE = {
@@ -46,17 +41,10 @@ export const DEFAULT_CANONICAL_FIXTURE = {
   id: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
   name: 'Biblioteca',
   version: '1.0.0',
-  packages: [
-    {
-      id: 'pkg-01',
-      name: 'biblioteca',
-    },
-  ],
   classes: [
     {
       id: 'cls-01',
       name: 'Libro',
-      packageId: 'pkg-01',
       attributes: [
         {
           id: 'attr-01',
@@ -84,7 +72,6 @@ export const DEFAULT_CANONICAL_FIXTURE = {
     {
       id: 'cls-02',
       name: 'Autor',
-      packageId: 'pkg-01',
       attributes: [
         {
           id: 'attr-04',
@@ -211,7 +198,7 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
         commandId: `cmd-class-${Date.now()}`,
         modelId: m.id,
         modelVersion: m.version,
-        payload: { classId: input.classId, name: input.name, packageId: input.packageId },
+        payload: { classId: input.classId, name: input.name },
       };
       const { updatedModel, result } = executeCreateClass(m, command);
       setLastCommandResult(result);
@@ -263,7 +250,7 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
         commandId: `cmd-class-${Date.now()}`,
         modelId: m.id,
         modelVersion: m.version,
-        payload: { classId: input.newClassId, name: input.newClassName, packageId: m.packages[0]?.id },
+        payload: { classId: input.newClassId, name: input.newClassName },
       };
       const { updatedModel: modelWithClass, result: classResult } = executeCreateClass(m, classCmd);
       setLastCommandResult(classResult);
@@ -348,42 +335,6 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
     [setModel]
   );
 
-  const handleCreatePackage = useCallback(
-    (input: CreatePackageInput) => {
-      const m = modelRef.current;
-      if (!m) return;
-      const command: CreatePackageCommand = {
-        type: 'CreatePackage',
-        commandId: `cmd-pkg-${Date.now()}`,
-        modelId: m.id,
-        modelVersion: m.version,
-        payload: { packageId: input.packageId, name: input.name },
-      };
-      const { updatedModel, result } = executeCreatePackage(m, command);
-      setLastCommandResult(result);
-      if (result.result === 'accepted') setModel(updatedModel);
-    },
-    [setModel]
-  );
-
-  const handleDeletePackage = useCallback(
-    (packageId: string) => {
-      const m = modelRef.current;
-      if (!m) return;
-      const command: DeletePackageCommand = {
-        type: 'DeletePackage',
-        commandId: `cmd-delpkg-${Date.now()}`,
-        modelId: m.id,
-        modelVersion: m.version,
-        payload: { packageId },
-      };
-      const { updatedModel, result } = executeDeletePackage(m, command);
-      setLastCommandResult(result);
-      if (result.result === 'accepted') setModel(updatedModel);
-    },
-    [setModel]
-  );
-
   const handleUpdateAssociation = useCallback(
     (input: UpdateAssociationInput) => {
       const m = modelRef.current;
@@ -418,6 +369,97 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
       if (result.result === 'accepted') setModel(updatedModel);
     },
     [setModel]
+  );
+
+  /**
+   * Aplica los comandos del asistente (shape del protocolo model-commands-v1)
+   * mapeándolos a los ejecutores locales. Secuencial: cada handler lee
+   * `modelRef`, que ya refleja el comando anterior.
+   */
+  const applyAssistantCommands = useCallback(
+    (commands: { type: string; payload: Record<string, unknown> }[]) => {
+      for (const cmd of commands) {
+        const p = cmd.payload;
+        switch (cmd.type) {
+          case 'CreateClass':
+            handleCreateClass({ classId: String(p.id), name: String(p.name) });
+            break;
+          case 'RenameClass':
+            handleRenameClass(String(p.classId), String(p.newName));
+            break;
+          case 'UpdateClass':
+            handleUpdateClass({
+              classId: String(p.classId),
+              name: p.name as string | undefined,
+              description: p.description as string | undefined,
+            });
+            break;
+          case 'DeleteClass':
+            handleDeleteClass(String(p.classId));
+            break;
+          case 'AddAttribute':
+            handleAddAttribute(
+              String(p.classId),
+              String(p.name),
+              String(p.type),
+              String(p.multiplicity ?? '1'),
+              Boolean(p.nullable),
+              p.description as string | undefined
+            );
+            break;
+          case 'UpdateAttribute': {
+            const m = modelRef.current;
+            const cls = m?.classes.find((c) => c.id === p.classId);
+            const attr = cls?.attributes.find((a) => a.id === p.attributeId);
+            if (!cls || !attr) break;
+            handleUpdateAttribute(cls.id, attr.id, {
+              name: (p.name as string | undefined) ?? attr.name,
+              type: (p.type as string | undefined) ?? attr.type,
+              multiplicity: (p.multiplicity as string | undefined) ?? attr.multiplicity,
+              nullable: (p.nullable as boolean | undefined) ?? attr.nullable,
+              description: (p.description as string | undefined) ?? attr.description,
+            });
+            break;
+          }
+          case 'DeleteAttribute':
+            handleDeleteAttribute(String(p.classId), String(p.attributeId));
+            break;
+          case 'CreateAssociation':
+            handleCreateAssociation({
+              name: p.name as string | undefined,
+              sourceClassId: String(p.sourceClassId),
+              targetClassId: String(p.targetClassId),
+              sourceMultiplicity: p.sourceMultiplicity as string | undefined,
+              targetMultiplicity: p.targetMultiplicity as string | undefined,
+              navigability: p.navigability as string | undefined,
+              kind: p.kind as CreateAssociationInput['kind'],
+              associationClassId: p.associationClassId as string | undefined,
+              description: p.description as string | undefined,
+            });
+            break;
+          case 'UpdateAssociation':
+            handleUpdateAssociation(p as unknown as UpdateAssociationInput);
+            break;
+          case 'DeleteAssociation':
+            handleDeleteAssociation(String(p.associationId));
+            break;
+          default:
+            break;
+        }
+      }
+    },
+    [
+      handleCreateClass,
+      handleRenameClass,
+      handleUpdateClass,
+      handleDeleteClass,
+      handleAddAttribute,
+      handleUpdateAttribute,
+      handleDeleteAttribute,
+      handleCreateAssociation,
+      handleUpdateAssociation,
+      handleDeleteAssociation,
+    ]
   );
 
   if (error) {
@@ -465,10 +507,9 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
       onCreateClass={handleCreateClass}
       onRenameClass={handleRenameClass}
       onDeleteClass={handleDeleteClass}
-      onCreatePackage={handleCreatePackage}
-      onDeletePackage={handleDeletePackage}
       onUpdateAssociation={handleUpdateAssociation}
       onDeleteAssociation={handleDeleteAssociation}
+      onApplyAssistantCommands={applyAssistantCommands}
     />
   );
 };

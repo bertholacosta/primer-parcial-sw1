@@ -9,7 +9,6 @@ function seedModel(): DomainModel {
     id: "model-01",
     name: "SistemaVentas",
     version: "1.0.0",
-    packages: [],
     classes: [{ id: "cls-01", name: "Producto", attributes: [] }],
     associations: [],
   };

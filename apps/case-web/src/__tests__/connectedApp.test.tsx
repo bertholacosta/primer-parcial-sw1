@@ -7,6 +7,7 @@ import {
   ApiError,
   type AuthSession,
   type DiagramRecord,
+  type ImageProposal,
   type ModelServerApi,
   type SessionUser,
 } from '../api/modelServerApi';
@@ -83,7 +84,6 @@ const sessionModel: DomainModel = {
   id: 'd-1',
   name: 'Demo',
   version: '1.0.0',
-  packages: [],
   classes: [
     {
       id: 'cls-1',
@@ -104,6 +104,38 @@ const diagram: DiagramRecord = {
   name: 'Demo',
   role: 'owner',
   model: sessionModel as unknown as CanonicalDomainModel,
+};
+
+const imageProposal: ImageProposal = {
+  proposalId: 'prop-1',
+  lifecycleState: 'awaiting_confirmation',
+  intent: { summary: 'Se detectó una clase con un atributo.' },
+  source: { modality: 'image', agentRole: 'ollama-local/llava' },
+  confidence: {
+    overall: 0.87,
+    level: 'HIGH',
+    breakdown: [
+      { commandIndex: 0, score: 0.9, fieldScores: {} },
+      { commandIndex: 1, score: 0.8, fieldScores: {} },
+    ],
+  },
+  proposedCommands: [
+    {
+      type: 'CreateClass',
+      commandId: 'cmd-prop-1',
+      modelId: 'd-1',
+      modelVersion: '1.0.0',
+      payload: { id: 'cls-p1', name: 'Factura' },
+    },
+    {
+      type: 'AddAttribute',
+      commandId: 'cmd-prop-2',
+      modelId: 'd-1',
+      modelVersion: '1.0.0',
+      payload: { id: 'attr-p1', classId: 'cls-p1', name: 'total', type: 'Double', nullable: false, multiplicity: '1' },
+    },
+  ],
+  dryRunValidation: { validationStatus: 'VALID', errors: [], warnings: [] },
 };
 
 function fakeApi(overrides: Partial<ModelServerApi> = {}): ModelServerApi {
@@ -133,6 +165,8 @@ function fakeApi(overrides: Partial<ModelServerApi> = {}): ModelServerApi {
     createShareLink: vi.fn(async () => ({ shareLinkId: 'l-1', role: 'viewer' as const, expiresAt: '', url: '/share/tok' })),
     acceptShareLink: vi.fn(async () => ({ diagramId: 'd-1', role: 'viewer' as const })),
     revokeShareLink: vi.fn(async () => undefined),
+    createImageProposal: vi.fn(async () => imageProposal),
+    createTextProposal: vi.fn(async () => imageProposal),
     ...overrides,
   };
 }
@@ -436,5 +470,216 @@ describe('ConnectedApp — coedición (P10-010)', () => {
     await act(async () => socket.serverClose());
     expect(screen.getByTestId('collaboration-state').textContent).toContain('Reconectando');
     expect(screen.getByTestId('semantic-item-Libro')).toBeInTheDocument();
+  });
+});
+
+describe('ConnectedApp — propuesta multimodal por imagen', () => {
+  beforeEach(() => {
+    FakeSocket.instances = [];
+  });
+
+  const uploadImage = async (fileName = 'pizarra.png') => {
+    fireEvent.click(screen.getByTestId('btn-import-image'));
+    const file = new File(['fake-png'], fileName, { type: 'image/png' });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('image-file-input'), { target: { files: [file] } });
+    });
+  };
+
+  it('sube la imagen, muestra la propuesta validada y aplica los comandos por la sesión', async () => {
+    const createImageProposal = vi.fn(async () => imageProposal);
+    const api = fakeApi({ createImageProposal });
+    await login(api);
+    const socket = await openDiagram('editor');
+
+    await uploadImage();
+
+    await screen.findByTestId('image-proposal-panel');
+    expect(createImageProposal).toHaveBeenCalledWith(
+      'd-1',
+      expect.objectContaining({ mimeType: 'image/png', clientPlatform: 'case_web' })
+    );
+    expect(screen.getByTestId('image-proposal-summary').textContent).toContain('una clase');
+    const commands = screen.getByTestId('image-proposal-commands').textContent;
+    expect(commands).toContain("Clase 'Factura'");
+    expect(commands).toContain("'total'");
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('btn-apply-proposal'));
+    });
+    expect(screen.queryByTestId('image-proposal-panel')).not.toBeInTheDocument();
+
+    // Primer comando encolado sale por el socket; el resto espera su commit.
+    let submits = socket.envelopes().filter((e) => e.type === 'SubmitCommand');
+    expect(submits).toHaveLength(1);
+    const first = submits[0].payload as {
+      clientCommandId: string;
+      command: { commandId: string; type: string; payload: { id: string; name: string } };
+    };
+    expect(first.command.type).toBe('CreateClass');
+    expect(first.command.payload.id).toBe('cls-p1');
+    expect(first.command.payload.name).toBe('Factura');
+
+    await act(async () => {
+      socket.serverMessage(
+        createEnvelope(diagram.diagramId, diagram.diagramId, 'CommandCommitted', {
+          serverSeqNumber: 1,
+          originClientId: 'client-1',
+          clientCommandId: first.clientCommandId,
+          resultingModelVersion: '1.0.1',
+          resultingSha256: 'sha',
+          command: first.command,
+        })
+      );
+    });
+
+    submits = socket.envelopes().filter((e) => e.type === 'SubmitCommand');
+    expect(submits).toHaveLength(2);
+    const second = submits[1].payload as {
+      clientCommandId: string;
+      command: { type: string; modelVersion: string; payload: { classId: string; name: string } };
+    };
+    expect(second.command.type).toBe('AddAttribute');
+    expect(second.command.modelVersion).toBe('1.0.1');
+    expect(second.command.payload.classId).toBe('cls-p1');
+    expect(second.command.payload.name).toBe('total');
+  });
+
+  it('descartar cierra el panel sin enviar comandos', async () => {
+    const api = fakeApi();
+    await login(api);
+    const socket = await openDiagram('admin');
+
+    await uploadImage();
+    await screen.findByTestId('image-proposal-panel');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('btn-discard-proposal'));
+    });
+
+    expect(screen.queryByTestId('image-proposal-panel')).not.toBeInTheDocument();
+    expect(socket.envelopes().filter((e) => e.type === 'SubmitCommand')).toHaveLength(0);
+  });
+
+  it('muestra el error cuando el reconocimiento no está configurado', async () => {
+    const api = fakeApi({
+      createImageProposal: vi.fn(async () => {
+        throw new ApiError('AI_NOT_CONFIGURED', 503, 'Reconocimiento por IA no configurado.');
+      }),
+    });
+    await login(api);
+    const socket = await openDiagram('editor');
+
+    await uploadImage();
+
+    await screen.findByTestId('image-proposal-error');
+    expect(screen.getByTestId('image-proposal-error').textContent).toContain('no configurado');
+    expect(socket.envelopes().filter((e) => e.type === 'SubmitCommand')).toHaveLength(0);
+  });
+
+  it('el visor no ve el botón de importar imagen', async () => {
+    const api = fakeApi();
+    await login(api);
+    await openDiagram('viewer');
+
+    expect(screen.queryByTestId('btn-import-image')).not.toBeInTheDocument();
+  });
+});
+
+describe('ConnectedApp — importación de diagrama EA 15 (XMI)', () => {
+  beforeEach(() => {
+    FakeSocket.instances = [];
+  });
+
+  const EA_XMI = `<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1">
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="6.5"/>
+  <uml:Model xmi:id="M1" name="Ventas">
+    <packagedElement xmi:type="uml:Class" xmi:id="C1" name="Factura">
+      <ownedAttribute xmi:type="uml:Property" xmi:id="A1" name="total" type="Double">
+        <lowerValue xmi:type="uml:LiteralInteger" value="1"/>
+        <upperValue xmi:type="uml:LiteralInteger" value="1"/>
+      </ownedAttribute>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Class" xmi:id="C2" name="Cliente"/>
+    <packagedElement xmi:type="uml:Association" xmi:id="AS1" name="emite">
+      <ownedEnd xmi:type="uml:Property" xmi:id="E1"><type xmi:idref="C2"/><lowerValue xmi:type="uml:LiteralInteger" value="1"/><upperValue xmi:type="uml:LiteralInteger" value="1"/></ownedEnd>
+      <ownedEnd xmi:type="uml:Property" xmi:id="E2"><type xmi:idref="C1"/><lowerValue xmi:type="uml:LiteralInteger" value="0"/><upperValue xmi:type="uml:LiteralUnlimitedNatural" value="-1"/></ownedEnd>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>`;
+
+  const uploadXmi = async (content = EA_XMI, fileName = 'ventas.xmi') => {
+    fireEvent.click(screen.getByTestId('btn-import-ea'));
+    const file = new File([content], fileName, { type: 'text/xml' });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('ea-file-input'), { target: { files: [file] } });
+    });
+  };
+
+  it('lee el XMI, muestra la revisión y despacha los comandos por la sesión', async () => {
+    const api = fakeApi();
+    await login(api);
+    const socket = await openDiagram('editor');
+
+    await uploadXmi();
+
+    await screen.findByTestId('ea-import-panel');
+    expect(screen.getByTestId('ea-import-summary').textContent).toContain('Ventas');
+    expect(screen.getByTestId('ea-import-summary').textContent).toContain('2 clase(s)');
+    const commands = screen.getByTestId('ea-import-commands').textContent;
+    expect(commands).toContain("Clase 'Factura'");
+    expect(commands).toContain("Clase 'Cliente'");
+    expect(commands).toContain("Relación association");
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('btn-apply-ea-import'));
+    });
+    expect(screen.queryByTestId('ea-import-panel')).not.toBeInTheDocument();
+
+    // El primer comando sale por el socket con ids remapeados
+    const submits = socket.envelopes().filter((e) => e.type === 'SubmitCommand');
+    expect(submits).toHaveLength(1);
+    const first = submits[0].payload as {
+      command: { type: string; payload: { id: string; name: string } };
+    };
+    expect(first.command.type).toBe('CreateClass');
+    expect(first.command.payload.id).toMatch(/^cls-/);
+    expect(['Factura', 'Cliente']).toContain(first.command.payload.name);
+  });
+
+  it('rechaza un archivo que no es XMI de EA y no envía comandos', async () => {
+    const api = fakeApi();
+    await login(api);
+    const socket = await openDiagram('admin');
+
+    await uploadXmi('<html><body>no es xmi</body></html>', 'fake.xmi');
+
+    await screen.findByTestId('ea-import-error');
+    expect(socket.envelopes().filter((e) => e.type === 'SubmitCommand')).toHaveLength(0);
+  });
+
+  it('descartar cierra el panel sin despachar', async () => {
+    const api = fakeApi();
+    await login(api);
+    const socket = await openDiagram('admin');
+
+    await uploadXmi();
+    await screen.findByTestId('ea-import-panel');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('btn-discard-ea-import'));
+    });
+
+    expect(screen.queryByTestId('ea-import-panel')).not.toBeInTheDocument();
+    expect(socket.envelopes().filter((e) => e.type === 'SubmitCommand')).toHaveLength(0);
+  });
+
+  it('el visor no ve el botón de importar EA', async () => {
+    const api = fakeApi();
+    await login(api);
+    await openDiagram('viewer');
+
+    expect(screen.queryByTestId('btn-import-ea')).not.toBeInTheDocument();
   });
 });

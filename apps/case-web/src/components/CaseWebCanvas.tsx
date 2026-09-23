@@ -4,7 +4,6 @@ import {
   ReactFlowProvider,
   Background,
   BackgroundVariant,
-  Controls,
   useReactFlow,
   useNodesState,
   applyNodeChanges,
@@ -25,8 +24,8 @@ import {
   type AnyFlowNode,
 } from '../adapter/domainModelAdapter';
 import { UmlClassNode } from './UmlClassNode';
-import { UmlPackageNode } from './UmlPackageNode';
 import { UmlAssociationEdge, UmlEdgeMarkerDefs } from './UmlAssociationEdge';
+import { AssistantChatPanel, type AssistantRemoteResult } from './AssistantChatPanel';
 import {
   ALLOWED_MULTIPLICITIES,
   type CommandExecutionResult,
@@ -39,7 +38,11 @@ import {
   type UpdateAssociationInput,
 } from '../commands/associationCommands';
 import type { CreateClassInput } from '../commands/classCommands';
-import { generateAndDownloadSpringBoot } from '../generator/springBootGenerator';
+import {
+  generateAndDownloadSpringBoot,
+  validateSpringBootModel,
+  type SpringBootDiagnostic,
+} from '../generator/springBootGenerator';
 import { generateAndDownloadEnterpriseArchitect } from '../generator/enterpriseArchitectGenerator';
 
 export interface CollaborationBarInfo {
@@ -48,11 +51,6 @@ export interface CollaborationBarInfo {
   roleLabel?: string;
   participants: string[];
   pendingCount: number;
-}
-
-export interface CreatePackageInput {
-  packageId: string;
-  name: string;
 }
 
 export interface CaseWebCanvasProps extends FlowNodeCallbacks {
@@ -66,16 +64,17 @@ export interface CaseWebCanvasProps extends FlowNodeCallbacks {
   onCreateClass?: (input: CreateClassInput) => void;
   onRenameClass?: (classId: string, newName: string) => void;
   onDeleteClass?: (classId: string) => void;
-  onCreatePackage?: (input: CreatePackageInput) => void;
-  onDeletePackage?: (packageId: string) => void;
   onDeleteAssociation?: (associationId: string) => void;
+  /** Despacha comandos confirmados desde el chat del asistente (texto/voz). */
+  onApplyAssistantCommands?: (commands: { type: string; payload: Record<string, unknown> }[]) => void;
+  /** Fallback de IA en el servidor cuando el parser local no entiende la instrucción. */
+  onAssistantInterpret?: (text: string) => Promise<AssistantRemoteResult>;
 }
 
-type PaletteKind = 'class' | 'package';
+type PaletteKind = 'class';
 
 const PALETTE_ITEMS: { kind: PaletteKind; label: string; hint: string }[] = [
   { kind: 'class', label: 'Clase', hint: 'Arrastra al lienzo para crear' },
-  { kind: 'package', label: 'Paquete', hint: 'Arrastra al lienzo para crear' },
 ];
 
 const RELATION_ITEMS: { kind: AssociationKind; label: string }[] = [
@@ -112,9 +111,9 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   onCreateAssociationClass,
   onUpdateAssociation,
   onCreateClass,
-  onCreatePackage,
-  onDeletePackage,
   onDeleteAssociation,
+  onApplyAssistantCommands,
+  onAssistantInterpret,
 }) => {
   const { screenToFlowPosition } = useReactFlow();
   const flowWrapper = useRef<HTMLDivElement>(null);
@@ -122,7 +121,6 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
       umlClass: UmlClassNode,
-      umlPackage: UmlPackageNode,
     }),
     []
   );
@@ -142,6 +140,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
 
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [selectedAssociationId, setSelectedAssociationId] = useState<string | null>(null);
+  const [semanticOpen, setSemanticOpen] = useState(false);
   const [editingAssociationId, setEditingAssociationId] = useState<string | null>(null);
   const [assocName, setAssocName] = useState('');
   const [assocKind, setAssocKind] = useState<AssociationKind>('association');
@@ -199,24 +198,16 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   /* ---------------- Paleta drag & drop (estilo Apollon) ---------------- */
 
   const createPaletteItem = useCallback(
-    (kind: PaletteKind, position: { x: number; y: number }) => {
-      if (kind === 'package') {
-        if (!onCreatePackage) return;
-        const packageId = `pkg-${crypto.randomUUID()}`;
-        pendingPositions.current[packageId] = position;
-        onCreatePackage({ packageId, name: nextName('Paquete') });
-        return;
-      }
+    (_kind: PaletteKind, position: { x: number; y: number }) => {
       if (!onCreateClass) return;
       const classId = `cls-${crypto.randomUUID()}`;
       pendingPositions.current[classId] = position;
       onCreateClass({
         classId,
         name: nextName('Clase'),
-        packageId: model.packages[0]?.id,
       });
     },
-    [onCreateClass, onCreatePackage, model.packages]
+    [onCreateClass]
   );
 
   const handlePaletteDragStart = (kind: PaletteKind) => (e: React.DragEvent) => {
@@ -360,11 +351,10 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
     (deleted: Node[]) => {
       deleted.forEach((n) => deletedNodeIds.current.add(n.id));
       for (const n of deleted) {
-        if (n.type === 'umlPackage') onDeletePackage?.(n.id);
-        else onDeleteClass?.(n.id);
+        onDeleteClass?.(n.id);
       }
     },
-    [onDeleteClass, onDeletePackage]
+    [onDeleteClass]
   );
 
   const handleEdgesDelete = useCallback(
@@ -382,8 +372,19 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   /* ---------------- Exportación Spring Boot ---------------- */
 
   const [exporting, setExporting] = useState(false);
+  const [exportDiagnostics, setExportDiagnostics] = useState<SpringBootDiagnostic[] | null>(null);
 
+  /**
+   * Valida el modelo antes de exportar: cualquier ERROR bloquea la descarga
+   * y se muestra al usuario; los WARNING se listan pero permiten continuar.
+   */
   const handleExportSpringBoot = useCallback(async () => {
+    const diagnostics = validateSpringBootModel(model);
+    if (diagnostics.some((d) => d.severity === 'ERROR')) {
+      setExportDiagnostics(diagnostics);
+      return;
+    }
+    setExportDiagnostics(diagnostics.length > 0 ? diagnostics : null);
     setExporting(true);
     try {
       await generateAndDownloadSpringBoot(model);
@@ -492,9 +493,38 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
         </div>
       )}
 
+      {/* Diagnósticos de validación previa a la exportación */}
+      {exportDiagnostics && exportDiagnostics.length > 0 && (
+        <div
+          data-testid="export-validation-banner"
+          className={`status-banner ${exportDiagnostics.some((d) => d.severity === 'ERROR') ? 'rejected' : ''}`}
+        >
+          <div>
+            <strong>
+              {exportDiagnostics.some((d) => d.severity === 'ERROR')
+                ? 'Exportación bloqueada — el modelo produciría código inválido:'
+                : 'Exportado con advertencias:'}
+            </strong>
+            <ul className="export-diagnostics">
+              {exportDiagnostics.map((d, i) => (
+                <li key={i}>[{d.code}] {d.message}</li>
+              ))}
+            </ul>
+          </div>
+          <button
+            data-testid="dismiss-export-diagnostics"
+            className="button-ghost status-id"
+            onClick={() => setExportDiagnostics(null)}
+            aria-label="Cerrar diagnósticos"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Zona principal: paleta + lienzo */}
       <main className="editor-workspace">
-        {editable && (onCreateClass || onCreatePackage) && (
+        {editable && onCreateClass && (
           <aside
             data-testid="element-palette"
             aria-label="Paleta de elementos UML"
@@ -516,9 +546,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                 role="button"
                 tabIndex={0}
               >
-                <span className="palette-icon" aria-hidden="true">
-                  {item.kind === 'package' ? '▱' : '▦'}
-                </span>
+                <span className="palette-icon" aria-hidden="true">▦</span>
                 {item.label}
               </div>
             ))}
@@ -594,9 +622,17 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             aria-label="Diagrama UML de clases"
           >
             <Background variant={BackgroundVariant.Lines} color="var(--diagram-grid)" gap={16} size={0.7} />
-            <Controls />
           </ReactFlow>
           <UmlEdgeMarkerDefs />
+
+          {/* Chat del asistente: instrucciones por texto o voz → propuesta revisable */}
+          {editable && onApplyAssistantCommands && (
+            <AssistantChatPanel
+              model={model}
+              onApply={onApplyAssistantCommands}
+              onInterpretRemote={onAssistantInterpret}
+            />
+          )}
 
           {/* Popover de configuración de asociación (estilo Apollon) */}
           {pendingConnection && (
@@ -785,42 +821,57 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
         </div>
       </main>
 
-      {/* Tabla semántica accesible alternativa (ADR-0001 §Accesibilidad WCAG 2.1 AA) */}
+      {/* Tabla semántica accesible alternativa (ADR-0001 §Accesibilidad WCAG 2.1 AA).
+          Colapsada por defecto para no tapar el lienzo; el botón la expande. */}
       <section
         aria-label="Lista accesible de clases y atributos"
         data-testid="semantic-class-list"
-        className="semantic-panel"
+        className={`semantic-panel${semanticOpen ? ' open' : ''}`}
       >
-        <h2>Resumen textual accesible de entidades</h2>
-        <ul>
-          {model.classes.map((cls) => (
-            <li key={cls.id} data-testid={`semantic-item-${cls.name}`}>
-              <strong>{cls.name}</strong> &mdash;{' '}
-              {cls.attributes.length > 0
-                ? cls.attributes
-                    .map((a) => `${a.name}: ${a.type} [${a.multiplicity}]`)
-                    .join(', ')
-                : 'sin atributos'}
-            </li>
-          ))}
-        </ul>
-        {model.associations.length > 0 && (
-          <>
-            <h2 className="association-title">Asociaciones</h2>
-            <ul data-testid="semantic-association-list">
-              {model.associations.map((assoc) => (
-                <li key={assoc.id} data-testid={`semantic-assoc-${assoc.id}`}>
-                  {(assoc.kind ?? 'association') !== 'association' ? `«${assoc.kind}» ` : ''}
-                  {assoc.name ? `${assoc.name}: ` : ''}
-                  {classNameById.get(assoc.sourceClassId) ?? assoc.sourceClassId} [
-                  {assoc.sourceMultiplicity}] →{' '}
-                  {classNameById.get(assoc.targetClassId) ?? assoc.targetClassId} [
-                  {assoc.targetMultiplicity}] ({assoc.navigability})
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+        <button
+          type="button"
+          data-testid="semantic-toggle"
+          className="semantic-toggle"
+          aria-expanded={semanticOpen}
+          onClick={() => setSemanticOpen((open) => !open)}
+        >
+          <span className="semantic-toggle-icon" aria-hidden="true">
+            {semanticOpen ? '▾' : '▸'}
+          </span>
+          Resumen textual — {model.classes.length} clase(s) · {model.associations.length} asociación(es)
+        </button>
+        <div className="semantic-body" hidden={!semanticOpen}>
+          <h2>Resumen textual accesible de entidades</h2>
+          <ul>
+            {model.classes.map((cls) => (
+              <li key={cls.id} data-testid={`semantic-item-${cls.name}`}>
+                <strong>{cls.name}</strong> &mdash;{' '}
+                {cls.attributes.length > 0
+                  ? cls.attributes
+                      .map((a) => `${a.name}: ${a.type} [${a.multiplicity}]`)
+                      .join(', ')
+                  : 'sin atributos'}
+              </li>
+            ))}
+          </ul>
+          {model.associations.length > 0 && (
+            <>
+              <h2 className="association-title">Asociaciones</h2>
+              <ul data-testid="semantic-association-list">
+                {model.associations.map((assoc) => (
+                  <li key={assoc.id} data-testid={`semantic-assoc-${assoc.id}`}>
+                    {(assoc.kind ?? 'association') !== 'association' ? `«${assoc.kind}» ` : ''}
+                    {assoc.name ? `${assoc.name}: ` : ''}
+                    {classNameById.get(assoc.sourceClassId) ?? assoc.sourceClassId} [
+                    {assoc.sourceMultiplicity}] →{' '}
+                    {classNameById.get(assoc.targetClassId) ?? assoc.targetClassId} [
+                    {assoc.targetMultiplicity}] ({assoc.navigability})
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
       </section>
     </div>
   );

@@ -76,7 +76,6 @@ const baseModel: DomainModel = {
   id: DIAGRAM,
   name: 'Demo',
   version: '1.0.0',
-  packages: [],
   classes: [{ id: 'cls-1', name: 'Libro', attributes: [] }],
   associations: [],
 };

@@ -47,6 +47,55 @@ export interface AcceptResult {
   role: SharedRole;
 }
 
+export interface ProposalDiagnostic {
+  commandIndex: number;
+  code: string;
+  path: string;
+  message: string;
+  severity: 'ERROR' | 'WARNING';
+}
+
+/** Comando propuesto por la IA (model-commands-v1); al aplicarse solo viajan type+payload. */
+export interface ProposalCommand {
+  type: string;
+  commandId: string;
+  modelId: string;
+  modelVersion: string;
+  payload: Record<string, unknown>;
+}
+
+/** Propuesta multimodal (multimodal-proposals-v1 §5.2): ya pasó el dry-run; nunca mutó el modelo. */
+export interface ImageProposal {
+  proposalId: string;
+  lifecycleState: string;
+  intent: { summary: string };
+  source?: { modality?: string; agentRole?: string };
+  confidence: {
+    overall: number;
+    level: 'HIGH' | 'MEDIUM' | 'LOW';
+    breakdown: { commandIndex: number; score: number; fieldScores?: Record<string, number> }[];
+  };
+  proposedCommands: ProposalCommand[];
+  dryRunValidation: {
+    validationStatus: 'VALID' | 'INVALID' | 'WARNINGS';
+    errors: ProposalDiagnostic[];
+    warnings: ProposalDiagnostic[];
+  };
+}
+
+export interface ImageProposalRequest {
+  imageBase64: string;
+  mimeType: string;
+  capturedAt?: string;
+  clientPlatform?: string;
+}
+
+/** Propuesta por prompt textual (multimodal-proposals-v1 §5.3): la IA interpreta la instrucción. */
+export interface TextProposalRequest {
+  textPrompt: string;
+  clientPlatform?: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly code: string,
@@ -79,6 +128,8 @@ export interface ModelServerApi {
   createShareLink(diagramId: string, role: SharedRole, expiresAt: string, maxUses?: number): Promise<ShareLinkResult>;
   acceptShareLink(token: string): Promise<AcceptResult>;
   revokeShareLink(diagramId: string, linkId: string): Promise<void>;
+  createImageProposal(diagramId: string, image: ImageProposalRequest): Promise<ImageProposal>;
+  createTextProposal(diagramId: string, prompt: TextProposalRequest): Promise<ImageProposal>;
 }
 
 interface ApiOptions {
@@ -218,6 +269,16 @@ export function createModelServerApi(options: ApiOptions = {}): ModelServerApi {
       request<AcceptResult>(`/api/v1/share-links/${encodeURIComponent(token)}/accept`, { method: 'POST' }),
     revokeShareLink: (diagramId, linkId) =>
       request<void>(`/api/v1/diagrams/${diagramId}/share-links/${linkId}`, { method: 'DELETE' }),
+    createImageProposal: (diagramId, image) =>
+      request<ImageProposal>(`/api/v1/diagrams/${diagramId}/proposals`, {
+        method: 'POST',
+        body: JSON.stringify(image),
+      }),
+    createTextProposal: (diagramId, prompt) =>
+      request<ImageProposal>(`/api/v1/diagrams/${diagramId}/proposals`, {
+        method: 'POST',
+        body: JSON.stringify(prompt),
+      }),
   };
 
   return api;

@@ -10,31 +10,20 @@ export interface UmlClassNodeData {
   [key: string]: unknown;
   id: string;
   name: string;
-  packageId?: string;
   description?: string;
-  packages: { id: string; name: string }[];
   attributes: CanonicalAttribute[];
   readOnly?: boolean;
   onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string, nullable?: boolean, description?: string) => void;
   onUpdateAttribute?: (classId: string, attributeId: string, updates: { name: string; type: string; multiplicity: string; nullable: boolean; description?: string }) => void;
   onDeleteAttribute?: (classId: string, attributeId: string) => void;
-  onUpdateClass?: (input: { classId: string; name: string; packageId: string | null; description: string }) => void;
+  onUpdateClass?: (input: { classId: string; name: string; description: string }) => void;
   onRenameClass?: (classId: string, newName: string) => void;
   onDeleteClass?: (classId: string) => void;
 }
 
 export type UmlClassFlowNode = Node<UmlClassNodeData, 'umlClass'>;
 
-export interface UmlPackageNodeData {
-  [key: string]: unknown;
-  id: string;
-  name: string;
-  readOnly?: boolean;
-}
-
-export type UmlPackageFlowNode = Node<UmlPackageNodeData, 'umlPackage'>;
-
-export type AnyFlowNode = UmlClassFlowNode | UmlPackageFlowNode;
+export type AnyFlowNode = UmlClassFlowNode;
 
 /** Posiciones visuales por id de elemento; el modelo canónico es solo semántico. */
 export type LayoutPositions = Record<string, { x: number; y: number }>;
@@ -85,10 +74,6 @@ export function parseDomainModel(raw: unknown): CanonicalDomainModel {
     throw new DomainModelContractError('MISSING_CLASSES_ARRAY', 'The "classes" field must be an array.');
   }
 
-  if (!Array.isArray(doc.packages)) {
-    throw new DomainModelContractError('MISSING_PACKAGES_ARRAY', 'The "packages" field must be an array.');
-  }
-
   if (!Array.isArray(doc.associations)) {
     throw new DomainModelContractError(
       'MISSING_ASSOCIATIONS_ARRAY',
@@ -124,7 +109,6 @@ export function parseDomainModel(raw: unknown): CanonicalDomainModel {
     return {
       id: classObj.id,
       name: classObj.name,
-      packageId: typeof classObj.packageId === 'string' ? classObj.packageId : undefined,
       description: typeof classObj.description === 'string' ? classObj.description : undefined,
       attributes: parsedAttributes,
     };
@@ -136,7 +120,6 @@ export function parseDomainModel(raw: unknown): CanonicalDomainModel {
     name: doc.name,
     version: doc.version,
     description: typeof doc.description === 'string' ? doc.description : undefined,
-    packages: doc.packages as CanonicalDomainModel['packages'],
     classes: parsedClasses,
     associations: doc.associations as CanonicalDomainModel['associations'],
   };
@@ -151,7 +134,7 @@ export interface FlowNodeCallbacks {
   onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string, nullable?: boolean, description?: string) => void;
   onUpdateAttribute?: (classId: string, attributeId: string, updates: { name: string; type: string; multiplicity: string; nullable: boolean; description?: string }) => void;
   onDeleteAttribute?: (classId: string, attributeId: string) => void;
-  onUpdateClass?: (input: { classId: string; name: string; packageId: string | null; description: string }) => void;
+  onUpdateClass?: (input: { classId: string; name: string; description: string }) => void;
   onRenameClass?: (classId: string, newName: string) => void;
   onDeleteClass?: (classId: string) => void;
 }
@@ -182,9 +165,7 @@ export function modelToFlowNodes(
       data: {
         id: cls.id,
         name: cls.name,
-        packageId: cls.packageId,
         description: cls.description,
-        packages: model.packages.map((item) => ({ id: item.id, name: item.name })),
         attributes: cls.attributes,
         readOnly: callbacks?.readOnly,
         onAddAttribute: callbacks?.readOnly ? undefined : callbacks?.onAddAttribute,
@@ -197,21 +178,7 @@ export function modelToFlowNodes(
     };
   });
 
-  const packageNodes: UmlPackageFlowNode[] = model.packages.map((pkg, index) => ({
-    id: pkg.id,
-    type: 'umlPackage' as const,
-    position: positions[pkg.id] ?? {
-      x: startX + index * 260,
-      y: startY - 140,
-    },
-    data: {
-      id: pkg.id,
-      name: pkg.name,
-      readOnly: callbacks?.readOnly,
-    },
-  }));
-
-  return [...packageNodes, ...classNodes];
+  return classNodes;
 }
 
 /**

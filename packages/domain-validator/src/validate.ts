@@ -17,7 +17,6 @@ const KNOWN_TOP_LEVEL_FIELDS = new Set([
   "name",
   "version",
   "description",
-  "packages",
   "classes",
   "associations",
 ]);
@@ -179,12 +178,6 @@ function mapSchemaError(err: ErrorObject, doc: unknown): Diagnostic {
 /* Fase 2: reglas semánticas del contrato                              */
 /* ------------------------------------------------------------------ */
 
-interface DocPackage {
-  id: string;
-  name: string;
-  parentId?: string;
-}
-
 interface DocAttribute {
   id: string;
   name: string;
@@ -196,7 +189,6 @@ interface DocAttribute {
 interface DocClass {
   id: string;
   name: string;
-  packageId?: string;
   attributes: DocAttribute[];
 }
 
@@ -209,7 +201,6 @@ interface DocAssociation {
 }
 
 interface DocShape {
-  packages: DocPackage[];
   classes: DocClass[];
   associations: DocAssociation[];
 }
@@ -245,8 +236,7 @@ function isCanonicalOrder<T>(items: T[], key: (item: T) => (string | null)[]): b
   return order.every((value, i) => value === i);
 }
 
-const packageKey = (p: DocPackage): (string | null)[] => [p.id];
-const classKey = (c: DocClass): (string | null)[] => [c.packageId ?? null, c.id];
+const classKey = (c: DocClass): (string | null)[] => [c.id];
 const attributeKey = (a: DocAttribute): (string | null)[] => [a.id];
 const associationKey = (a: DocAssociation): (string | null)[] => [a.sourceClassId, a.id];
 
@@ -281,74 +271,7 @@ function semanticValidation(doc: Record<string, unknown>, errors: Diagnostic[], 
     }
   };
 
-  const packageIds = new Set(model.packages.map((p) => p.id));
   const classIds = new Set(model.classes.map((c) => c.id));
-
-  // --- Packages ---
-  for (const i of canonicalOrder(model.packages, packageKey)) {
-    const pkg = model.packages[i];
-    const base = `$.packages[${i}]`;
-    registerId(pkg.id, childPath(base, "id"));
-
-    if (pkg.parentId !== undefined && !packageIds.has(pkg.parentId)) {
-      errors.push({
-        code: DiagnosticCode.UNRESOLVED_REFERENCE,
-        path: childPath(base, "parentId"),
-        message: `El paquete '${pkg.parentId}' no existe en el documento.`,
-        severity: "ERROR",
-      });
-    }
-  }
-
-  // Nombres de paquetes únicos entre hermanos (mismo parentId).
-  const packageNameSeen = new Map<string, { name: string; path: string }>();
-  for (const i of canonicalOrder(model.packages, packageKey)) {
-    const pkg = model.packages[i];
-    const group = pkg.parentId ?? "";
-    const key = JSON.stringify([group, pkg.name]);
-    const path = childPath(`$.packages[${i}]`, "name");
-    const prev = packageNameSeen.get(key);
-    if (prev) {
-      errors.push({
-        code: DiagnosticCode.DUPLICATE_NAME,
-        path,
-        message: pkg.parentId
-          ? `Nombre '${pkg.name}' duplicado en el paquete '${pkg.parentId}'.`
-          : `Nombre '${pkg.name}' duplicado en el espacio de nombres raíz.`,
-        severity: "ERROR",
-      });
-    } else {
-      packageNameSeen.set(key, { name: pkg.name, path });
-    }
-  }
-
-  // Ciclos en la jerarquía de paquetes (detección por DFS sobre parentId).
-  const parentOf = new Map(model.packages.map((p) => [p.id, p.parentId]));
-  const indexOfPackage = new Map(model.packages.map((p, i) => [p.id, i]));
-  const visitedPackages = new Set<string>();
-  for (const i of canonicalOrder(model.packages, packageKey)) {
-    const startId = model.packages[i].id;
-    if (visitedPackages.has(startId)) continue;
-    const chain = new Map<string, number>();
-    let current: string | undefined = startId;
-    while (current !== undefined && packageIds.has(current) && !visitedPackages.has(current)) {
-      if (chain.has(current)) break;
-      chain.set(current, 1);
-      const parent = parentOf.get(current);
-      if (parent !== undefined && (parent === current || chain.has(parent))) {
-        const idx = indexOfPackage.get(current);
-        errors.push({
-          code: DiagnosticCode.PACKAGE_CYCLE,
-          path: childPath(`$.packages[${idx}]`, "parentId"),
-          message: `Ciclo detectado en la jerarquía de paquetes en '${parent}'.`,
-          severity: "ERROR",
-        });
-        break;
-      }
-      current = parent;
-    }
-    for (const id of chain.keys()) visitedPackages.add(id);
-  }
 
   // --- Classes ---
   const classNameSeen = new Map<string, { path: string }>();
@@ -357,29 +280,16 @@ function semanticValidation(doc: Record<string, unknown>, errors: Diagnostic[], 
     const base = `$.classes[${i}]`;
     registerId(cls.id, childPath(base, "id"));
 
-    if (cls.packageId !== undefined && !packageIds.has(cls.packageId)) {
-      errors.push({
-        code: DiagnosticCode.UNRESOLVED_REFERENCE,
-        path: childPath(base, "packageId"),
-        message: `El paquete '${cls.packageId}' no existe en el documento.`,
-        severity: "ERROR",
-      });
-    }
-
-    const group = cls.packageId ?? "";
-    const nameKey = JSON.stringify([group, cls.name]);
     const namePath = childPath(base, "name");
-    if (classNameSeen.has(nameKey)) {
+    if (classNameSeen.has(cls.name)) {
       errors.push({
         code: DiagnosticCode.DUPLICATE_NAME,
         path: namePath,
-        message: cls.packageId
-          ? `Nombre '${cls.name}' duplicado en el paquete '${cls.packageId}'.`
-          : `Nombre '${cls.name}' duplicado en el espacio de nombres raíz.`,
+        message: `Nombre '${cls.name}' duplicado en el espacio de nombres raíz.`,
         severity: "ERROR",
       });
     } else {
-      classNameSeen.set(nameKey, { path: namePath });
+      classNameSeen.set(cls.name, { path: namePath });
     }
 
     // --- Attributes ---
@@ -520,19 +430,11 @@ function semanticValidation(doc: Record<string, unknown>, errors: Diagnostic[], 
   }
 
   // §4 — orden canónico de los arrays de nivel superior.
-  if (!isCanonicalOrder(model.packages, packageKey)) {
-    warnings.push({
-      code: DiagnosticCode.OUT_OF_CANONICAL_ORDER,
-      path: "$.packages",
-      message: "El array 'packages' no sigue el orden canónico (id ASC).",
-      severity: "WARNING",
-    });
-  }
   if (!isCanonicalOrder(model.classes, classKey)) {
     warnings.push({
       code: DiagnosticCode.OUT_OF_CANONICAL_ORDER,
       path: "$.classes",
-      message: "El array 'classes' no sigue el orden canónico (packageId ASC, id ASC).",
+      message: "El array 'classes' no sigue el orden canónico (id ASC).",
       severity: "WARNING",
     });
   }

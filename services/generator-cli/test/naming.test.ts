@@ -40,56 +40,33 @@ describe("reglas de nombres §6 del contrato generator-input-output v1", () => {
     id: "m-1",
     name: "M",
     version: "1.0.0",
-    packages: [
-      { id: "pkg-root", name: "Ventas" },
-      { id: "pkg-child", name: "Pedidos", parentId: "pkg-root" },
-    ],
     classes: [
-      { id: "cls-1", name: "Linea", packageId: "pkg-child", attributes: [] },
+      { id: "cls-1", name: "Linea", attributes: [] },
       { id: "cls-2", name: "Suelta", attributes: [] },
     ],
     associations: [],
   };
 
-  it("construye el paquete Java con la jerarquía raíz → inmediato en minúsculas (§6.2)", () => {
+  it("todas las clases viven en el paquete raíz {basePackage} (§6.2)", () => {
     const [child, loose] = model.classes;
-    expect(javaPackageForClass(child, model, "com.example.app")).toBe(
-      "com.example.app.ventas.pedidos",
-    );
+    expect(javaPackageForClass(child, model, "com.example.app")).toBe("com.example.app");
     expect(javaPackageForClass(loose, model, "com.example.app")).toBe("com.example.app");
   });
 
-  it("desambigua colisiones entre paquetes anteponiendo el paquete inmediato (§6.1.2)", () => {
-    const collision: DomainModel = {
-      ...model,
-      packages: [
-        { id: "pkg-a", name: "a" },
-        { id: "pkg-b", name: "b" },
-      ],
-      classes: [
-        { id: "cls-1", name: "Entidad", packageId: "pkg-a", attributes: [] },
-        { id: "cls-2", name: "Entidad", packageId: "pkg-b", attributes: [] },
-      ],
-    };
-    const names = resolveJavaClassNames(collision);
-    expect(names.get("cls-1")).toBe("AEntidad");
-    expect(names.get("cls-2")).toBe("BEntidad");
+  it("resuelve los {ClassName} en UpperCamelCase sin prefijos de paquete", () => {
+    const names = resolveJavaClassNames(model);
+    expect(names.get("cls-1")).toBe("Linea");
+    expect(names.get("cls-2")).toBe("Suelta");
   });
 
-  it("lanza NAME_COLLISION cuando la desambiguación no resuelve (§9.2)", () => {
+  it("lanza NAME_COLLISION ante nombres duplicados en el ámbito raíz (§9.2)", () => {
     const collision: DomainModel = {
       ...model,
-      packages: [{ id: "pkg-a", name: "a" }],
       classes: [
-        { id: "cls-1", name: "A_Entidad", packageId: "pkg-a", attributes: [] },
-        { id: "cls-2", name: "Entidad", packageId: "pkg-a", attributes: [] },
-        { id: "cls-3", name: "Entidad", attributes: [] },
+        { id: "cls-1", name: "A_Entidad", attributes: [] },
+        { id: "cls-2", name: "AEntidad", attributes: [] },
       ],
     };
-    // cls-1 → "AEntidad" (única); cls-2 → "AEntidad" prefijada choca con cls-1;
-    // cls-3 → "Entidad" sin prefijo choca con la base de cls-2? no: cls-2 y
-    // cls-3 comparten base "Entidad" → cls-2 → "AEntidad", cls-3 → "Entidad";
-    // "AEntidad" de cls-2 choca con cls-1 → NAME_COLLISION.
     expect(() => resolveJavaClassNames(collision)).toThrowError(/NAME_COLLISION|mismo nombre/);
   });
 });

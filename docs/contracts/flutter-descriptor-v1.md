@@ -87,7 +87,7 @@ Proyección de una clase del modelo canónico relevante para Flutter.
 |---|---|---|---|
 | `id` | string | sí | `id` de la clase en el modelo canónico. Clave de trazabilidad; no cambia al renombrar. |
 | `name` | string | sí | `name` de la clase en el modelo canónico. Nombre legible para etiquetas de UI. |
-| `packageName` | string | no | Nombre del paquete inmediato de la clase, si tiene `packageId`. Útil para agrupar vistas. |
+| `packageName` | string \| null | no | Siempre `null`: el modelo canónico tiene un único paquete raíz (`domain-model-v1` §3.2). Se conserva el campo por compatibilidad de schema. |
 | `description` | string | no | `description` de la clase en el modelo canónico. Puede usarse como tooltip o ayuda contextual. |
 | `attributes` | [ AttributeDescriptor ] | sí | Lista de descriptores de atributos. Puede estar vacía. |
 
@@ -240,7 +240,7 @@ Generado desde el modelo `valid-minimal.json` (clase `Libro`, atributos `titulo:
     {
       "id": "cls-01",
       "name": "Libro",
-      "packageName": "biblioteca",
+      "packageName": null,
       "description": null,
       "attributes": [
         {
@@ -278,7 +278,7 @@ Generado desde el modelo `valid-minimal.json` (clase `Libro`, atributos `titulo:
     {
       "id": "cls-02",
       "name": "Autor",
-      "packageName": "biblioteca",
+      "packageName": null,
       "description": null,
       "attributes": [
         {

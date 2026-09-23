@@ -6,7 +6,6 @@ const baseModel: CanonicalDomainModel = {
   id: 'MODEL_EA15',
   name: 'Inventario',
   version: '1.0.0',
-  packages: [],
   classes: [
     {
       id: 'CLS_TODO',
@@ -76,7 +75,8 @@ describe('XMI Exporter — Enterprise Architect 15.0.1514.12', () => {
     const xmi = exportXmi(baseModel);
     expect(xmi).toContain('xmi:exporter="Enterprise Architect"');
     expect(xmi).toContain('xmi:exporterVersion="15.0.1514.12"');
-    expect(xmi).toContain('<xmi:Documentation exporter="Enterprise Architect" exporterVersion="15.0.1514.12"/>');
+    // EA escribe la versión del extender XMI ('6.5'), no la del producto.
+    expect(xmi).toContain('<xmi:Documentation exporter="Enterprise Architect" exporterVersion="6.5"/>');
     expect(xmi).toContain('xmi:version="2.1"');
   });
 
@@ -94,7 +94,7 @@ describe('XMI Exporter — Enterprise Architect 15.0.1514.12', () => {
     const xmi = exportXmi(baseModel);
     expect(xmi).toContain('xmi:type="uml:Association"');
     expect(xmi).toMatch(/xmi:id="END_ASSOC_COMP_SRC"[^>]*aggregation="composite"/);
-    expect(xmi).not.toMatch(/xmi:id="END_ASSOC_COMP_TGT"[^>]*aggregation=/);
+    expect(xmi).toMatch(/xmi:id="END_ASSOC_COMP_TGT"[^>]*aggregation="none"/);
   });
 
   it('marca isNavigable="false" en el extremo origen para navegabilidad unidireccional', () => {
@@ -112,11 +112,12 @@ describe('XMI Exporter — Enterprise Architect 15.0.1514.12', () => {
       /<ownedEnd xmi:type="uml:Property" xmi:id="END_ASSOC_COMP_SRC" association="ASSOC_COMP"[^>]*>\s*<type xmi:idref="CLS_TODO"\/>/
     );
     expect(umlPart).toMatch(
-      /<ownedEnd xmi:type="uml:Property" xmi:id="END_ASSOC_COMP_TGT" association="ASSOC_COMP">\s*<type xmi:idref="CLS_PARTE"\/>/
+      /<ownedEnd xmi:type="uml:Property" xmi:id="END_ASSOC_COMP_TGT" association="ASSOC_COMP"[^>]*>\s*<type xmi:idref="CLS_PARTE"\/>/
     );
     expect(umlPart).not.toMatch(/<ownedEnd[^>]* type="CLS_/);
-    // Los atributos emiten primitivos EA como hijo <type xmi:idref="EAnone_..."/>
-    expect(umlPart).toMatch(/<type xmi:idref="EAnone_/);
+    // Los atributos emiten el tipo como hijo: href a PrimitiveTypes.xmi para
+    // primitivos UML, o xmi:idref="EAnone_..." para tipos internos de EA
+    expect(umlPart).toMatch(/<type xmi:type="uml:PrimitiveType" href="[^"]*PrimitiveTypes\.xmi#/);
     expect(umlPart).not.toMatch(/<ownedAttribute[^>]* type="/);
   });
 
@@ -142,7 +143,7 @@ describe('XMI Exporter — Enterprise Architect 15.0.1514.12', () => {
     // Un único elemento que es clase y asociación: nombre de la portadora,
     // atributos de la portadora y extremos de la asociación.
     expect(umlPart).toMatch(
-      /<packagedElement xmi:type="uml:AssociationClass"\s+xmi:id="ASSOC_ACLASS" name="LineaAsignacion">/
+      /<packagedElement xmi:type="uml:AssociationClass"\s+xmi:id="ASSOC_ACLASS" name="LineaAsignacion" visibility="public">/
     );
     expect(umlPart).toContain('name="cantidad"');
     expect(umlPart).toMatch(/<ownedEnd[^>]*association="ASSOC_ACLASS"/);
@@ -150,9 +151,15 @@ describe('XMI Exporter — Enterprise Architect 15.0.1514.12', () => {
     expect(umlPart).not.toContain('xmi:id="CLS_LINEA"');
     const classMatches = umlPart.match(/xmi:type="uml:Class"/g) ?? [];
     expect(classMatches.length).toBe(5);
-    // En la extensión el conector declara el vínculo al elemento fusionado
-    expect(xmi).toContain('associationclass="ASSOC_ACLASS"');
+    // Formato EA 15: el conector tiene identidad propia (CONN_<id>),
+    // subtype="Class" y associationclass apunta al elemento fusionado.
+    expect(xmi).toContain('<connector xmi:idref="CONN_ASSOC_ACLASS" name="LineaAsignacion">');
+    expect(xmi).toContain('<properties ea_type="Association" subtype="Class"');
+    expect(xmi).toMatch(/associationclass="ASSOC_ACLASS" privatedata1="\d+"/);
     expect(xmi).toContain('<element xmi:idref="ASSOC_ACLASS" xmi:type="uml:Class" name="LineaAsignacion"');
+    // El elemento declara nType="17" y enlaza al conector vía conID
+    expect(xmi).toContain('nType="17"');
+    expect(xmi).toContain('conID="CONN_ASSOC_ACLASS"');
   });
 
   it('emite la extensión EA con un diagrama de clases Logical y geometría de elementos', () => {
@@ -182,7 +189,8 @@ describe('XMI Exporter — Enterprise Architect 15.0.1514.12', () => {
     expect(xmi).toContain('<properties ea_type="Generalization"');
     expect(xmi).toContain('<properties ea_type="Dependency"');
     // La composición lleva aggregation="composite" en el extremo del todo (source)
-    expect(xmi).toMatch(/<type multiplicity="1" aggregation="composite"/);
+    // (EA usa notación de rango: '1' → '1..1')
+    expect(xmi).toMatch(/<type multiplicity="1\.\.1" aggregation="composite"/);
     // Las clases listan sus conectores en <links>
     expect(xmi).toContain('<links>');
     expect(xmi).toContain('<Association xmi:id="ASSOC_COMP" start="CLS_TODO" end="CLS_PARTE"/>');
@@ -195,14 +203,20 @@ describe('XMI Exporter — Enterprise Architect 15.0.1514.12', () => {
     expect(genLine).not.toContain('name=');
   });
 
-  it('el XMI exportado se reimporta sin errores bloqueantes (round-trip)', () => {
+  it('el XMI exportado se reimporta sin errores bloqueantes y conserva los kinds (round-trip)', () => {
     const result = importXmi(exportXmi(baseModel), { verbose: true });
     expect(result.outcome).toBe('success');
     expect(result.diagnostics.filter(d => d.severity === 'ERROR')).toHaveLength(0);
-    // Asociaciones normales sobreviven al round-trip
-    const assocIds = result.canonicalModel!.associations.map(a => a.id);
-    expect(assocIds).toContain('ASSOC_COMP');
-    // Los elementos fuera del perfil v1 se ignoran con diagnóstico informativo
-    expect(result.diagnostics.some(d => d.code === 'ELEMENT_IGNORED')).toBe(true);
+    // Desde xmi-profile v1.1 los kinds sobreviven al round-trip completo.
+    const byId = new Map(result.canonicalModel!.associations.map(a => [a.id, a]));
+    expect(byId.get('ASSOC_COMP')?.kind).toBe('composition');
+    expect(byId.get('ASSOC_GEN')?.kind).toBe('generalization');
+    expect(byId.get('ASSOC_DEP')?.kind).toBe('dependency');
+    const aclass = byId.get('ASSOC_ACLASS');
+    expect(aclass?.kind).toBe('associationClass');
+    // La clase portadora se materializa con id derivado y sus atributos
+    const carrier = result.canonicalModel!.classes.find(c => c.id === aclass?.associationClassId);
+    expect(carrier?.name).toBe('LineaAsignacion');
+    expect(carrier?.attributes.map(a => a.name)).toEqual(['cantidad']);
   });
 });

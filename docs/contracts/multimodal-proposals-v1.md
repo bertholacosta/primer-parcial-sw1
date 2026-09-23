@@ -1,6 +1,6 @@
 # Contrato de propuestas multimodales — `multimodal-proposals` v1
 
-- **Versión del contrato:** 1.0.0
+- **Versión del contrato:** 1.1.0
 - **Estado:** accepted
 - **Fecha:** 2026-09-21
 - **Autoridad:** Product Owner (ADR-0000, Invariante 7)
@@ -290,6 +290,23 @@ Cuando el usuario combina un boceto con una nota de voz aclaratoria (e.g. "en es
 - Las evidencias incluyen tanto `boundingBox` como `audio_segment`.
 - El campo `intent.summary` detalla la combinación de intenciones.
 - Cada comando propuesto referencia el `evidenceId` correspondiente a la fuente primaria de dicha instrucción.
+
+#### 5.3.1 Prompt textual (`text_prompt`) — implementación v1.1.0
+
+El chat del asistente envía la instrucción en lenguaje natural al mismo endpoint de propuestas:
+
+```
+POST /api/v1/diagrams/{diagramId}/proposals
+{ "textPrompt": "crea la clase cliente con email y nombre", "clientPlatform": "case_web" }
+```
+
+- **Presencia de `textPrompt`** (string, 1–4000 caracteres) selecciona la modalidad `text_prompt`; su ausencia conserva el comportamiento de `image`.
+- El intérprete LLM (`gemini`/`ollama`, misma configuración `AI_PROVIDER` del servicio) recibe la instrucción junto con un **snapshot compacto** del modelo (nombres de clases, atributos y extremos de asociación) y devuelve comandos **referenciados por nombre**, nunca por id.
+- El servidor traduce las referencias por nombre a ids (resolución insensible a mayúsculas y tildes), genera ids frescos para las entidades nuevas y ejecuta el dry-run determinista (MP-INV-2). Los comandos con referencias irresolubles quedan marcados en `dryRunValidation.errors`.
+- **Evidencia:** `text_transcript` con `mediaSha256` = SHA-256 del prompt UTF-8 y `textTranscript` = prompt literal (MP-INV-4/5).
+- Si el LLM responde `clarification` o ningún comando, el endpoint responde `422 NO_COMMANDS_GENERATED` con el texto aclaratorio como `message`.
+- La transcripción del navegador (Web Speech API) alimenta este mismo campo: la voz nunca tiene un canal de mutación separado.
+- Nota de privacidad: el texto de la instrucción y el snapshot del modelo se transmiten al proveedor LLM configurado — aplica §6.2 (procesamiento en nube bajo consentimiento).
 
 ---
 

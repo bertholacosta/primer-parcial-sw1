@@ -34,7 +34,6 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
       id: 'm-1',
       name: 'Modelo Incompatible',
       version: '1.0.0',
-      packages: [],
       classes: [],
       associations: [],
     };
@@ -53,6 +52,33 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
     expect(screen.queryByTestId('case-web-canvas-container')).not.toBeInTheDocument();
   });
 
+  it('bloquea la exportación Spring Boot cuando el modelo produciría código inválido', () => {
+    const invalidFixture = {
+      ...DEFAULT_CANONICAL_FIXTURE,
+      classes: [
+        {
+          id: 'c1',
+          name: 'Venta',
+          attributes: [
+            { id: 'a1', name: 'id', type: 'String', multiplicity: '1', nullable: false },
+          ],
+        },
+      ],
+      associations: [],
+    };
+
+    render(<App initialModelData={invalidFixture} />);
+    fireEvent.click(screen.getByTestId('btn-export-spring-boot'));
+
+    const banner = screen.getByTestId('export-validation-banner');
+    expect(banner.textContent).toContain('Exportación bloqueada');
+    expect(banner.textContent).toContain('ID_FIELD_COLLISION');
+
+    // Al corregir el modelo la exportación vuelve a ser posible.
+    fireEvent.click(screen.getByTestId('dismiss-export-diagnostics'));
+    expect(screen.queryByTestId('export-validation-banner')).not.toBeInTheDocument();
+  });
+
   it('renderiza el nodo individual de clase UML con atributos y etiquetas ARIA de figura', () => {
     const mockNode: UmlClassFlowNode = {
       id: 'cls-01',
@@ -61,7 +87,6 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
       data: {
         id: 'cls-01',
         name: 'Libro',
-        packages: [],
         attributes: [
           { id: 'a1', name: 'titulo', type: 'String', nullable: false, multiplicity: '1' },
           { id: 'a2', name: 'paginas', type: 'Integer', nullable: true, multiplicity: '0..1' },
@@ -236,13 +261,12 @@ describe('CaseWeb Palette & CreateClass Command', () => {
     expect(screen.getByTestId('semantic-item-Ejemplar')).toBeInTheDocument();
   });
 
-  it('edita nombre, paquete y descripción de una clase desde la barra contextual', () => {
+  it('edita nombre y descripción de una clase desde la barra contextual', () => {
     render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
 
     fireEvent.click(screen.getByTestId('uml-class-node-Libro'));
     fireEvent.click(screen.getByTestId('toolbar-edit-class-cls-01'));
     fireEvent.change(screen.getByTestId('edit-class-name-cls-01'), { target: { value: 'Publicacion' } });
-    fireEvent.change(screen.getByTestId('edit-class-package-cls-01'), { target: { value: '' } });
     fireEvent.change(screen.getByTestId('edit-class-description-cls-01'), { target: { value: 'Descripción completa' } });
     fireEvent.click(screen.getByTestId('confirm-edit-class-cls-01'));
 

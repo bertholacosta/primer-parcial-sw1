@@ -1,10 +1,16 @@
 # Contrato del modelo canónico — `domain-model` v1
 
-- **Versión del contrato:** 1.0.0
+- **Versión del contrato:** 1.1.0
 - **Estado:** accepted
-- **Fecha:** 2026-09-19
+- **Fecha:** 2026-09-23 (v1.1.0; original 2026-09-19)
 - **Autoridad:** Product Owner (ADR-0000)
 - **Archivo canónico:** `domain-model.json` (o cualquier fichero `.domain-model.json`)
+
+> **v1.1.0 (decisión del Product Owner):** se elimina la colección `packages` y
+> el campo `packageId` de las clases. El modelo canónico **es** el único
+> paquete raíz: todas las clases viven en su espacio de nombres. Documentos
+> antiguos con `packages`/`packageId` siguen leyéndose por la política
+> ignore-unknown de §2.3 (el campo se ignora y puede advertirse).
 
 ---
 
@@ -68,28 +74,16 @@ Un cambio incompatible requiere `contractVersion` `"2"` y un ADR aceptado.
   "name": string,                   // obligatorio
   "version": string,                // obligatorio
   "description": string,            // opcional
-  "packages": [ Package ],          // obligatorio, ≥ 0 elementos
   "classes": [ Class ],             // obligatorio, ≥ 0 elementos
   "associations": [ Association ]   // obligatorio, ≥ 0 elementos
 }
 ```
 
-Los arrays `packages`, `classes` y `associations` deben estar presentes aunque estén vacíos. La ausencia de cualquiera de ellos es un error.
+Los arrays `classes` y `associations` deben estar presentes aunque estén vacíos. La ausencia de cualquiera de ellos es un error.
 
-### 3.2 Package (paquete)
+### 3.2 Paquete raíz (único espacio de nombres)
 
-Un paquete es un espacio de nombres lógico. Agrupa clases sin imponer estructura de carpetas ni módulo de compilación.
-
-| Campo | Tipo | Obligatorio | Restricciones |
-|---|---|---|---|
-| `id` | string | sí | Único en el documento. |
-| `name` | string | sí | Identificador válido: `[A-Za-z_][A-Za-z0-9_]*`. Único entre hermanos bajo el mismo padre. |
-| `parentId` | string | no | Referencia al `id` de un paquete padre. Si está presente, el paquete referenciado debe existir. Ausente → paquete raíz. |
-| `description` | string | no | Texto libre. |
-
-**Restricciones:**
-- No se permiten ciclos en la jerarquía de paquetes (detección por DFS).
-- Un modelo puede no tener paquetes; en ese caso `classes` se considera en el espacio de nombres raíz.
+El modelo canónico **es** el paquete raíz. No existe una colección `packages` ni jerarquía de paquetes: todas las clases comparten el único espacio de nombres del documento. Un campo `packages` recibido en un documento antiguo se trata como campo desconocido (§2.3).
 
 ### 3.3 Class (clase)
 
@@ -98,13 +92,12 @@ Representa una entidad del dominio persistible o un objeto de valor.
 | Campo | Tipo | Obligatorio | Restricciones |
 |---|---|---|---|
 | `id` | string | sí | Único en el documento. |
-| `name` | string | sí | `[A-Za-z_][A-Za-z0-9_]*`. Único dentro del mismo paquete (o a nivel raíz si no hay paquete). |
-| `packageId` | string | no | Referencia al `id` de un Package existente. |
+| `name` | string | sí | `[A-Za-z_][A-Za-z0-9_]*`. Único en el espacio de nombres raíz. |
 | `description` | string | no | Texto libre. |
 | `attributes` | [ Attribute ] | sí | Array, puede estar vacío. |
 
 **Restricciones:**
-- Dos clases no pueden tener el mismo `name` dentro del mismo `packageId` (o en el mismo nivel raíz).
+- Dos clases no pueden tener el mismo `name` en el documento (ámbito raíz único).
 - Una clase abstracta puede no tener atributos propios.
 
 ### 3.4 Attribute (atributo)
@@ -185,8 +178,7 @@ Para que los resultados de validación y generación sean deterministas e idempo
 
 | Array | Clave de ordenación primaria | Clave secundaria |
 |---|---|---|
-| `packages` | `id` ASC | — |
-| `classes` | `packageId` ASC (nulos primero), luego `id` ASC | — |
+| `classes` | `id` ASC | — |
 | `classes[*].attributes` | `id` ASC | — |
 | `associations` | `sourceClassId` ASC, luego `id` ASC | — |
 
@@ -206,7 +198,7 @@ Este contrato no impone la implementación de ninguna capa, pero declara qué in
 
 | Capa | Información mínima requerida del modelo |
 |---|---|
-| **Entity** | `class.id`, `class.name`, `class.packageId`, `attribute.name`, `attribute.type`, `attribute.nullable`, `attribute.multiplicity`, `association.targetClassId`, `association.targetMultiplicity` |
+| **Entity** | `class.id`, `class.name`, `attribute.name`, `attribute.type`, `attribute.nullable`, `attribute.multiplicity`, `association.targetClassId`, `association.targetMultiplicity` |
 | **DTO** | `class.id`, `class.name`, `attribute.name`, `attribute.type`, `attribute.nullable`, `attribute.multiplicity` |
 | **Repository** | `class.id`, `class.name` (para derivar el nombre del repositorio) |
 | **Service** | `class.id`, `class.name`, `association.*` (para lógica de navegación) |
@@ -238,17 +230,10 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
   "id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
   "name": "Biblioteca",
   "version": "1.0.0",
-  "packages": [
-    {
-      "id": "pkg-01",
-      "name": "biblioteca"
-    }
-  ],
   "classes": [
     {
       "id": "cls-01",
       "name": "Libro",
-      "packageId": "pkg-01",
       "attributes": [
         {
           "id": "attr-01",
@@ -276,7 +261,6 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
     {
       "id": "cls-02",
       "name": "Autor",
-      "packageId": "pkg-01",
       "attributes": [
         {
           "id": "attr-04",
@@ -311,7 +295,6 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
   "id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
   "name": "ModeloSinVersion",
   "version": "1.0.0",
-  "packages": [],
   "classes": [],
   "associations": []
 }
@@ -331,7 +314,6 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
   "id": "aaa",
   "name": "Modelo",
   "version": "1.0.0",
-  "packages": [],
   "classes": [
     {
       "id": "cls-x",
@@ -365,7 +347,6 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
   "id": "bbb",
   "name": "Modelo",
   "version": "1.0.0",
-  "packages": [],
   "classes": [
     {
       "id": "cls-a",
@@ -392,7 +373,7 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
 - Mensaje: "La clase 'cls-no-existe' no existe en el documento."
 - Severidad: `ERROR` (bloqueante)
 
-#### 6.2.4 Nombres de clase duplicados en el mismo paquete
+#### 6.2.4 Nombres de clase duplicados en el ámbito raíz
 
 ```json
 {
@@ -400,10 +381,9 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
   "id": "ccc",
   "name": "Modelo",
   "version": "1.0.0",
-  "packages": [{ "id": "pkg-a", "name": "paquete" }],
   "classes": [
-    { "id": "cls-1", "name": "Entidad", "packageId": "pkg-a", "attributes": [] },
-    { "id": "cls-2", "name": "Entidad", "packageId": "pkg-a", "attributes": [] }
+    { "id": "cls-1", "name": "Entidad", "attributes": [] },
+    { "id": "cls-2", "name": "Entidad", "attributes": [] }
   ],
   "associations": []
 }
@@ -412,7 +392,7 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
 **Diagnóstico esperado:**
 - Código: `DUPLICATE_NAME`
 - Ruta: `$.classes[1].name`
-- Mensaje: "Nombre 'Entidad' duplicado en el paquete 'pkg-a'."
+- Mensaje: "Nombre 'Entidad' duplicado en el espacio de nombres raíz."
 - Severidad: `ERROR` (bloqueante)
 
 #### 6.2.5 Conflicto nullable/multiplicity (advertencia no bloqueante)
@@ -423,7 +403,6 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
   "id": "ddd",
   "name": "Modelo",
   "version": "1.0.0",
-  "packages": [],
   "classes": [
     {
       "id": "cls-1",
@@ -465,6 +444,7 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
 | D6 | Este contrato no elige lenguaje, framework, librería de validación ni motor de plantillas. | Tarea P1-001 |
 | D7 | Política de campos desconocidos: ignorar y preservar (evolución hacia adelante). | §2.3 de este contrato |
 | D8 | El orden canónico es obligatorio para determinismo; el incumplimiento es advertencia, no error. | §4 de este contrato |
+| D9 | El modelo canónico es el único paquete raíz: no hay colección `packages` ni `packageId`; la unicidad de nombres de clase es global al documento. | Decisión PO 2026-09-23 (v1.1.0) |
 
 ### 7.2 Supuestos registrados
 
@@ -481,7 +461,7 @@ El descriptor Flutter es un artefacto derivado. Debe declarar la `version` y el 
 | # | Pregunta | Impacto |
 |---|---|---|
 | Q1 | ¿Deben los `id` de clases y atributos ser UUIDs v4 o se aceptan slugs arbitrarios? | El validador necesita una regla de formato de `id`. |
-| Q2 | ¿Se requiere que los paquetes se mapeen a namespaces Java en la generación Spring? | Afecta al contrato `generator-input-output` y al nombre de paquetes Java. |
+| Q2 | ~~¿Se requiere que los paquetes se mapeen a namespaces Java?~~ **Resuelta (v1.1.0):** no hay paquetes de usuario; todas las clases generan en el paquete raíz `basePackage`. | — |
 | Q3 | ¿El descriptor Flutter es idéntico al `domain-model.json` o es un subconjunto proyectado? | Afecta al contrato `flutter-descriptor` (pendiente de definición). |
 | Q4 | ¿Se requiere un campo `createdAt`/`updatedAt` automático en todas las entidades generadas? | Si sí, debe añadirse al contrato como campo implícito o como `attribute` con `type` especial. |
 | Q5 | ¿El campo `version` del documento de modelo sigue semver estricto o es una cadena libre? | Afecta a la regla de parsing del validador. |

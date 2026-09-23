@@ -3,17 +3,10 @@
   "id": "MODEL_01",
   "name": "Biblioteca",
   "version": "1.0.0",
-  "packages": [
-    {
-      "id": "PKG_01",
-      "name": "biblioteca"
-    }
-  ],
   "classes": [
     {
       "id": "CLS_01",
       "name": "Libro",
-      "packageId": "PKG_01",
       "attributes": [
         {
           "id": "ATTR_01",
@@ -41,7 +34,6 @@
     {
       "id": "CLS_02",
       "name": "Autor",
-      "packageId": "PKG_01",
       "attributes": [
         {
           "id": "ATTR_04",

@@ -1,4 +1,4 @@
-import type { DomainClass, DomainModel, DomainPackage } from "domain-model";
+import type { DomainClass, DomainModel } from "domain-model";
 import { GeneratorError, GeneratorErrorCode } from "./errors.js";
 
 /**
@@ -45,72 +45,37 @@ export function restPathForClassName(className: string): string {
   return `/${toKebabCase(className)}s`;
 }
 
-function packagesById(model: DomainModel): Map<string, DomainPackage> {
-  return new Map(model.packages.map((pkg) => [pkg.id, pkg]));
-}
-
 /**
- * §6.2 — paquete Java de una clase: `{basePackage}.{pkgs...}` con los nombres
- * de paquete del modelo en orden jerárquico raíz → inmediato, en minúsculas.
- * Sin `packageId` se usa solo `{basePackage}`.
+ * §6.2 — paquete Java de una clase: el modelo tiene un único paquete raíz,
+ * por lo que todas las clases viven en `{basePackage}`.
  */
 export function javaPackageForClass(
-  cls: DomainClass,
-  model: DomainModel,
+  _cls: DomainClass,
+  _model: DomainModel,
   basePackage: string,
 ): string {
-  const byId = packagesById(model);
-  const segments: string[] = [];
-  let current = cls.packageId === undefined ? undefined : byId.get(cls.packageId);
-  while (current !== undefined) {
-    segments.unshift(current.name.toLowerCase());
-    current = current.parentId === undefined ? undefined : byId.get(current.parentId);
-  }
-  return [basePackage, ...segments].join(".");
-}
-
-function immediatePackageName(cls: DomainClass, model: DomainModel): string | undefined {
-  if (cls.packageId === undefined) return undefined;
-  return packagesById(model).get(cls.packageId)?.name;
+  return basePackage;
 }
 
 /**
- * §6.1 — resuelve el `{ClassName}` Java de cada clase del modelo.
- * Colisiones entre clases de paquetes distintos se desambiguan anteponiendo
- * el nombre del paquete inmediato (`{PackageName}{ClassName}`); si la
- * colisión persiste se lanza NAME_COLLISION (§9.2).
+ * §6.1 — resuelve el `{ClassName}` Java de cada clase del modelo. Con un
+ * único paquete raíz no hay desambiguación por paquete: cualquier colisión de
+ * nombre es NAME_COLLISION (§9.2).
  */
 export function resolveJavaClassNames(model: DomainModel): Map<string, string> {
-  const baseNames = new Map(model.classes.map((cls) => [cls.id, toUpperCamelCase(cls.name)]));
   const resolved = new Map<string, string>();
-
-  const groups = new Map<string, DomainClass[]>();
-  for (const cls of model.classes) {
-    const base = baseNames.get(cls.id) ?? "";
-    const group = groups.get(base) ?? [];
-    group.push(cls);
-    groups.set(base, group);
-  }
-
-  for (const [base, group] of groups) {
-    for (const cls of group) {
-      const packageName = group.length > 1 ? immediatePackageName(cls, model) : undefined;
-      resolved.set(cls.id, packageName === undefined ? base : toUpperCamelCase(packageName) + base);
-    }
-  }
-
   const seen = new Map<string, string>();
   for (const cls of model.classes) {
-    const className = resolved.get(cls.id) ?? "";
+    const className = toUpperCamelCase(cls.name);
     const first = seen.get(className);
     if (first !== undefined) {
       throw new GeneratorError(
         GeneratorErrorCode.NAME_COLLISION,
-        `Las clases '${first}' y '${cls.id}' producen el mismo nombre de clase Java '${className}' y la desambiguación por paquete no la resuelve.`,
+        `Las clases '${first}' y '${cls.id}' producen el mismo nombre de clase Java '${className}'.`,
       );
     }
     seen.set(className, cls.id);
+    resolved.set(cls.id, className);
   }
-
   return resolved;
 }

@@ -104,7 +104,6 @@ Devuelve `200` con `{ "user": User }` para el access token válido. Un token aus
     "id": "99832a7b-f5f5-4ab0-b690-0b8db290ac68",
     "name": "Biblioteca",
     "version": "1.0.0",
-    "packages": [],
     "classes": [],
     "associations": []
   }

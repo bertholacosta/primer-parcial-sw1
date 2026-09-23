@@ -22,7 +22,7 @@ El módulo `apps/case-web` es el editor visual que emite comandos definidos en `
 - **Invariante 2:** una entrada inválida no produce código parcial aceptable; los errores nunca mutan el modelo.
 - **Invariante 7:** las propuestas de IA no mutan estado hasta superar validación determinista.
 - El contrato usa **optimistic locking** (`modelVersion`) para control de concurrencia; el editor debe propagar la versión actual en cada comando emitido.
-- El corte mínimo de la Fase 4 cubre `CreateClass`, `RenameClass`, `DeleteClass`, `AddAttribute`, `UpdateAttribute`, `DeleteAttribute`, `CreateAssociation`, `UpdateAssociation`, `DeleteAssociation`, `CreatePackage` y `DeletePackage`.
+- El corte mínimo de la Fase 4 cubre `CreateClass`, `RenameClass`, `DeleteClass`, `AddAttribute`, `UpdateAttribute`, `DeleteAttribute`, `CreateAssociation`, `UpdateAssociation` y `DeleteAssociation`. ~~`CreatePackage`/`DeletePackage`~~ — **superado (2026-09-23):** por decisión del Product Owner el modelo canónico es el único paquete raíz (`domain-model-v1` §3.2, `model-commands-v1` §6); los comandos de paquete fueron eliminados.
 - El repositorio es un monorepo en Windows 11 / PowerShell 7; el tooling de CI ejecuta validaciones con `pwsh`.
 
 ---

@@ -10,9 +10,8 @@ function baseModel(): DomainModel {
     id: "model-01",
     name: "SistemaVentas",
     version: "1.0.0",
-    packages: [{ id: "pkg-01", name: "ventas" }],
     classes: [
-      { id: "cls-01", name: "Producto", packageId: "pkg-01", attributes: [] },
+      { id: "cls-01", name: "Producto", attributes: [] },
     ],
     associations: [],
   };
@@ -31,7 +30,7 @@ describe("procesador de comandos model-commands-v1", () => {
   it("CreateClass aceptado muta el modelo e incrementa PATCH", () => {
     const outcome = applyCommand(
       baseModel(),
-      cmd({ type: "CreateClass", payload: { id: "cls-02", name: "Categoria", packageId: "pkg-01" } }),
+      cmd({ type: "CreateClass", payload: { id: "cls-02", name: "Categoria" } }),
     );
     expect(outcome.result).toBe("accepted");
     expect(outcome.modelVersion).toBe("1.0.1");
@@ -65,7 +64,7 @@ describe("procesador de comandos model-commands-v1", () => {
   it("acumula errores de precondición (DUPLICATE_CLASS_NAME)", () => {
     const outcome = applyCommand(
       baseModel(),
-      cmd({ type: "CreateClass", payload: { id: "cls-02", name: "Producto", packageId: "pkg-01" } }),
+      cmd({ type: "CreateClass", payload: { id: "cls-02", name: "Producto" } }),
     );
     expect(outcome.result).toBe("rejected");
     expect(outcome.errors.map((e) => e.code)).toContain("DUPLICATE_CLASS_NAME");
@@ -173,14 +172,6 @@ describe("procesador de comandos model-commands-v1", () => {
     expect(outcome.errors.map((e) => e.code)).toContain("SELF_ASSOCIATION_NOT_ALLOWED");
   });
 
-  it("CreatePackage/DeletePackage validan existencia, unicidad y vacío", () => {
-    const model = baseModel();
-    const dup = applyCommand(model, cmd({ type: "CreatePackage", payload: { id: "pkg-02", name: "ventas" } }));
-    expect(dup.errors.map((e) => e.code)).toContain("DUPLICATE_PACKAGE_NAME");
-
-    const notEmpty = applyCommand(model, cmd({ type: "DeletePackage", payload: { packageId: "pkg-01" } }));
-    expect(notEmpty.errors.map((e) => e.code)).toContain("PACKAGE_NOT_EMPTY");
-  });
 });
 
 describe("serialización canónica y hashing", () => {
@@ -192,7 +183,6 @@ describe("serialización canónica y hashing", () => {
     const a = baseModel();
     const shuffled: DomainModel = {
       ...a,
-      packages: [...a.packages].reverse(),
       classes: [...a.classes].reverse(),
       associations: [...a.associations].reverse(),
     };
@@ -207,7 +197,6 @@ function modelWithClasses(): DomainModel {
     id: "model-01",
     name: "SistemaVentas",
     version: "1.0.0",
-    packages: [],
     classes: [
       { id: "cls-a", name: "Padre", attributes: [] },
       { id: "cls-b", name: "Hija", attributes: [] },
@@ -289,15 +278,13 @@ describe("tipos de relación UML (ADR-0009)", () => {
     expect(ok.model.associations[0].associationClassId).toBe("cls-c");
   });
 
-  it("UpdateClass cambia nombre, paquete y descripción de forma atómica", () => {
-    const model = baseModel();
-    model.packages.push({ id: "pkg-02", name: "catalogo" });
+  it("UpdateClass cambia nombre y descripción de forma atómica", () => {
     const outcome = applyCommand(
-      model,
-      cmd({ type: "UpdateClass", payload: { classId: "cls-01", name: "Articulo", packageId: "pkg-02", description: "Entidad editable" } }),
+      baseModel(),
+      cmd({ type: "UpdateClass", payload: { classId: "cls-01", name: "Articulo", description: "Entidad editable" } }),
     );
     expect(outcome.result).toBe("accepted");
-    expect(outcome.model.classes[0]).toMatchObject({ name: "Articulo", packageId: "pkg-02", description: "Entidad editable" });
+    expect(outcome.model.classes[0]).toMatchObject({ name: "Articulo", description: "Entidad editable" });
   });
 
   it("UpdateAssociation permite cambiar tipo y propiedades conservando extremos", () => {

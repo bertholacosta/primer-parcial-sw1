@@ -38,7 +38,6 @@ interface BaseCommand<TType extends string, TPayload> {
 export interface CreateClassPayload {
   id: string;
   name: string;
-  packageId?: string;
   description?: string;
 }
 export type CreateClassCommand = BaseCommand<"CreateClass", CreateClassPayload>;
@@ -52,7 +51,6 @@ export type RenameClassCommand = BaseCommand<"RenameClass", RenameClassPayload>;
 export interface UpdateClassPayload {
   classId: string;
   name?: string;
-  packageId?: string | null;
   description?: string;
 }
 export type UpdateClassCommand = BaseCommand<"UpdateClass", UpdateClassPayload>;
@@ -135,19 +133,6 @@ export interface DeleteAssociationPayload {
 }
 export type DeleteAssociationCommand = BaseCommand<"DeleteAssociation", DeleteAssociationPayload>;
 
-export interface CreatePackagePayload {
-  id: string;
-  name: string;
-  parentId?: string;
-  description?: string;
-}
-export type CreatePackageCommand = BaseCommand<"CreatePackage", CreatePackagePayload>;
-
-export interface DeletePackagePayload {
-  packageId: string;
-}
-export type DeletePackageCommand = BaseCommand<"DeletePackage", DeletePackagePayload>;
-
 export type ModelCommand =
   | CreateClassCommand
   | RenameClassCommand
@@ -158,9 +143,7 @@ export type ModelCommand =
   | DeleteAttributeCommand
   | CreateAssociationCommand
   | UpdateAssociationCommand
-  | DeleteAssociationCommand
-  | CreatePackageCommand
-  | DeletePackageCommand;
+  | DeleteAssociationCommand;
 
 export interface CommandOutcome {
   commandId: string;
@@ -208,23 +191,16 @@ interface CommandEvaluation {
 
 type CommandHandler = (model: DomainModel, command: ModelCommand) => CommandEvaluation;
 
-const sameScope = (a?: string, b?: string) => (a ?? null) === (b ?? null);
-
 function evaluateCreateClass(model: DomainModel, command: CreateClassCommand): CommandEvaluation {
   const errors: CommandError[] = [];
   const p = command.payload;
 
-  if (p.packageId !== undefined && !model.packages.some((pkg) => pkg.id === p.packageId)) {
-    errors.push(
-      err("PACKAGE_NOT_FOUND", "$.payload.packageId", `No existe un paquete con id '${p.packageId}' en el modelo '${model.id}'.`),
-    );
-  }
   if (model.classes.some((cls) => cls.id === p.id)) {
     errors.push(err("DUPLICATE_ID", "$.payload.id", `Ya existe una clase con id '${p.id}' en el documento.`));
   }
-  if (model.classes.some((cls) => cls.name === p.name && sameScope(cls.packageId, p.packageId))) {
+  if (model.classes.some((cls) => cls.name === p.name)) {
     errors.push(
-      err("DUPLICATE_CLASS_NAME", "$.payload.name", `Ya existe una clase con nombre '${p.name}' en el mismo ámbito de paquete.`),
+      err("DUPLICATE_CLASS_NAME", "$.payload.name", `Ya existe una clase con nombre '${p.name}' en el modelo.`),
     );
   }
   if (!isIdentifier(p.name)) {
@@ -239,7 +215,6 @@ function evaluateCreateClass(model: DomainModel, command: CreateClassCommand): C
       m.classes.push({
         id: p.id,
         name: p.name,
-        packageId: p.packageId,
         description: p.description,
         attributes: [],
       });
@@ -254,9 +229,9 @@ function evaluateRenameClass(model: DomainModel, command: RenameClassCommand): C
 
   if (!target) {
     errors.push(err("CLASS_NOT_FOUND", "$.payload.classId", `No existe una clase con id '${p.classId}' en el modelo '${model.id}'.`));
-  } else if (model.classes.some((cls) => cls.id !== p.classId && cls.name === p.newName && sameScope(cls.packageId, target.packageId))) {
+  } else if (model.classes.some((cls) => cls.id !== p.classId && cls.name === p.newName)) {
     errors.push(
-      err("DUPLICATE_CLASS_NAME", "$.payload.newName", `Ya existe otra clase con nombre '${p.newName}' en el mismo ámbito de paquete.`),
+      err("DUPLICATE_CLASS_NAME", "$.payload.newName", `Ya existe otra clase con nombre '${p.newName}' en el modelo.`),
     );
   }
   if (!isIdentifier(p.newName)) {
@@ -274,13 +249,12 @@ function evaluateRenameClass(model: DomainModel, command: RenameClassCommand): C
   };
 }
 
-const UPDATE_CLASS_FIELDS = ["name", "packageId", "description"] as const;
+const UPDATE_CLASS_FIELDS = ["name", "description"] as const;
 
 function evaluateUpdateClass(model: DomainModel, command: UpdateClassCommand): CommandEvaluation {
   const errors: CommandError[] = [];
   const p = command.payload;
   const target = model.classes.find((cls) => cls.id === p.classId);
-  const packageId = p.packageId === undefined ? target?.packageId : p.packageId ?? undefined;
   const name = p.name ?? target?.name;
 
   if (!target) {
@@ -289,11 +263,8 @@ function evaluateUpdateClass(model: DomainModel, command: UpdateClassCommand): C
   if (p.name !== undefined && !isIdentifier(p.name)) {
     errors.push(err("INVALID_NAME_FORMAT", "$.payload.name", `El nombre '${p.name}' no cumple el patrón [A-Za-z_][A-Za-z0-9_]*.`));
   }
-  if (p.packageId !== undefined && p.packageId !== null && !model.packages.some((pkg) => pkg.id === p.packageId)) {
-    errors.push(err("PACKAGE_NOT_FOUND", "$.payload.packageId", `No existe un paquete con id '${p.packageId}' en el modelo '${model.id}'.`));
-  }
-  if (target && name && model.classes.some((cls) => cls.id !== p.classId && cls.name === name && sameScope(cls.packageId, packageId))) {
-    errors.push(err("DUPLICATE_CLASS_NAME", "$.payload.name", `Ya existe otra clase con nombre '${name}' en el mismo ámbito de paquete.`));
+  if (target && name && model.classes.some((cls) => cls.id !== p.classId && cls.name === name)) {
+    errors.push(err("DUPLICATE_CLASS_NAME", "$.payload.name", `Ya existe otra clase con nombre '${name}' en el modelo.`));
   }
 
   return {
@@ -304,7 +275,6 @@ function evaluateUpdateClass(model: DomainModel, command: UpdateClassCommand): C
       const cls = m.classes.find((item) => item.id === p.classId);
       if (!cls) return;
       if (p.name !== undefined) cls.name = p.name;
-      if (p.packageId !== undefined) cls.packageId = p.packageId ?? undefined;
       if (p.description !== undefined) cls.description = p.description;
     },
   };
@@ -662,59 +632,6 @@ function evaluateDeleteAssociation(model: DomainModel, command: DeleteAssociatio
   };
 }
 
-function evaluateCreatePackage(model: DomainModel, command: CreatePackageCommand): CommandEvaluation {
-  const errors: CommandError[] = [];
-  const p = command.payload;
-
-  if (p.parentId !== undefined && !model.packages.some((pkg) => pkg.id === p.parentId)) {
-    errors.push(err("PACKAGE_NOT_FOUND", "$.payload.parentId", `No existe un paquete con id '${p.parentId}' en el modelo '${model.id}'.`));
-  }
-  if (model.packages.some((pkg) => pkg.id === p.id)) {
-    errors.push(err("DUPLICATE_ID", "$.payload.id", `Ya existe un paquete con id '${p.id}' en el documento.`));
-  }
-  if (model.packages.some((pkg) => pkg.name === p.name && sameScope(pkg.parentId, p.parentId))) {
-    errors.push(
-      err("DUPLICATE_PACKAGE_NAME", "$.payload.name", `Ya existe un paquete con nombre '${p.name}' bajo el mismo padre.`),
-    );
-  }
-  if (!isIdentifier(p.name)) {
-    errors.push(err("INVALID_NAME_FORMAT", "$.payload.name", `El nombre '${p.name}' no cumple el patrón [A-Za-z_][A-Za-z0-9_]*.`));
-  }
-
-  return {
-    errors,
-    warnings: [],
-    noop: false,
-    apply: (m) => {
-      m.packages.push({ id: p.id, name: p.name, parentId: p.parentId, description: p.description });
-    },
-  };
-}
-
-function evaluateDeletePackage(model: DomainModel, command: DeletePackageCommand): CommandEvaluation {
-  const errors: CommandError[] = [];
-  const p = command.payload;
-
-  if (!model.packages.some((pkg) => pkg.id === p.packageId)) {
-    errors.push(err("PACKAGE_NOT_FOUND", "$.payload.packageId", `No existe un paquete con id '${p.packageId}' en el modelo '${model.id}'.`));
-  }
-  if (model.classes.some((cls) => cls.packageId === p.packageId)) {
-    errors.push(err("PACKAGE_NOT_EMPTY", "$.payload.packageId", `El paquete '${p.packageId}' contiene clases; no puede eliminarse sin reasignar o eliminar las clases primero.`));
-  }
-  if (model.packages.some((pkg) => pkg.parentId === p.packageId)) {
-    errors.push(err("PACKAGE_HAS_CHILDREN", "$.payload.packageId", `El paquete '${p.packageId}' contiene subpaquetes; deben eliminarse primero.`));
-  }
-
-  return {
-    errors,
-    warnings: [],
-    noop: false,
-    apply: (m) => {
-      m.packages = m.packages.filter((pkg) => pkg.id !== p.packageId);
-    },
-  };
-}
-
 const HANDLERS: Record<ModelCommand["type"], CommandHandler> = {
   CreateClass: evaluateCreateClass as CommandHandler,
   RenameClass: evaluateRenameClass as CommandHandler,
@@ -726,8 +643,6 @@ const HANDLERS: Record<ModelCommand["type"], CommandHandler> = {
   CreateAssociation: evaluateCreateAssociation as CommandHandler,
   UpdateAssociation: evaluateUpdateAssociation as CommandHandler,
   DeleteAssociation: evaluateDeleteAssociation as CommandHandler,
-  CreatePackage: evaluateCreatePackage as CommandHandler,
-  DeletePackage: evaluateDeletePackage as CommandHandler,
 };
 
 /**

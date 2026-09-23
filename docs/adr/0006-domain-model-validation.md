@@ -164,7 +164,7 @@ Esta decisión ha sido aprobada por el Product Owner con los siguientes acuerdos
 
 - **`packages/domain-validator/`** se inicializa como paquete TypeScript con `package.json`, `tsconfig.json` y dependencias `ajv@^8.17`, `ajv-formats` (opcional) y `typescript`.
 - Se define un JSON Schema draft-07 que modela la estructura de `domain-model-v1.md` (campos obligatorios, enumeraciones de tipo, enumeraciones de multiplicidad, navegabilidad).
-- Se implementan reglas custom en TypeScript para: unicidad de `id` en el documento, unicidad de `name` por paquete/clase, resolución de referencias (`packageId`, `sourceClassId`, `targetClassId`, `parentId`), detección de ciclos en jerarquía de paquetes, coherencia `nullable`/`multiplicity`.
+- Se implementan reglas custom en TypeScript para: unicidad de `id` en el documento, unicidad de `name` de clase global al documento y de `name` de atributo por clase, resolución de referencias (`sourceClassId`, `targetClassId`), coherencia `nullable`/`multiplicity`. **Nota (2026-09-23):** las reglas de paquetes (`packageId`, `parentId`, ciclos de jerarquía) quedaron superadas por la decisión de paquete raíz único (`domain-model-v1` §3.2).
 - La función pública `validate(doc: unknown): ValidationResult` retorna `{ errors: Diagnostic[], warnings: Diagnostic[] }` donde `Diagnostic` tiene `{ code, path, message, severity }`.
 - Las pruebas unitarias cubren los cinco ejemplos inválidos del §6.2 de `domain-model-v1.md` y el ejemplo válido del §6.1.
 - La integración con el generador (`services/generator-cli/`) consiste en invocar `validate()` y abortar si `errors.length > 0`.

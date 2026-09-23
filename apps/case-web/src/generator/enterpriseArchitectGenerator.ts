@@ -4,7 +4,6 @@ import {
   CanonicalAttribute as XmiAttribute,
   CanonicalClass as XmiClass,
   CanonicalAssociation as XmiAssociation,
-  CanonicalPackage as XmiPackage,
   CanonicalType,
   CanonicalMultiplicity,
   CanonicalAssociationKind
@@ -28,17 +27,9 @@ function toKebabCase(s: string): string {
  * El adaptador solo conoce el subconjunto del perfil xmi-profile-v1.
  */
 function toXmiModel(model: CanonicalDomainModel): XmiDomainModel {
-  const packages: XmiPackage[] = model.packages.map(pkg => ({
-    id: pkg.id,
-    name: pkg.name,
-    parentId: pkg.parentId,
-    description: pkg.description
-  }));
-
   const classes: XmiClass[] = model.classes.map(cls => ({
     id: cls.id,
     name: cls.name,
-    packageId: cls.packageId,
     description: cls.description,
     attributes: cls.attributes.map(
       (attr): XmiAttribute => ({
@@ -70,7 +61,6 @@ function toXmiModel(model: CanonicalDomainModel): XmiDomainModel {
     id: model.id,
     name: model.name,
     version: model.version,
-    packages,
     classes,
     associations
   };

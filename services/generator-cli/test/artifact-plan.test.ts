@@ -26,19 +26,18 @@ describe("planificación ordenada de artefactos de capa (§5.1)", () => {
 
     expect(plan).toHaveLength(10);
     const paths = plan.map((a) => a.relativePath);
-    // §6.2: {basePackage}.{paquetes del modelo}; la clase está en el paquete
-    // "biblioteca" del modelo, por lo que el segmento aparece tras el basePackage.
+    // §6.2: todas las clases viven en el paquete raíz {basePackage}.
     expect(paths).toEqual([
-      "src/main/java/com/example/biblioteca/biblioteca/entity/LibroEntity.java",
-      "src/main/java/com/example/biblioteca/biblioteca/dto/LibroDTO.java",
-      "src/main/java/com/example/biblioteca/biblioteca/repository/LibroRepository.java",
-      "src/main/java/com/example/biblioteca/biblioteca/service/LibroService.java",
-      "src/main/java/com/example/biblioteca/biblioteca/controller/LibroController.java",
-      "src/main/java/com/example/biblioteca/biblioteca/entity/AutorEntity.java",
-      "src/main/java/com/example/biblioteca/biblioteca/dto/AutorDTO.java",
-      "src/main/java/com/example/biblioteca/biblioteca/repository/AutorRepository.java",
-      "src/main/java/com/example/biblioteca/biblioteca/service/AutorService.java",
-      "src/main/java/com/example/biblioteca/biblioteca/controller/AutorController.java",
+      "src/main/java/com/example/biblioteca/entity/LibroEntity.java",
+      "src/main/java/com/example/biblioteca/dto/LibroDTO.java",
+      "src/main/java/com/example/biblioteca/repository/LibroRepository.java",
+      "src/main/java/com/example/biblioteca/service/LibroService.java",
+      "src/main/java/com/example/biblioteca/controller/LibroController.java",
+      "src/main/java/com/example/biblioteca/entity/AutorEntity.java",
+      "src/main/java/com/example/biblioteca/dto/AutorDTO.java",
+      "src/main/java/com/example/biblioteca/repository/AutorRepository.java",
+      "src/main/java/com/example/biblioteca/service/AutorService.java",
+      "src/main/java/com/example/biblioteca/controller/AutorController.java",
     ]);
   });
 
@@ -49,14 +48,18 @@ describe("planificación ordenada de artefactos de capa (§5.1)", () => {
     );
   });
 
-  it("desambigüa nombres de clase colisionados por paquete", () => {
-    const model = canonicalize(fixture("valid-duplicate-class-names-different-packages.json"));
-    const paths = planClassArtifactPaths(model, config).map((a) => a.relativePath);
-    expect(paths).toContain(
-      "src/main/java/com/example/biblioteca/a/entity/AEntidadEntity.java",
-    );
-    expect(paths).toContain(
-      "src/main/java/com/example/biblioteca/b/entity/BEntidadEntity.java",
-    );
+  it("lanza NAME_COLLISION ante clases homónimas en el ámbito raíz", () => {
+    const collision: DomainModel = {
+      contractVersion: "1",
+      id: "m-c",
+      name: "M",
+      version: "1.0.0",
+      classes: [
+        { id: "cls-1", name: "Entidad", attributes: [] },
+        { id: "cls-2", name: "Entidad", attributes: [] },
+      ],
+      associations: [],
+    };
+    expect(() => planClassArtifactPaths(collision, config)).toThrowError(/mismo nombre|NAME_COLLISION/);
   });
 });
