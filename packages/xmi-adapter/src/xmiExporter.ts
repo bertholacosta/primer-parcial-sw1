@@ -39,6 +39,10 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
   lines.push('         xmi:exporter="Enterprise Architect"');
   lines.push(`         xmi:exporterVersion="${escapeXml(eaVersion)}"`);
   lines.push('         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"');
+  if (includeDiagram) {
+    lines.push('         xmlns:umldi="http://www.omg.org/spec/UML/20131001/UMLDI"');
+    lines.push('         xmlns:dc="http://www.omg.org/spec/UML/20131001/UMLDC"');
+  }
   lines.push('         xmlns:uml="http://www.omg.org/spec/UML/20131001">');
   lines.push('');
   lines.push(`  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="${escapeXml(eaVersion)}"/>`);
@@ -131,6 +135,11 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
   }
 
   lines.push('    </packagedElement>');
+
+  if (includeDiagram) {
+    renderUmldiDiagram();
+  }
+
   lines.push('  </uml:Model>');
 
   if (includeDiagram) {
@@ -494,6 +503,105 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
     }
   }
 
+  interface DiagramBox {
+    id: string;
+    name: string;
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  }
+
+  /**
+   * Grilla determinista compartida entre el diagrama UMLDI (que EA usa para
+   * crear el diagrama) y el diagrama de la extensión EA (metadatos propios):
+   * ceil(sqrt(n)) columnas, celdas de 280x220. Las clases-asociación ocupan
+   * una celda con el id del elemento fusionado.
+   */
+  function getDiagramBoxes(): DiagramBox[] {
+    const items: { id: string; name: string; attrCount: number }[] = model.classes
+      .filter(c => !carrierIds.has(c.id))
+      .map(c => ({ id: c.id, name: c.name, attrCount: c.attributes.length }));
+    for (const assoc of model.associations) {
+      if (assoc.kind !== 'associationClass') {
+        continue;
+      }
+      const carrier = assoc.associationClassId ? classById.get(assoc.associationClassId) : undefined;
+      items.push({
+        id: assoc.id,
+        name: carrier?.name ?? assoc.name ?? '',
+        attrCount: carrier?.attributes.length ?? 0
+      });
+    }
+    const cols = Math.max(1, Math.ceil(Math.sqrt(items.length)));
+    return items.map((item, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const left = 40 + col * 280;
+      const top = 40 + row * 220;
+      return {
+        id: item.id,
+        name: item.name,
+        left,
+        top,
+        right: left + 220,
+        bottom: top + Math.max(80, 60 + item.attrCount * 18)
+      };
+    });
+  }
+
+  /**
+   * Emite <umldi:Diagram> dentro de uml:Model — la representación estándar
+   * UML Diagram Interchange desde la que EA crea el diagrama de clases al
+   * importar. Sin este bloque EA importa el modelo pero no crea el diagrama.
+   */
+  function renderUmldiDiagram() {
+    const boxes = getDiagramBoxes();
+    const boxById = new Map(boxes.map(b => [b.id, b]));
+    const diagramId = `DGM_${model.id}`;
+
+    lines.push(`    <umldi:Diagram xmi:type="umldi:UMLClassDiagram" xmi:id="${escapeXml(diagramId)}" isFrame="false" modelElement="${EA_ROOT_PACKAGE_ID}">`);
+    for (const box of boxes) {
+      lines.push(`      <ownedElement xmi:type="umldi:UMLClassifierShape" xmi:id="SHP_${escapeXml(box.id)}" modelElement="${escapeXml(box.id)}">`);
+      lines.push(`        <ownedElement xmi:type="umldi:UMLNameLabel" xmi:id="NL_${escapeXml(box.id)}" text="${escapeXml(box.name)}"/>`);
+      lines.push(`        <bounds xmi:type="dc:bounds" xmi:id="DB_${escapeXml(box.id)}" x="${box.left}" y="${box.top}" width="${box.right - box.left}" height="${box.bottom - box.top}"/>`);
+      lines.push('      </ownedElement>');
+    }
+    for (const assoc of model.associations) {
+      const src = boxById.get(assoc.sourceClassId);
+      const tgt = boxById.get(assoc.targetClassId);
+      if (!src || !tgt) {
+        continue;
+      }
+      // Conecta el borde más cercano: si el destino está a la derecha, sale
+      // por la derecha del origen; si no, por la izquierda.
+      const forward = tgt.left >= src.left;
+      const srcX = forward ? src.right : src.left;
+      const tgtX = forward ? tgt.left : tgt.right;
+      const srcY = Math.round((src.top + src.bottom) / 2);
+      const tgtY = Math.round((tgt.top + tgt.bottom) / 2);
+      const midX = Math.round((srcX + tgtX) / 2);
+      const midY = Math.round((srcY + tgtY) / 2);
+      const edgeId = `EDG_${assoc.id}`;
+      lines.push(`      <ownedElement xmi:type="umldi:UMLEdge" xmi:id="${escapeXml(edgeId)}" source="${escapeXml(assoc.sourceClassId)}" target="${escapeXml(assoc.targetClassId)}" modelElement="${escapeXml(assoc.id)}">`);
+      lines.push(`        <ownedElement xmi:type="umldi:UMLMultiplicityLabel" xmi:id="SML_${escapeXml(assoc.id)}" text="${escapeXml(assoc.sourceMultiplicity)}" modelElement="END_${escapeXml(assoc.id)}_SRC">`);
+      lines.push(`          <bounds xmi:type="dc:bounds" xmi:id="DBSML_${escapeXml(assoc.id)}" x="${srcX + (forward ? 8 : -40)}" y="${srcY + 8}" width="32" height="13"/>`);
+      lines.push('        </ownedElement>');
+      if (assoc.name) {
+        lines.push(`        <ownedElement xmi:type="umldi:UMLNameLabel" xmi:id="NL_${escapeXml(assoc.id)}" text="${escapeXml(assoc.name)}">`);
+        lines.push(`          <bounds xmi:type="dc:bounds" xmi:id="DBNL_${escapeXml(assoc.id)}" x="${midX - 30}" y="${midY - 18}" width="60" height="13"/>`);
+        lines.push('        </ownedElement>');
+      }
+      lines.push(`        <ownedElement xmi:type="umldi:UMLMultiplicityLabel" xmi:id="TML_${escapeXml(assoc.id)}" text="${escapeXml(assoc.targetMultiplicity)}" modelElement="END_${escapeXml(assoc.id)}_TGT">`);
+      lines.push(`          <bounds xmi:type="dc:bounds" xmi:id="DBTML_${escapeXml(assoc.id)}" x="${tgtX + (forward ? -40 : 8)}" y="${tgtY + 8}" width="32" height="13"/>`);
+      lines.push('        </ownedElement>');
+      lines.push(`        <waypoint xmi:type="dc:waypoint" xmi:id="WP0_${escapeXml(assoc.id)}" x="${srcX}" y="${srcY}"/>`);
+      lines.push(`        <waypoint xmi:type="dc:waypoint" xmi:id="WP1_${escapeXml(assoc.id)}" x="${tgtX}" y="${tgtY}"/>`);
+      lines.push('      </ownedElement>');
+    }
+    lines.push('    </umldi:Diagram>');
+  }
+
   /**
    * Emite un diagrama de clases UML (type="Logical") con todas las clases en
    * una grilla determinista y todos los conectores. Sin este bloque EA importa
@@ -530,28 +638,9 @@ export function exportXmi(model: CanonicalDomainModel, options: XmiExportOptions
     lines.push('        <xrefs/>');
     lines.push('        <elements>');
 
-    // Grilla determinista: ceil(sqrt(n)) columnas, celdas de 280x220.
-    // Las clases-asociación ocupan una celda con el id de la asociación
-    // (el elemento fusionado) y el alto de los atributos de la portadora.
-    const diagramClasses: { id: string; attrCount: number }[] = model.classes
-      .filter(c => !carrierIds.has(c.id))
-      .map(c => ({ id: c.id, attrCount: c.attributes.length }));
-    for (const assoc of model.associations) {
-      if (assoc.kind !== 'associationClass') {
-        continue;
-      }
-      const carrier = assoc.associationClassId ? classById.get(assoc.associationClassId) : undefined;
-      diagramClasses.push({ id: assoc.id, attrCount: carrier?.attributes.length ?? 0 });
-    }
-    const cols = Math.max(1, Math.ceil(Math.sqrt(diagramClasses.length)));
-    diagramClasses.forEach((item, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const left = 40 + col * 280;
-      const top = 40 + row * 220;
-      const right = left + 220;
-      const bottom = top + Math.max(80, 60 + item.attrCount * 18);
-      lines.push(`          <element geometry="Left=${left};Top=${top};Right=${right};Bottom=${bottom};" subject="${escapeXml(item.id)}" seqno="${i + 1}" style="DUID=${duid(item.id)};"/>`);
+    // Misma grilla que el diagrama UMLDI.
+    getDiagramBoxes().forEach((box, i) => {
+      lines.push(`          <element geometry="Left=${box.left};Top=${box.top};Right=${box.right};Bottom=${box.bottom};" subject="${escapeXml(box.id)}" seqno="${i + 1}" style="DUID=${duid(box.id)};"/>`);
     });
 
     for (const assoc of model.associations) {

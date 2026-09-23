@@ -124,6 +124,8 @@ Para que EA muestre los elementos en un diagrama (no solo en el navegador de pro
 - `<connectors>`: una entrada por asociación con `<source>`/`<target>` (`<type multiplicity aggregation>`, `isNavigable`), `<properties ea_type direction>`, `<labels lb mt rb>` y `<extendedProperties virtualInheritance="0" [associationclass]>`. `ea_type` es `Association`, `Generalization` o `Dependency` según `kind`; `direction` es `Bi-Directional` o `Source -> Destination`.
 - `<diagrams>`: un `<diagram>` `type="Logical"` (diagrama de clases) que contiene todas las clases en una grilla determinista (`geometry="Left..;Top..;Right..;Bottom..;"`, `subject`, `DUID` de 8 hex) y todos los conectores (`SX/SY/EX/EY/EDGE`, `SOID`/`EOID` apuntando a los DUID de los extremos).
 
+Además, dentro de `uml:Model` se emite un `<umldi:Diagram xmi:type="umldi:UMLClassDiagram">` (UML Diagram Interchange, namespaces `umldi`/`dc` declarados en la raíz): un `UMLClassifierShape` por clase con `dc:bounds` (misma grilla determinista) y un `UMLEdge` por asociación con `UMLMultiplicityLabel`/`UMLNameLabel`/`dc:waypoint`. **EA crea el diagrama a partir de este bloque UMLDI**; el `<diagram>` de la extensión aporta solo metadatos propietarios (DUID, estilos).
+
 Puede desactivarse con `includeDiagram: false`. En importación este bloque se descarta completo (§4).
 
 ---

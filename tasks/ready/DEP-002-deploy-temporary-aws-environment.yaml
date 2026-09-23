@@ -1,7 +1,7 @@
 id: DEP-002
 title: "Desplegar el entorno temporal CASE en AWS"
 phase: 11
-status: ready
+status: analysis
 kind: implementation
 owner_role: codex
 objective: >-
@@ -48,7 +48,7 @@ deliverables:
   - docs/deployment/aws-sa-east-1.md
 links: []
 attempts:
-  implementation_failures: 1
+  implementation_failures: 2
   maximum_before_analysis: 2
 orca:
   issue: null
@@ -62,3 +62,6 @@ evidence:
   - "2026-09-23: CloudShell también indica que la verificación de cuenta sigue en curso. Se requiere habilitación por AWS antes de reintentar."
   - "2026-09-23: caso AWS Support 179016314600087, Account Activation / Account Verification, estado Sin asignar."
   - "2026-09-23: presupuesto CASE-SW1-15d-20260923 creado para USD 80 del 23/09 al 09/10, alertas por costo real >USD 40 y >USD 80 al correo autorizado."
+  - "2026-09-23: el Product Owner creó i-0b33d91ccec1404aa en us-east-1; tras revisar su único disco raíz de 8 GiB, autorizó terminarla. AWS confirmó inicio de terminación."
+  - "2026-09-23: segundo intento de RunInstances en sa-east-1 con Ubuntu 24.04, t3.small, EBS gp3 cifrado 30 GiB, CPU estándar, SSH cerrado y 80/443 abiertos. AWS rechazó: This account is currently blocked and not recognized as a valid account. No se lanzó instancia. Se detiene implementación y se devuelve a análisis conforme a AGENTS.md."
+  - "2026-09-23: AWS confirmó que i-0b33d91ccec1404aa está Terminada y sin disco asociado. El caso Support 179016314600087 se actualizó con la discrepancia entre regiones y el segundo error."
