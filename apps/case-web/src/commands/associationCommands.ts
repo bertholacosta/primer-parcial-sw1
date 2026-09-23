@@ -47,6 +47,19 @@ export interface DeleteAssociationPayload {
 
 export type DeleteAssociationCommand = BaseCommand<'DeleteAssociation', DeleteAssociationPayload>;
 
+export interface UpdateAssociationPayload {
+  associationId: string;
+  name?: string;
+  sourceMultiplicity?: string;
+  targetMultiplicity?: string;
+  navigability?: string;
+  kind?: AssociationKind;
+  associationClassId?: string | null;
+  description?: string;
+}
+
+export type UpdateAssociationCommand = BaseCommand<'UpdateAssociation', UpdateAssociationPayload>;
+
 /**
  * Datos de entrada para la creación visual de una asociación desde el editor.
  * El identificador de la asociación lo genera el emisor del comando.
@@ -60,6 +73,27 @@ export interface CreateAssociationInput {
   navigability?: string;
   kind?: AssociationKind;
   associationClassId?: string;
+  description?: string;
+}
+
+export type UpdateAssociationInput = UpdateAssociationPayload;
+
+/**
+ * Entrada para crear una clase-asociación: crea la clase portadora y la
+ * asociación de tipo 'associationClass' en una sola operación de UI.
+ * El id de la clase y la asociación los genera el llamador.
+ */
+export interface CreateAssociationClassInput {
+  associationName?: string;
+  sourceClassId: string;
+  targetClassId: string;
+  /** Nombre de la nueva clase portadora que se crea automáticamente. */
+  newClassName: string;
+  /** Id pre-generado para la nueva clase portadora. */
+  newClassId: string;
+  sourceMultiplicity: string;
+  targetMultiplicity: string;
+  navigability: string;
   description?: string;
 }
 
@@ -274,6 +308,67 @@ export function executeCreateAssociation(
       commandId,
       modelVersion: nextVersion,
     },
+  };
+}
+
+export function executeUpdateAssociation(
+  model: CanonicalDomainModel,
+  command: UpdateAssociationCommand
+): { updatedModel: CanonicalDomainModel; result: CommandExecutionResult } {
+  const errors: CommandError[] = [];
+  const { payload, commandId, modelVersion, modelId } = command;
+  const association = model.associations.find((item) => item.id === payload.associationId);
+  const kind = payload.kind ?? association?.kind ?? 'association';
+  const structural = STRUCTURAL_KINDS.includes(kind);
+  const sourceMultiplicity = payload.sourceMultiplicity ?? association?.sourceMultiplicity;
+  const targetMultiplicity = payload.targetMultiplicity ?? association?.targetMultiplicity;
+  const navigability = payload.navigability ?? association?.navigability;
+  const associationClassId = payload.associationClassId === undefined ? association?.associationClassId : payload.associationClassId ?? undefined;
+  const others = model.associations.filter((item) => item.id !== payload.associationId);
+
+  if (model.id !== modelId) errors.push({ code: 'MODEL_NOT_FOUND', message: `El modelo con id '${modelId}' no coincide con el modelo actual '${model.id}'.`, severity: 'ERROR', path: '$.modelId' });
+  if (model.version !== modelVersion) errors.push({ code: 'CONCURRENT_MODIFICATION', message: `Versión del modelo esperada '${modelVersion}', pero la actual es '${model.version}'.`, severity: 'ERROR', path: '$.modelVersion' });
+  if (!association) errors.push({ code: 'ASSOCIATION_NOT_FOUND', message: `No existe una asociación con id '${payload.associationId}'.`, severity: 'ERROR', path: '$.payload.associationId' });
+  if (payload.kind !== undefined && !ASSOCIATION_KINDS.includes(payload.kind)) errors.push({ code: 'INVALID_ASSOCIATION_KIND', message: `El tipo '${payload.kind}' no es válido.`, severity: 'ERROR', path: '$.payload.kind' });
+  if (structural && !ALLOWED_MULTIPLICITIES.includes(sourceMultiplicity as any)) errors.push({ code: 'INVALID_MULTIPLICITY', message: `La multiplicidad '${sourceMultiplicity}' no es válida.`, severity: 'ERROR', path: '$.payload.sourceMultiplicity' });
+  if (structural && !ALLOWED_MULTIPLICITIES.includes(targetMultiplicity as any)) errors.push({ code: 'INVALID_MULTIPLICITY', message: `La multiplicidad '${targetMultiplicity}' no es válida.`, severity: 'ERROR', path: '$.payload.targetMultiplicity' });
+  if (structural && !ALLOWED_NAVIGABILITIES.includes(navigability as any)) errors.push({ code: 'INVALID_NAVIGABILITY', message: `La navegabilidad '${navigability}' no es válida.`, severity: 'ERROR', path: '$.payload.navigability' });
+  if (association && kind === 'generalization') {
+    if (others.some((item) => (item.kind ?? 'association') === 'generalization' && item.sourceClassId === association.sourceClassId)) errors.push({ code: 'MULTIPLE_INHERITANCE', message: `La clase '${association.sourceClassId}' ya tiene una generalización.`, severity: 'ERROR', path: '$.payload.kind' });
+    let current: string | undefined = association.targetClassId;
+    const seen = new Set<string>();
+    while (current) {
+      if (current === association.sourceClassId) {
+        errors.push({ code: 'GENERALIZATION_CYCLE', message: 'La generalización crearía un ciclo.', severity: 'ERROR', path: '$.payload.kind' });
+        break;
+      }
+      if (seen.has(current)) break;
+      seen.add(current);
+      current = others.find((item) => (item.kind ?? 'association') === 'generalization' && item.sourceClassId === current)?.targetClassId;
+    }
+  }
+  if (association && kind === 'composition' && others.some((item) => item.kind === 'composition' && item.targetClassId === association.targetClassId)) errors.push({ code: 'COMPOSITION_PART_OCCUPIED', message: `La clase '${association.targetClassId}' ya pertenece a otra composición.`, severity: 'ERROR', path: '$.payload.kind' });
+  if (kind === 'associationClass' && !associationClassId) errors.push({ code: 'MISSING_ASSOCIATION_CLASS', message: 'Debe seleccionar una clase portadora.', severity: 'ERROR', path: '$.payload.associationClassId' });
+  if (kind === 'associationClass' && associationClassId && !model.classes.some((item) => item.id === associationClassId)) errors.push({ code: 'ASSOCIATION_CLASS_NOT_FOUND', message: `No existe la clase '${associationClassId}'.`, severity: 'ERROR', path: '$.payload.associationClassId' });
+  if (errors.length > 0) return { updatedModel: model, result: { result: 'rejected', commandId, modelVersion: model.version, errors } };
+
+  const nextVersion = incrementPatchVersion(model.version);
+  return {
+    updatedModel: {
+      ...model,
+      version: nextVersion,
+      associations: model.associations.map((item) => item.id === payload.associationId ? {
+        ...item,
+        ...(payload.name !== undefined ? { name: payload.name } : {}),
+        kind,
+        sourceMultiplicity: structural ? sourceMultiplicity ?? '1' : '1',
+        targetMultiplicity: structural ? targetMultiplicity ?? '1' : '1',
+        navigability: (structural ? navigability ?? 'unidirectional' : 'unidirectional') as CanonicalAssociation['navigability'],
+        associationClassId: kind === 'associationClass' ? associationClassId : undefined,
+        ...(payload.description !== undefined ? { description: payload.description } : {}),
+      } : item),
+    },
+    result: { result: 'accepted', commandId, modelVersion: nextVersion },
   };
 }
 

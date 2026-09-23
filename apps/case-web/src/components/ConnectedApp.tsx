@@ -87,7 +87,7 @@ export const ConnectedApp: React.FC<ConnectedAppDeps> = ({
 
   if (phase === 'restoring') {
     return (
-      <div data-testid="session-restoring" style={{ padding: '24px', fontFamily: 'sans-serif', fontSize: '13px', color: '#64748b' }}>
+      <div data-testid="session-restoring" className="loading-state">
         Restaurando sesión…
       </div>
     );

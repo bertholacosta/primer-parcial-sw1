@@ -3,6 +3,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   Background,
+  BackgroundVariant,
   Controls,
   useReactFlow,
   useNodesState,
@@ -34,8 +35,11 @@ import {
   ALLOWED_NAVIGABILITIES,
   STRUCTURAL_KINDS,
   type CreateAssociationInput,
+  type CreateAssociationClassInput,
+  type UpdateAssociationInput,
 } from '../commands/associationCommands';
 import type { CreateClassInput } from '../commands/classCommands';
+import { generateAndDownloadSpringBoot } from '../generator/springBootGenerator';
 
 export interface CollaborationBarInfo {
   stateLabel: string;
@@ -55,6 +59,9 @@ export interface CaseWebCanvasProps extends FlowNodeCallbacks {
   lastCommandResult?: CommandExecutionResult | null;
   collaboration?: CollaborationBarInfo;
   onCreateAssociation?: (input: CreateAssociationInput) => void;
+  /** Crea la clase portadora y la asociación de tipo associationClass en una sola operación. */
+  onCreateAssociationClass?: (input: CreateAssociationClassInput) => void;
+  onUpdateAssociation?: (input: UpdateAssociationInput) => void;
   onCreateClass?: (input: CreateClassInput) => void;
   onRenameClass?: (classId: string, newName: string) => void;
   onDeleteClass?: (classId: string) => void;
@@ -96,9 +103,13 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   readOnly,
   onAddAttribute,
   onUpdateAttribute,
+  onDeleteAttribute,
+  onUpdateClass,
   onRenameClass,
   onDeleteClass,
   onCreateAssociation,
+  onCreateAssociationClass,
+  onUpdateAssociation,
   onCreateClass,
   onCreatePackage,
   onDeletePackage,
@@ -129,10 +140,14 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   const pendingPositions = useRef<Record<string, { x: number; y: number }>>({});
 
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
+  const [selectedAssociationId, setSelectedAssociationId] = useState<string | null>(null);
+  const [editingAssociationId, setEditingAssociationId] = useState<string | null>(null);
   const [assocName, setAssocName] = useState('');
   const [assocKind, setAssocKind] = useState<AssociationKind>('association');
   const [paletteRelationKind, setPaletteRelationKind] = useState<AssociationKind>('association');
   const [assocClassId, setAssocClassId] = useState('');
+  const [assocNewClassName, setAssocNewClassName] = useState('');
+  const [assocDescription, setAssocDescription] = useState('');
   const [assocSourceMult, setAssocSourceMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
   const [assocTargetMult, setAssocTargetMult] = useState<string>(ALLOWED_MULTIPLICITIES[0]);
   const [assocNavigability, setAssocNavigability] = useState<string>(ALLOWED_NAVIGABILITIES[0]);
@@ -142,8 +157,8 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   const deletedNodeIds = useRef<Set<string>>(new Set());
 
   const callbacks = useMemo(
-    () => ({ readOnly, onAddAttribute, onUpdateAttribute, onRenameClass }),
-    [readOnly, onAddAttribute, onUpdateAttribute, onRenameClass]
+    () => ({ readOnly, onAddAttribute, onUpdateAttribute, onDeleteAttribute, onUpdateClass, onRenameClass, onDeleteClass }),
+    [readOnly, onAddAttribute, onUpdateAttribute, onDeleteAttribute, onUpdateClass, onRenameClass, onDeleteClass]
   );
 
   // Sincroniza el modelo canónico con los nodos del canvas conservando
@@ -173,8 +188,6 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
     },
     [setFlowNodes]
   );
-
-  const edges = useMemo(() => modelToFlowEdges(model), [model]);
 
   const classNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -238,14 +251,48 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
   /* ---------------- Conexión por arrastre → popover ---------------- */
 
   const openAssociationPopover = useCallback((sourceClassId: string, targetClassId: string) => {
+    setEditingAssociationId(null);
     setAssocName('');
     setAssocKind(paletteRelationKind);
     setAssocClassId('');
+    setAssocNewClassName('');
+    setAssocDescription('');
     setAssocSourceMult(ALLOWED_MULTIPLICITIES[0]);
     setAssocTargetMult(ALLOWED_MULTIPLICITIES[0]);
     setAssocNavigability(ALLOWED_NAVIGABILITIES[0]);
     setPendingConnection({ sourceClassId, targetClassId });
   }, [paletteRelationKind]);
+
+  const openAssociationEditor = useCallback((associationId: string) => {
+    const association = model.associations.find((item) => item.id === associationId);
+    if (!association) return;
+    setEditingAssociationId(association.id);
+    setAssocName(association.name ?? '');
+    setAssocKind(association.kind ?? 'association');
+    setAssocClassId(association.associationClassId ?? '');
+    setAssocNewClassName('');
+    setAssocDescription(association.description ?? '');
+    setAssocSourceMult(association.sourceMultiplicity);
+    setAssocTargetMult(association.targetMultiplicity);
+    setAssocNavigability(association.navigability);
+    setPendingConnection({
+      sourceClassId: association.sourceClassId,
+      targetClassId: association.targetClassId,
+    });
+  }, [model.associations]);
+
+  const edges = useMemo(
+    () => modelToFlowEdges(model).map((edge) => ({
+      ...edge,
+      selected: edge.id === selectedAssociationId,
+      data: {
+        ...edge.data,
+        onEditAssociation: readOnly ? undefined : openAssociationEditor,
+        onDeleteAssociation: readOnly ? undefined : onDeleteAssociation,
+      },
+    })),
+    [model, readOnly, selectedAssociationId, openAssociationEditor, onDeleteAssociation]
+  );
 
   const handleConnect = useCallback(
     (connection: Connection) => {
@@ -255,9 +302,41 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
     [openAssociationPopover]
   );
 
+  const handleEdgeClick = useCallback((event: React.MouseEvent, edge: Edge) => {
+    event.stopPropagation();
+    setSelectedAssociationId(edge.id);
+  }, []);
+
   const handleConfirmConnection = () => {
-    if (pendingConnection && onCreateAssociation) {
-      const structural = STRUCTURAL_KINDS.includes(assocKind);
+    if (!pendingConnection) return;
+    const structural = STRUCTURAL_KINDS.includes(assocKind);
+
+    if (editingAssociationId && onUpdateAssociation) {
+      // Edición: la clase portadora ya existe; se pasa su id existente.
+      onUpdateAssociation({
+        associationId: editingAssociationId,
+        name: assocName.trim(),
+        kind: assocKind,
+        sourceMultiplicity: structural ? assocSourceMult : undefined,
+        targetMultiplicity: structural ? assocTargetMult : undefined,
+        navigability: structural ? assocNavigability : undefined,
+        associationClassId: assocKind === 'associationClass' ? assocClassId || null : null,
+        description: assocDescription,
+      });
+    } else if (assocKind === 'associationClass' && onCreateAssociationClass) {
+      // Creación de clase-asociación: genera la clase portadora automáticamente.
+      onCreateAssociationClass({
+        associationName: assocName.trim() || undefined,
+        sourceClassId: pendingConnection.sourceClassId,
+        targetClassId: pendingConnection.targetClassId,
+        newClassName: assocNewClassName.trim() || 'AsociacionClase',
+        newClassId: `cls-${crypto.randomUUID()}`,
+        sourceMultiplicity: assocSourceMult,
+        targetMultiplicity: assocTargetMult,
+        navigability: assocNavigability,
+        description: assocDescription || undefined,
+      });
+    } else if (onCreateAssociation) {
       onCreateAssociation({
         name: assocName.trim() ? assocName.trim() : undefined,
         kind: assocKind,
@@ -266,10 +345,11 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
         sourceMultiplicity: structural ? assocSourceMult : '1',
         targetMultiplicity: structural ? assocTargetMult : '1',
         navigability: structural ? assocNavigability : 'unidirectional',
-        associationClassId: assocKind === 'associationClass' && assocClassId ? assocClassId : undefined,
+        description: assocDescription || undefined,
       });
     }
     setPendingConnection(null);
+    setEditingAssociationId(null);
   };
 
   /* ---------------- Movimiento libre y borrado ---------------- */
@@ -292,58 +372,66 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
         onDeleteAssociation?.(e.id);
       }
       deletedNodeIds.current.clear();
+      setSelectedAssociationId(null);
     },
     [onDeleteAssociation]
   );
 
+  /* ---------------- Exportación Spring Boot ---------------- */
+
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportSpringBoot = useCallback(async () => {
+    setExporting(true);
+    try {
+      await generateAndDownloadSpringBoot(model);
+    } finally {
+      setExporting(false);
+    }
+  }, [model]);
+
   const editable = !readOnly;
 
   return (
-    <div
-      style={{ width: '100%', height: '100%', minHeight: '500px', display: 'flex', flexDirection: 'column' }}
-      data-testid="case-web-canvas-container"
-    >
+    <div className="case-editor" data-testid="case-web-canvas-container">
       {/* Barra de información superior */}
-      <header
-        style={{
-          padding: '12px 20px',
-          background: '#0f172a',
-          color: '#f8fafc',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        }}
-      >
+      <header className="editor-header">
         <div>
-          <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-            Editor CASE — {model.name}
-          </h1>
-          <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-            Versión del modelo: {model.version} | Contrato: v{model.contractVersion}
+          <span className="editor-eyebrow">Modelo de dominio</span>
+          <h1 className="editor-title">Editor CASE — {model.name}</h1>
+          <span className="editor-meta">
+            Versión {model.version} · Contrato v{model.contractVersion}
           </span>
         </div>
-        <div data-testid="model-classes-count" style={{ fontSize: '13px', color: '#38bdf8' }}>
-          {model.classes.length} {model.classes.length === 1 ? 'clase' : 'clases'} renderizadas
+        <div className="editor-actions">
+          <button
+            data-testid="btn-export-spring-boot"
+            className="button-secondary"
+            onClick={handleExportSpringBoot}
+            disabled={exporting || model.classes.length === 0}
+            title={
+              model.classes.length === 0
+                ? 'Se requiere al menos una clase para exportar'
+                : 'Descarga un ZIP con el proyecto Spring Boot generado'
+            }
+          >
+            {exporting ? 'Generando…' : 'Exportar Spring Boot'}
+          </button>
+          <div data-testid="model-classes-count" className="editor-count">
+            {model.classes.length} {model.classes.length === 1 ? 'clase renderizada' : 'clases renderizadas'}
+          </div>
         </div>
       </header>
 
       {/* Barra de estado de colaboración (solo en modo conectado) */}
       {collaboration && (
-        <div
-          data-testid="collaboration-bar"
-          style={{
-            padding: '6px 20px',
-            background: '#1e293b',
-            color: '#e2e8f0',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-            fontSize: '12px',
-          }}
-        >
-          <span data-testid="collaboration-state" style={{ color: collaboration.connected ? '#4ade80' : '#fbbf24' }}>
-            ● {collaboration.stateLabel}
+        <div data-testid="collaboration-bar" className="collaboration-bar">
+          <span
+            data-testid="collaboration-state"
+            className={`connection-state${collaboration.connected ? ' connected' : ''}`}
+          >
+            <span className="connection-dot" aria-hidden="true" />
+            {collaboration.stateLabel}
           </span>
           {collaboration.roleLabel && (
             <span data-testid="collaboration-role">Rol: {collaboration.roleLabel}</span>
@@ -357,7 +445,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             </span>
           )}
           {readOnly && (
-            <span data-testid="collaboration-readonly" style={{ marginLeft: 'auto', color: '#94a3b8' }}>
+            <span data-testid="collaboration-readonly" className="toolbar-spacer">
               Modo solo lectura
             </span>
           )}
@@ -368,16 +456,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
       {lastCommandResult && (
         <div
           data-testid="command-result-banner"
-          style={{
-            padding: '8px 20px',
-            fontSize: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: lastCommandResult.result === 'accepted' ? '#f0fdf4' : '#fef2f2',
-            borderBottom: `1px solid ${lastCommandResult.result === 'accepted' ? '#86efac' : '#fca5a5'}`,
-            color: lastCommandResult.result === 'accepted' ? '#166534' : '#991b1b',
-          }}
+          className={`status-banner ${lastCommandResult.result}`}
         >
           <span>
             <strong>Comando {lastCommandResult.result === 'accepted' ? 'aplicado' : 'rechazado'}:</strong>{' '}
@@ -385,32 +464,19 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
               ? lastCommandResult.errors.map((e) => `[${e.code}] ${e.message}`).join(', ')
               : `Versión del modelo: ${lastCommandResult.modelVersion}`}
           </span>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>
-            ID: {lastCommandResult.commandId.slice(0, 8)}...
-          </span>
+          <span className="status-id">ID: {lastCommandResult.commandId.slice(0, 8)}…</span>
         </div>
       )}
 
       {/* Zona principal: paleta + lienzo */}
-      <main style={{ flex: 1, position: 'relative', minHeight: '400px', display: 'flex' }}>
+      <main className="editor-workspace">
         {editable && (onCreateClass || onCreatePackage) && (
           <aside
             data-testid="element-palette"
             aria-label="Paleta de elementos UML"
-            style={{
-              width: '140px',
-              flexShrink: 0,
-              background: '#f8fafc',
-              borderRight: '1px solid #e2e8f0',
-              padding: '10px 8px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-            }}
+            className="element-palette"
           >
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px' }}>
-              Elementos
-            </div>
+            <div className="palette-heading">Elementos</div>
             {PALETTE_ITEMS.map((item) => (
               <div
                 key={item.kind}
@@ -418,31 +484,23 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                 draggable
                 onDragStart={handlePaletteDragStart(item.kind)}
                 onClick={handlePaletteClick(item.kind)}
-                title={item.hint}
-                style={{
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: '6px',
-                  background: '#ffffff',
-                  padding: '8px 6px',
-                  fontSize: '12px',
-                  textAlign: 'center',
-                  cursor: 'grab',
-                  color: '#0f172a',
-                  userSelect: 'none',
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') handlePaletteClick(item.kind)();
                 }}
+                title={item.hint}
+                className="palette-item"
+                role="button"
+                tabIndex={0}
               >
-                {item.kind === 'package' ? (
-                  <span>&#128193; {item.label}</span>
-                ) : (
-                  item.label
-                )}
+                <span className="palette-icon" aria-hidden="true">
+                  {item.kind === 'package' ? '▱' : '▦'}
+                </span>
+                {item.label}
               </div>
             ))}
             {onCreateAssociation && (
               <>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: '8px', marginBottom: '2px' }}>
-                  Relaciones
-                </div>
+                <div className="palette-heading relations">Relaciones</div>
                 {RELATION_ITEMS.map((item) => (
                   <div
                     key={item.kind}
@@ -451,16 +509,10 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                     aria-pressed={paletteRelationKind === item.kind}
                     onClick={() => setPaletteRelationKind(item.kind)}
                     title="Selecciona y arrastra entre dos clases"
-                    style={{
-                      border: `1.5px solid ${paletteRelationKind === item.kind ? '#0284c7' : '#cbd5e1'}`,
-                      borderRadius: '6px',
-                      background: paletteRelationKind === item.kind ? '#e0f2fe' : '#ffffff',
-                      padding: '6px',
-                      fontSize: '11px',
-                      textAlign: 'center',
-                      cursor: 'pointer',
-                      color: '#0f172a',
-                      userSelect: 'none',
+                    tabIndex={0}
+                    className={`palette-relation${paletteRelationKind === item.kind ? ' active' : ''}`}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') setPaletteRelationKind(item.kind);
                     }}
                   >
                     {item.label}
@@ -480,27 +532,19 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                       ? 'Se requieren al menos dos clases para crear una relación'
                       : 'Crear relación eligiendo origen y destino'
                   }
-                  style={{
-                    border: '1.5px solid #cbd5e1',
-                    borderRadius: '6px',
-                    background: '#ffffff',
-                    padding: '8px 6px',
-                    fontSize: '12px',
-                    cursor: model.classes.length < 2 ? 'not-allowed' : 'pointer',
-                    color: '#334155',
-                  }}
+                  className="button-secondary"
                 >
-                  ↔ Crear relación
+                  Crear relación
                 </button>
               </>
             )}
-            <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', lineHeight: 1.4 }}>
-              Arrastra elementos al lienzo. Elige un tipo de relación y arrastra entre dos clases. Doble clic renombra. Supr elimina lo seleccionado.
+            <div className="palette-help">
+              Arrastra elementos al lienzo. Elige una relación y conecta dos clases. Doble clic renombra; Supr elimina.
             </div>
           </aside>
         )}
 
-        <div ref={flowWrapper} style={{ flex: 1, position: 'relative' }}>
+        <div ref={flowWrapper} className="flow-stage">
           <ReactFlow
             nodes={flowNodes}
             edges={edges}
@@ -518,12 +562,14 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onConnect={editable ? handleConnect : undefined}
-
+            onEdgeClick={handleEdgeClick}
+            onNodeClick={() => setSelectedAssociationId(null)}
+            onPaneClick={() => setSelectedAssociationId(null)}
             onNodesDelete={editable ? handleNodesDelete : undefined}
             onEdgesDelete={editable ? handleEdgesDelete : undefined}
             aria-label="Diagrama UML de clases"
           >
-            <Background color="#cbd5e1" gap={16} />
+            <Background variant={BackgroundVariant.Lines} color="var(--diagram-grid)" gap={16} size={0.7} />
             <Controls />
           </ReactFlow>
           <UmlEdgeMarkerDefs />
@@ -534,30 +580,14 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
               data-testid="association-popover"
               role="dialog"
               aria-label="Configurar asociación"
-              style={{
-                position: 'absolute',
-                top: '16px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 20,
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
-                padding: '12px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                flexWrap: 'wrap',
-                fontSize: '12px',
-              }}
+              className="association-popover"
             >
               <select
                 data-testid="assoc-kind-select"
                 aria-label="Tipo de relación"
                 value={assocKind}
                 onChange={(e) => setAssocKind(e.target.value as AssociationKind)}
-                style={{ fontSize: '12px', padding: '3px' }}
+                className="field-control"
               >
                 <option value="association">Asociación</option>
                 <option value="aggregation">Agregación ◇</option>
@@ -571,16 +601,17 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                 placeholder="nombreAsociacion (opcional)"
                 value={assocName}
                 onChange={(e) => setAssocName(e.target.value)}
-                style={{ fontSize: '12px', padding: '3px 6px' }}
+                className="field-control"
               />
               <select
                 data-testid="assoc-source-select"
                 aria-label="Clase origen"
                 value={pendingConnection.sourceClassId}
+                disabled={editingAssociationId !== null}
                 onChange={(e) =>
                   setPendingConnection((p) => (p ? { ...p, sourceClassId: e.target.value } : p))
                 }
-                style={{ fontSize: '12px', padding: '3px' }}
+                className="field-control"
               >
                 {model.classes.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -592,22 +623,23 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                   aria-label="Multiplicidad origen"
                   value={assocSourceMult}
                   onChange={(e) => setAssocSourceMult(e.target.value)}
-                  style={{ fontSize: '12px', padding: '3px' }}
+                  className="field-control"
                 >
                   {ALLOWED_MULTIPLICITIES.map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
               )}
-              <span aria-hidden="true">→</span>
+              <span className="association-arrow" aria-hidden="true">→</span>
               <select
                 data-testid="assoc-target-select"
                 aria-label="Clase destino"
                 value={pendingConnection.targetClassId}
+                disabled={editingAssociationId !== null}
                 onChange={(e) =>
                   setPendingConnection((p) => (p ? { ...p, targetClassId: e.target.value } : p))
                 }
-                style={{ fontSize: '12px', padding: '3px' }}
+                className="field-control"
               >
                 {model.classes.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -620,7 +652,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                     aria-label="Multiplicidad destino"
                     value={assocTargetMult}
                     onChange={(e) => setAssocTargetMult(e.target.value)}
-                    style={{ fontSize: '12px', padding: '3px' }}
+                    className="field-control"
                   >
                     {ALLOWED_MULTIPLICITIES.map((m) => (
                       <option key={m} value={m}>{m}</option>
@@ -631,7 +663,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                     aria-label="Navegabilidad"
                     value={assocNavigability}
                     onChange={(e) => setAssocNavigability(e.target.value)}
-                    style={{ fontSize: '12px', padding: '3px' }}
+                    className="field-control"
                   >
                     {ALLOWED_NAVIGABILITIES.map((n) => (
                       <option key={n} value={n}>{n}</option>
@@ -640,30 +672,67 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                 </>
               )}
               {assocKind === 'associationClass' && (
-                <select
-                  data-testid="assoc-class-select"
-                  aria-label="Clase de la asociación"
-                  value={assocClassId}
-                  onChange={(e) => setAssocClassId(e.target.value)}
-                  style={{ fontSize: '12px', padding: '3px' }}
-                >
-                  <option value="">— clase portadora —</option>
-                  {model.classes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                editingAssociationId ? (
+                  /* Edición: muestra la clase portadora ya existente (solo lectura en esta versión) */
+                  <select
+                    data-testid="assoc-class-select"
+                    aria-label="Clase de la asociación"
+                    value={assocClassId}
+                    onChange={(e) => setAssocClassId(e.target.value)}
+                    className="field-control"
+                  >
+                    <option value="">— clase portadora —</option>
+                    {model.classes
+                      .filter(
+                        (c) =>
+                          c.id !== pendingConnection?.sourceClassId &&
+                          c.id !== pendingConnection?.targetClassId
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  /* Creación: nombre de la nueva clase portadora */
+                  <>
+                    <input
+                      data-testid="assoc-new-class-name-input"
+                      aria-label="Nombre de la clase portadora"
+                      placeholder="Nombre de la clase portadora (ej. Contrato)"
+                      value={assocNewClassName}
+                      onChange={(e) => setAssocNewClassName(e.target.value)}
+                      className="field-control"
+                    />
+                    <span className="field-hint" aria-live="polite">
+                      Se creará una nueva clase con este nombre.
+                    </span>
+                  </>
+                )
               )}
+              <input
+                data-testid="assoc-description-input"
+                aria-label="Descripción de la relación"
+                placeholder="Descripción (opcional)"
+                value={assocDescription}
+                onChange={(event) => setAssocDescription(event.target.value)}
+                className="field-control"
+              />
               <button
                 data-testid="confirm-add-association"
                 onClick={handleConfirmConnection}
-                style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px' }}
+                className="button-primary"
               >
-                Crear
+                {editingAssociationId ? 'Guardar' : 'Crear'}
               </button>
               <button
                 data-testid="cancel-add-association"
-                onClick={() => setPendingConnection(null)}
-                style={{ fontSize: '12px', padding: '3px 8px', cursor: 'pointer' }}
+                onClick={() => {
+                  setPendingConnection(null);
+                  setEditingAssociationId(null);
+                }}
+                className="button-secondary"
               >
                 Cancelar
               </button>
@@ -676,19 +745,10 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
       <section
         aria-label="Lista accesible de clases y atributos"
         data-testid="semantic-class-list"
-        style={{
-          borderTop: '1px solid #e2e8f0',
-          background: '#f8fafc',
-          padding: '12px 20px',
-          maxHeight: '180px',
-          overflowY: 'auto',
-          fontSize: '12px',
-        }}
+        className="semantic-panel"
       >
-        <h2 style={{ fontSize: '13px', margin: '0 0 8px 0', color: '#334155' }}>
-          Resumen textual accesible de entidades:
-        </h2>
-        <ul style={{ margin: 0, paddingLeft: '20px' }}>
+        <h2>Resumen textual accesible de entidades</h2>
+        <ul>
           {model.classes.map((cls) => (
             <li key={cls.id} data-testid={`semantic-item-${cls.name}`}>
               <strong>{cls.name}</strong> &mdash;{' '}
@@ -702,10 +762,8 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
         </ul>
         {model.associations.length > 0 && (
           <>
-            <h2 style={{ fontSize: '13px', margin: '8px 0 4px 0', color: '#334155' }}>
-              Asociaciones:
-            </h2>
-            <ul data-testid="semantic-association-list" style={{ margin: 0, paddingLeft: '20px' }}>
+            <h2 className="association-title">Asociaciones</h2>
+            <ul data-testid="semantic-association-list">
               {model.associations.map((assoc) => (
                 <li key={assoc.id} data-testid={`semantic-assoc-${assoc.id}`}>
                   {(assoc.kind ?? 'association') !== 'association' ? `«${assoc.kind}» ` : ''}

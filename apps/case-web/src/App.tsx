@@ -1,6 +1,7 @@
 import React from 'react';
 import { ConnectedApp, type ConnectedAppDeps } from './components/ConnectedApp';
 import { StandaloneEditor } from './components/StandaloneEditor';
+import { ThemeToggle } from './components/ThemeToggle';
 
 export { DEFAULT_CANONICAL_FIXTURE } from './components/StandaloneEditor';
 
@@ -9,11 +10,15 @@ interface AppProps {
   initialModelData?: unknown;
 }
 
-export const App: React.FC<AppProps & ConnectedAppDeps> = ({ initialModelData, ...deps }) => {
-  if (initialModelData !== undefined) {
-    return <StandaloneEditor initialModelData={initialModelData} />;
-  }
-  return <ConnectedApp {...deps} />;
-};
+export const App: React.FC<AppProps & ConnectedAppDeps> = ({ initialModelData, ...deps }) => (
+  <div className="app-shell">
+    <ThemeToggle />
+    {initialModelData !== undefined ? (
+      <StandaloneEditor initialModelData={initialModelData} />
+    ) : (
+      <ConnectedApp {...deps} />
+    )}
+  </div>
+);
 
 export default App;

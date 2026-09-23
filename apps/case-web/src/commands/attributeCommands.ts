@@ -47,7 +47,13 @@ export interface UpdateAttributePayload {
 
 export type UpdateAttributeCommand = BaseCommand<'UpdateAttribute', UpdateAttributePayload>;
 
-export type ModelCommand = AddAttributeCommand | UpdateAttributeCommand;
+export interface DeleteAttributePayload {
+  attributeId: string;
+  classId: string;
+}
+
+export type DeleteAttributeCommand = BaseCommand<'DeleteAttribute', DeleteAttributePayload>;
+export type ModelCommand = AddAttributeCommand | UpdateAttributeCommand | DeleteAttributeCommand;
 
 export interface CommandError {
   code: string;
@@ -373,6 +379,33 @@ export function executeUpdateAttribute(
   };
 }
 
+export function executeDeleteAttribute(
+  model: CanonicalDomainModel,
+  command: DeleteAttributeCommand
+): { updatedModel: CanonicalDomainModel; result: CommandExecutionResult } {
+  const errors: CommandError[] = [];
+  const { payload, commandId, modelVersion, modelId } = command;
+  const target = model.classes.find((item) => item.id === payload.classId);
+
+  if (model.id !== modelId) errors.push({ code: 'MODEL_NOT_FOUND', message: `El modelo con id '${modelId}' no coincide con el actual.`, severity: 'ERROR', path: '$.modelId' });
+  if (model.version !== modelVersion) errors.push({ code: 'CONCURRENT_MODIFICATION', message: `La versión esperada '${modelVersion}' no coincide con '${model.version}'.`, severity: 'ERROR', path: '$.modelVersion' });
+  if (!target) errors.push({ code: 'CLASS_NOT_FOUND', message: `No existe la clase '${payload.classId}'.`, severity: 'ERROR', path: '$.payload.classId' });
+  else if (!target.attributes.some((item) => item.id === payload.attributeId)) errors.push({ code: 'ATTRIBUTE_NOT_FOUND', message: `No existe el atributo '${payload.attributeId}'.`, severity: 'ERROR', path: '$.payload.attributeId' });
+  if (errors.length > 0) return { updatedModel: model, result: { result: 'rejected', commandId, modelVersion: model.version, errors } };
+
+  const nextVersion = incrementPatchVersion(model.version);
+  return {
+    updatedModel: {
+      ...model,
+      version: nextVersion,
+      classes: model.classes.map((item) => item.id === payload.classId
+        ? { ...item, attributes: item.attributes.filter((attribute) => attribute.id !== payload.attributeId) }
+        : item),
+    },
+    result: { result: 'accepted', commandId, modelVersion: nextVersion },
+  };
+}
+
 /**
  * Despachador de comandos de atributos
  */
@@ -385,6 +418,8 @@ export function dispatchAttributeCommand(
       return executeAddAttribute(model, command);
     case 'UpdateAttribute':
       return executeUpdateAttribute(model, command);
+    case 'DeleteAttribute':
+      return executeDeleteAttribute(model, command);
     default:
       throw new Error(`Comando no soportado: ${(command as any).type}`);
   }

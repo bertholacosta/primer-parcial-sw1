@@ -13,6 +13,7 @@
     "@noble/hashes": "^1.8.0",
     "@xyflow/react": "^12.4.4",
     "collaboration-protocol": "file:../../packages/collaboration-protocol",
+    "jszip": "^3.10.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

@@ -18,8 +18,8 @@ interface Pt {
 const MARGIN = 18;
 const FALLBACK_W = 260;
 const FALLBACK_H = 150;
-const STROKE = '#475569';
-const STROKE_SELECTED = '#0284c7';
+const STROKE = 'var(--diagram-border)';
+const STROKE_SELECTED = '#2684ff';
 
 const expand = (r: Rect, m: number): Rect => ({ x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m });
 
@@ -136,21 +136,24 @@ function borderPoint(rect: Rect, toward: Pt): Pt {
 export const UmlEdgeMarkerDefs: React.FC = () => (
   <svg style={{ position: 'absolute', width: 0, height: 0 }} aria-hidden="true">
     <defs>
+      <marker id="uml-association-arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M1,1 L13,7 L1,13" fill="none" stroke={STROKE} strokeWidth="2" />
+      </marker>
       {/* Generalización: triángulo hueco en el extremo padre */}
       <marker id="uml-gen" markerWidth="16" markerHeight="16" refX="15" refY="8" orient="auto" markerUnits="userSpaceOnUse">
-        <path d="M1,1 L15,8 L1,15 Z" fill="#ffffff" stroke={STROKE} strokeWidth="1.5" />
+        <path d="M1,1 L15,8 L1,15 Z" fill="var(--diagram-bg)" stroke={STROKE} strokeWidth="2" />
       </marker>
       {/* Dependencia: flecha abierta */}
       <marker id="uml-dep" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="userSpaceOnUse">
-        <path d="M1,1 L13,7 L1,13" fill="none" stroke={STROKE} strokeWidth="1.5" />
+        <path d="M1,1 L13,7 L1,13" fill="none" stroke={STROKE} strokeWidth="2" />
       </marker>
       {/* Agregación: rombo hueco en el extremo del todo */}
       <marker id="uml-agg" markerWidth="20" markerHeight="12" refX="1" refY="6" orient="auto" markerUnits="userSpaceOnUse">
-        <path d="M10,0 L19,6 L10,12 L1,6 Z" fill="#ffffff" stroke={STROKE} strokeWidth="1.5" />
+        <path d="M10,0 L19,6 L10,12 L1,6 Z" fill="var(--diagram-bg)" stroke={STROKE} strokeWidth="2" />
       </marker>
       {/* Composición: rombo relleno en el extremo del todo */}
       <marker id="uml-comp" markerWidth="20" markerHeight="12" refX="1" refY="6" orient="auto" markerUnits="userSpaceOnUse">
-        <path d="M10,0 L19,6 L10,12 L1,6 Z" fill={STROKE} stroke={STROKE} strokeWidth="1.5" />
+        <path d="M10,0 L19,6 L10,12 L1,6 Z" fill={STROKE} stroke={STROKE} strokeWidth="2" />
       </marker>
     </defs>
   </svg>
@@ -173,6 +176,8 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
   const PARALLEL_GAP = 26;
   const kind = (data?.kind as string | undefined) ?? 'association';
   const associationClassId = data?.associationClassId as string | undefined;
+  const editAssociation = data?.onEditAssociation;
+  const deleteAssociation = data?.onDeleteAssociation;
 
   const { obstacles, sourceRect, targetRect, assocClassRect, parallelIndex, parallelCount } = useStore((state) => {
     const rects: Rect[] = [];
@@ -245,22 +250,23 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
 
   if (!points) return null;
 
-  // Etiquetas de multiplicidad fuera de la caja: 14px en la dirección del
-  // primer/último segmento para que nunca queden ocultas tras el nodo.
-  const outward = (from: Pt, next: Pt, sign: 1 | -1): Pt => {
+  // Las multiplicidades se ubican junto a cada extremo y a un lado de la línea.
+  const multiplicityPosition = (from: Pt, next: Pt): Pt => {
     const dx = next.x - from.x;
     const dy = next.y - from.y;
     const len = Math.hypot(dx, dy) || 1;
-    return { x: from.x + (dx / len) * 24 * sign, y: from.y + (dy / len) * 24 * sign };
+    return {
+      x: from.x + (dx / len) * 20 - (dy / len) * 10,
+      y: from.y + (dy / len) * 20 + (dx / len) * 10,
+    };
   };
-  const srcLabelPos = outward(points[0], points[1], 1);
-  const tgtLabelPos = outward(points[points.length - 1], points[points.length - 2], 1);
+  const srcLabelPos = multiplicityPosition(points[0], points[1]);
+  const tgtLabelPos = multiplicityPosition(points[points.length - 1], points[points.length - 2]);
 
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
   const labelPos = midpointAlong(points);
   const structural = kind !== 'generalization' && kind !== 'dependency';
-  const mults = structural ? `[${data?.sourceMultiplicity} → ${data?.targetMultiplicity}]` : '';
-  const label = [(data?.name as string | undefined), mults].filter(Boolean).join('  ');
+  const label = (data?.name as string | undefined) ?? '';
 
   // Marcadores por tipo (ADR-0009): generalización/dependencia al final,
   // agregación/composición (rombo en el "todo" = source) al inicio.
@@ -288,45 +294,97 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
         d={path}
         fill="none"
         stroke={selected ? STROKE_SELECTED : STROKE}
-        strokeWidth={selected ? 2.2 : 1.5}
+        strokeWidth={selected ? 3 : 2.5}
         strokeDasharray={dashed ? '7 4' : undefined}
+        vectorEffect="non-scaling-stroke"
+        style={{ stroke: selected ? STROKE_SELECTED : STROKE, strokeWidth: selected ? 3 : 2.5 }}
         markerEnd={edgeMarkerEnd}
         markerStart={edgeMarkerStart}
       />
       {assocLinkPath && (
-        <path d={assocLinkPath} fill="none" stroke={STROKE} strokeWidth={1.2} strokeDasharray="5 4" pointerEvents="none" />
+        <path d={assocLinkPath} fill="none" stroke={STROKE} strokeWidth={2.5} strokeDasharray="7 4" vectorEffect="non-scaling-stroke" style={{ stroke: STROKE, strokeWidth: 2.5 }} pointerEvents="none" />
       )}
-      <path d={path} fill="none" stroke="transparent" strokeWidth={16} pointerEvents="stroke" />
+      <path
+        className="react-flow__edge-interaction"
+        d={path}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={24}
+        pointerEvents="stroke"
+      />
 
       <EdgeLabelRenderer>
-        <div
-          data-testid={`edge-label-${id}`}
-          style={{
-            position: 'absolute',
-            transform: `translate(-50%, -50%) translate(${labelPos.x}px, ${labelPos.y}px)`,
-            background: 'rgba(248,250,252,0.9)',
-            borderRadius: 4,
-            padding: '1px 5px',
-            fontSize: 11,
-            color: '#334155',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {label}
-        </div>
+        {selected && (typeof editAssociation === 'function' || typeof deleteAssociation === 'function') && (
+          <div
+            className="context-toolbar edge-context-toolbar nodrag nopan"
+            role="toolbar"
+            aria-label="Acciones de la relación"
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -100%) translate(${labelPos.x}px, ${labelPos.y - 14}px)`,
+              pointerEvents: 'all',
+            }}
+          >
+            {typeof deleteAssociation === 'function' && (
+              <button
+                type="button"
+                className="context-toolbar-button"
+                data-testid={`toolbar-delete-association-${id}`}
+                aria-label="Eliminar relación"
+                title="Eliminar relación"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  deleteAssociation(id);
+                }}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v5m4-5v5" /></svg>
+              </button>
+            )}
+            {typeof editAssociation === 'function' && (
+              <button
+                type="button"
+                className="context-toolbar-button"
+                data-testid={`toolbar-edit-association-${id}`}
+                aria-label="Editar relación"
+                title="Editar relación"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  editAssociation(id);
+                }}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Zm10-12 3 3" /></svg>
+              </button>
+            )}
+          </div>
+        )}
+        {label && (
+          <div
+            data-testid={`edge-label-${id}`}
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelPos.x}px, ${labelPos.y}px)`,
+              background: 'var(--diagram-surface)',
+              border: '1px solid var(--diagram-border-muted)',
+              borderRadius: 3,
+              padding: '2px 6px',
+              fontSize: 11,
+              color: 'var(--diagram-text)',
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label}
+          </div>
+        )}
         {structural && (
           <>
             <div
               style={{
                 position: 'absolute',
-                transform: `translate(-50%, -50%) translate(${srcLabelPos.x}px, ${srcLabelPos.y - 8}px)`,
-                fontSize: 10,
-                color: '#475569',
-                background: 'rgba(255,255,255,0.92)',
-                border: '1px solid #e2e8f0',
-                borderRadius: 3,
-                padding: '0 3px',
+                transform: `translate(-50%, -50%) translate(${srcLabelPos.x}px, ${srcLabelPos.y}px)`,
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--diagram-border)',
                 zIndex: 10,
                 pointerEvents: 'none',
               }}
@@ -336,13 +394,10 @@ export const UmlAssociationEdge: React.FC<EdgeProps> = ({
             <div
               style={{
                 position: 'absolute',
-                transform: `translate(-50%, -50%) translate(${tgtLabelPos.x}px, ${tgtLabelPos.y - 8}px)`,
-                fontSize: 10,
-                color: '#475569',
-                background: 'rgba(255,255,255,0.92)',
-                border: '1px solid #e2e8f0',
-                borderRadius: 3,
-                padding: '0 3px',
+                transform: `translate(-50%, -50%) translate(${tgtLabelPos.x}px, ${tgtLabelPos.y}px)`,
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--diagram-border)',
                 zIndex: 10,
                 pointerEvents: 'none',
               }}

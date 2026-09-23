@@ -15,8 +15,8 @@ import { CaseWebCanvas, type CollaborationBarInfo } from './CaseWebCanvas';
 import { SharePanel } from './SharePanel';
 import type { CanonicalDomainModel } from '../domain/model';
 import type { CommandExecutionResult } from '../commands/attributeCommands';
-import type { CreateAssociationInput } from '../commands/associationCommands';
-import type { CreateClassInput } from '../commands/classCommands';
+import type { CreateAssociationInput, UpdateAssociationInput, CreateAssociationClassInput } from '../commands/associationCommands';
+import type { CreateClassInput, UpdateClassInput } from '../commands/classCommands';
 import type { CreatePackageInput } from './CaseWebCanvas';
 import type { ParticipantRole } from 'collaboration-protocol';
 
@@ -142,22 +142,30 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
   }, []);
 
   const handleAddAttribute = useCallback(
-    (classId: string, name: string, type: string, multiplicity: string) => {
+    (classId: string, name: string, type: string, multiplicity: string, nullable = multiplicity === '0..1', description?: string) => {
       submit('AddAttribute', {
         id: `attr-${crypto.randomUUID()}`,
         classId,
         name,
         type,
-        nullable: multiplicity === '0..1',
+        nullable,
         multiplicity,
+        description,
       });
     },
     [submit]
   );
 
   const handleUpdateAttribute = useCallback(
-    (classId: string, attributeId: string, newName: string) => {
-      submit('UpdateAttribute', { attributeId, classId, name: newName });
+    (classId: string, attributeId: string, updates: { name: string; type: string; multiplicity: string; nullable: boolean; description?: string }) => {
+      submit('UpdateAttribute', { attributeId, classId, ...updates });
+    },
+    [submit]
+  );
+
+  const handleDeleteAttribute = useCallback(
+    (classId: string, attributeId: string) => {
+      submit('DeleteAttribute', { classId, attributeId });
     },
     [submit]
   );
@@ -180,6 +188,39 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
     [submit]
   );
 
+  /**
+   * En modo colaborativo, crea la clase portadora y la asociación como dos
+   * comandos secuenciales. El servidor los aplica en orden FIFO.
+   */
+  const handleCreateAssociationClass = useCallback(
+    (input: CreateAssociationClassInput) => {
+      submit('CreateClass', {
+        id: input.newClassId,
+        name: input.newClassName,
+      });
+      submit('CreateAssociation', {
+        id: `assoc-${crypto.randomUUID()}`,
+        name: input.associationName,
+        sourceClassId: input.sourceClassId,
+        targetClassId: input.targetClassId,
+        sourceMultiplicity: input.sourceMultiplicity,
+        targetMultiplicity: input.targetMultiplicity,
+        navigability: input.navigability,
+        kind: 'associationClass',
+        associationClassId: input.newClassId,
+        description: input.description,
+      });
+    },
+    [submit]
+  );
+
+  const handleUpdateAssociation = useCallback(
+    (input: UpdateAssociationInput) => {
+      submit('UpdateAssociation', { ...input });
+    },
+    [submit]
+  );
+
   const handleCreateClass = useCallback(
     (input: CreateClassInput) => {
       submit('CreateClass', {
@@ -187,6 +228,13 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
         name: input.name,
         packageId: input.packageId,
       });
+    },
+    [submit]
+  );
+
+  const handleUpdateClass = useCallback(
+    (input: UpdateClassInput) => {
+      submit('UpdateClass', { ...input });
     },
     [submit]
   );
@@ -256,16 +304,16 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', gap: '8px', padding: '6px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontFamily: 'system-ui, sans-serif', alignItems: 'center' }}>
-        <button data-testid="back-to-diagrams" onClick={onExit} style={{ background: 'none', border: 'none', color: '#0284c7', fontSize: '12px', cursor: 'pointer', padding: 0 }}>
+    <div className="session-view">
+      <div className="session-toolbar">
+        <button data-testid="back-to-diagrams" onClick={onExit} className="button-ghost">
           ← Mis diagramas
         </button>
         {isOwner && (
           <button
             data-testid="toggle-share-panel"
             onClick={() => setShareOpen((open) => !open)}
-            style={{ marginLeft: 'auto', background: '#e2e8f0', border: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' }}
+            className="button-secondary toolbar-spacer"
           >
             Compartir
           </button>
@@ -275,16 +323,17 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
       {lastRejected && (
         <div
           data-testid="command-retry-banner"
-          style={{ padding: '6px 20px', fontSize: '12px', background: '#fffbeb', borderBottom: '1px solid #fde68a', color: '#92400e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          className="status-banner"
+          style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}
         >
           <span>El servidor rechazó el comando. Puedes reintentarlo sobre la versión actual.</span>
-          <button data-testid="command-retry" onClick={retryRejected} style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: '5px', padding: '3px 10px', cursor: 'pointer' }}>
+          <button data-testid="command-retry" onClick={retryRejected} className="button-secondary">
             Reintentar
           </button>
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="session-content">
         {model ? (
           <CaseWebCanvas
             model={model}
@@ -293,7 +342,11 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
             readOnly={readOnly}
             onAddAttribute={readOnly ? undefined : handleAddAttribute}
             onUpdateAttribute={readOnly ? undefined : handleUpdateAttribute}
+            onDeleteAttribute={readOnly ? undefined : handleDeleteAttribute}
+            onUpdateClass={readOnly ? undefined : handleUpdateClass}
             onCreateAssociation={readOnly ? undefined : handleCreateAssociation}
+            onCreateAssociationClass={readOnly ? undefined : handleCreateAssociationClass}
+            onUpdateAssociation={readOnly ? undefined : handleUpdateAssociation}
             onCreateClass={readOnly ? undefined : handleCreateClass}
             onRenameClass={readOnly ? undefined : handleRenameClass}
             onDeleteClass={readOnly ? undefined : handleDeleteClass}
@@ -302,7 +355,7 @@ export const DiagramSessionView: React.FC<DiagramSessionViewProps> = ({
             onDeleteAssociation={readOnly ? undefined : handleDeleteAssociation}
           />
         ) : (
-          <div data-testid="session-loading" style={{ padding: '24px', fontFamily: 'sans-serif', fontSize: '13px', color: '#64748b' }}>
+          <div data-testid="session-loading" className="loading-state">
             Sincronizando con el servidor…
           </div>
         )}

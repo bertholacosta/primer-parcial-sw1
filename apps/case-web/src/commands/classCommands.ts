@@ -30,6 +30,16 @@ export interface RenameClassPayload {
 
 export type RenameClassCommand = BaseCommand<'RenameClass', RenameClassPayload>;
 
+export interface UpdateClassPayload {
+  classId: string;
+  name?: string;
+  packageId?: string | null;
+  description?: string;
+}
+
+export type UpdateClassCommand = BaseCommand<'UpdateClass', UpdateClassPayload>;
+export type UpdateClassInput = UpdateClassPayload;
+
 export interface DeleteClassPayload {
   classId: string;
 }
@@ -187,6 +197,40 @@ export function executeRenameClass(
     classes: model.classes.map((c) => (c.id === payload.classId ? { ...c, name: payload.newName } : c)),
   };
   return { updatedModel, result: { result: 'accepted', commandId, modelVersion: nextVersion } };
+}
+
+export function executeUpdateClass(
+  model: CanonicalDomainModel,
+  command: UpdateClassCommand
+): { updatedModel: CanonicalDomainModel; result: CommandExecutionResult } {
+  const errors: CommandError[] = [];
+  const { payload, commandId, modelVersion, modelId } = command;
+  const target = model.classes.find((item) => item.id === payload.classId);
+  const packageId = payload.packageId === undefined ? target?.packageId : payload.packageId ?? undefined;
+  const name = payload.name ?? target?.name;
+
+  if (model.id !== modelId) errors.push({ code: 'MODEL_NOT_FOUND', message: `El modelo con id '${modelId}' no coincide con el modelo actual '${model.id}'.`, severity: 'ERROR', path: '$.modelId' });
+  if (model.version !== modelVersion) errors.push({ code: 'CONCURRENT_MODIFICATION', message: `Versión del modelo esperada '${modelVersion}', pero la actual es '${model.version}'.`, severity: 'ERROR', path: '$.modelVersion' });
+  if (!target) errors.push({ code: 'CLASS_NOT_FOUND', message: `No existe la clase con id '${payload.classId}'.`, severity: 'ERROR', path: '$.payload.classId' });
+  if (payload.name !== undefined && !IDENTIFIER_PATTERN.test(payload.name)) errors.push({ code: 'INVALID_NAME_FORMAT', message: `El nombre '${payload.name}' no cumple con el patrón requerido.`, severity: 'ERROR', path: '$.payload.name' });
+  if (payload.packageId !== undefined && payload.packageId !== null && !model.packages.some((item) => item.id === payload.packageId)) errors.push({ code: 'PACKAGE_NOT_FOUND', message: `No existe el paquete con id '${payload.packageId}'.`, severity: 'ERROR', path: '$.payload.packageId' });
+  if (target && name && model.classes.some((item) => item.id !== payload.classId && item.name === name && (item.packageId ?? null) === (packageId ?? null))) errors.push({ code: 'DUPLICATE_CLASS_NAME', message: `Ya existe otra clase con nombre '${name}' en el mismo ámbito.`, severity: 'ERROR', path: '$.payload.name' });
+  if (errors.length > 0) return { updatedModel: model, result: { result: 'rejected', commandId, modelVersion: model.version, errors } };
+
+  const nextVersion = incrementPatchVersion(model.version);
+  return {
+    updatedModel: {
+      ...model,
+      version: nextVersion,
+      classes: model.classes.map((item) => item.id === payload.classId ? {
+        ...item,
+        ...(payload.name !== undefined ? { name: payload.name } : {}),
+        ...(payload.packageId !== undefined ? { packageId: payload.packageId ?? undefined } : {}),
+        ...(payload.description !== undefined ? { description: payload.description } : {}),
+      } : item),
+    },
+    result: { result: 'accepted', commandId, modelVersion: nextVersion },
+  };
 }
 
 /** Elimina una clase y todas las asociaciones que la referencian. */

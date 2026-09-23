@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { parseDomainModel, modelToFlowEdges } from '../adapter/domainModelAdapter';
 import {
   executeCreateAssociation,
+  executeUpdateAssociation,
   type CreateAssociationCommand,
+  type UpdateAssociationCommand,
 } from '../commands/associationCommands';
 import { DEFAULT_CANONICAL_FIXTURE } from '../App';
 
@@ -242,5 +244,39 @@ describe('modelToFlowEdges — proyección de asociaciones al canvas', () => {
 
     expect(bidirectional?.markerEnd).toBeUndefined();
     expect(unidirectional?.markerEnd).toBeDefined();
+  });
+});
+
+describe('associationCommands — UpdateAssociation', () => {
+  it('actualiza nombre, multiplicidades y navegabilidad conservando la identidad', () => {
+    const model = parseDomainModel(DEFAULT_CANONICAL_FIXTURE);
+    const command: UpdateAssociationCommand = {
+      type: 'UpdateAssociation',
+      commandId: 'cmd-update-association',
+      modelId: model.id,
+      modelVersion: model.version,
+      payload: {
+        associationId: 'assoc-01',
+        name: 'publicadoPor',
+        kind: 'aggregation',
+        sourceMultiplicity: '1',
+        targetMultiplicity: '0..*',
+        navigability: 'unidirectional',
+      },
+    };
+
+    const { updatedModel, result } = executeUpdateAssociation(model, command);
+    const association = updatedModel.associations.find((item) => item.id === 'assoc-01');
+
+    expect(result.result).toBe('accepted');
+    expect(updatedModel.version).toBe('1.0.1');
+    expect(association).toMatchObject({
+      id: 'assoc-01',
+      name: 'publicadoPor',
+      kind: 'aggregation',
+      sourceMultiplicity: '1',
+      targetMultiplicity: '0..*',
+      navigability: 'unidirectional',
+    });
   });
 });

@@ -49,6 +49,14 @@ export interface RenameClassPayload {
 }
 export type RenameClassCommand = BaseCommand<"RenameClass", RenameClassPayload>;
 
+export interface UpdateClassPayload {
+  classId: string;
+  name?: string;
+  packageId?: string | null;
+  description?: string;
+}
+export type UpdateClassCommand = BaseCommand<"UpdateClass", UpdateClassPayload>;
+
 export interface DeleteClassPayload {
   classId: string;
 }
@@ -116,6 +124,8 @@ export interface UpdateAssociationPayload {
   sourceMultiplicity?: string;
   targetMultiplicity?: string;
   navigability?: string;
+  kind?: AssociationKind;
+  associationClassId?: string | null;
   description?: string;
 }
 export type UpdateAssociationCommand = BaseCommand<"UpdateAssociation", UpdateAssociationPayload>;
@@ -141,6 +151,7 @@ export type DeletePackageCommand = BaseCommand<"DeletePackage", DeletePackagePay
 export type ModelCommand =
   | CreateClassCommand
   | RenameClassCommand
+  | UpdateClassCommand
   | DeleteClassCommand
   | AddAttributeCommand
   | UpdateAttributeCommand
@@ -259,6 +270,42 @@ function evaluateRenameClass(model: DomainModel, command: RenameClassCommand): C
     apply: (m) => {
       const cls = m.classes.find((c) => c.id === p.classId);
       if (cls) cls.name = p.newName;
+    },
+  };
+}
+
+const UPDATE_CLASS_FIELDS = ["name", "packageId", "description"] as const;
+
+function evaluateUpdateClass(model: DomainModel, command: UpdateClassCommand): CommandEvaluation {
+  const errors: CommandError[] = [];
+  const p = command.payload;
+  const target = model.classes.find((cls) => cls.id === p.classId);
+  const packageId = p.packageId === undefined ? target?.packageId : p.packageId ?? undefined;
+  const name = p.name ?? target?.name;
+
+  if (!target) {
+    errors.push(err("CLASS_NOT_FOUND", "$.payload.classId", `No existe una clase con id '${p.classId}' en el modelo '${model.id}'.`));
+  }
+  if (p.name !== undefined && !isIdentifier(p.name)) {
+    errors.push(err("INVALID_NAME_FORMAT", "$.payload.name", `El nombre '${p.name}' no cumple el patrón [A-Za-z_][A-Za-z0-9_]*.`));
+  }
+  if (p.packageId !== undefined && p.packageId !== null && !model.packages.some((pkg) => pkg.id === p.packageId)) {
+    errors.push(err("PACKAGE_NOT_FOUND", "$.payload.packageId", `No existe un paquete con id '${p.packageId}' en el modelo '${model.id}'.`));
+  }
+  if (target && name && model.classes.some((cls) => cls.id !== p.classId && cls.name === name && sameScope(cls.packageId, packageId))) {
+    errors.push(err("DUPLICATE_CLASS_NAME", "$.payload.name", `Ya existe otra clase con nombre '${name}' en el mismo ámbito de paquete.`));
+  }
+
+  return {
+    errors,
+    warnings: [],
+    noop: UPDATE_CLASS_FIELDS.every((field) => p[field] === undefined),
+    apply: (m) => {
+      const cls = m.classes.find((item) => item.id === p.classId);
+      if (!cls) return;
+      if (p.name !== undefined) cls.name = p.name;
+      if (p.packageId !== undefined) cls.packageId = p.packageId ?? undefined;
+      if (p.description !== undefined) cls.description = p.description;
     },
   };
 }
@@ -526,26 +573,55 @@ function evaluateCreateAssociation(model: DomainModel, command: CreateAssociatio
   };
 }
 
-const UPDATE_ASSOCIATION_FIELDS = ["name", "sourceMultiplicity", "targetMultiplicity", "navigability", "description"] as const;
+const UPDATE_ASSOCIATION_FIELDS = ["name", "sourceMultiplicity", "targetMultiplicity", "navigability", "kind", "associationClassId", "description"] as const;
 
 function evaluateUpdateAssociation(model: DomainModel, command: UpdateAssociationCommand): CommandEvaluation {
   const errors: CommandError[] = [];
   const p = command.payload;
   const assoc = model.associations.find((a) => a.id === p.associationId);
+  const kind = p.kind ?? (assoc?.kind as AssociationKind | undefined) ?? "association";
+  const structural = STRUCTURAL_KINDS.includes(kind);
+  const sourceMultiplicity = p.sourceMultiplicity ?? assoc?.sourceMultiplicity;
+  const targetMultiplicity = p.targetMultiplicity ?? assoc?.targetMultiplicity;
+  const navigability = p.navigability ?? assoc?.navigability;
+  const associationClassId = p.associationClassId === undefined ? assoc?.associationClassId : p.associationClassId ?? undefined;
+  const otherAssociations = model.associations.filter((item) => item.id !== p.associationId);
+  const validationModel = { ...model, associations: otherAssociations };
 
   if (!assoc) {
-    errors.push(
-      err("ASSOCIATION_NOT_FOUND", "$.payload.associationId", `No existe una asociación con id '${p.associationId}' en el modelo '${model.id}'.`),
-    );
+    errors.push(err("ASSOCIATION_NOT_FOUND", "$.payload.associationId", `No existe una asociación con id '${p.associationId}' en el modelo '${model.id}'.`));
   }
-  if (p.sourceMultiplicity !== undefined && !isMultiplicity(p.sourceMultiplicity)) {
-    errors.push(err("INVALID_MULTIPLICITY", "$.payload.sourceMultiplicity", `La multiplicidad '${p.sourceMultiplicity}' no es un literal permitido (${MULTIPLICITIES.join(", ")}).`));
+  if (p.kind !== undefined && !ASSOCIATION_KINDS.includes(p.kind)) {
+    errors.push(err("INVALID_ASSOCIATION_KIND", "$.payload.kind", `El tipo de relación '${p.kind}' no es válido (${ASSOCIATION_KINDS.join(", ")}).`));
   }
-  if (p.targetMultiplicity !== undefined && !isMultiplicity(p.targetMultiplicity)) {
-    errors.push(err("INVALID_MULTIPLICITY", "$.payload.targetMultiplicity", `La multiplicidad '${p.targetMultiplicity}' no es un literal permitido (${MULTIPLICITIES.join(", ")}).`));
+  if (structural) {
+    if (!isMultiplicity(sourceMultiplicity)) {
+      errors.push(err("INVALID_MULTIPLICITY", "$.payload.sourceMultiplicity", `La multiplicidad '${sourceMultiplicity}' no es un literal permitido (${MULTIPLICITIES.join(", ")}).`));
+    }
+    if (!isMultiplicity(targetMultiplicity)) {
+      errors.push(err("INVALID_MULTIPLICITY", "$.payload.targetMultiplicity", `La multiplicidad '${targetMultiplicity}' no es un literal permitido (${MULTIPLICITIES.join(", ")}).`));
+    }
+    if (!isNavigability(navigability)) {
+      errors.push(err("INVALID_NAVIGABILITY", "$.payload.navigability", `La navegabilidad '${navigability}' debe ser 'unidirectional' o 'bidirectional'.`));
+    }
   }
-  if (p.navigability !== undefined && !isNavigability(p.navigability)) {
-    errors.push(err("INVALID_NAVIGABILITY", "$.payload.navigability", `La navegabilidad '${p.navigability}' debe ser 'unidirectional' o 'bidirectional'.`));
+  if (assoc && kind === "generalization") {
+    if (otherAssociations.some((item) => (item.kind ?? "association") === "generalization" && item.sourceClassId === assoc.sourceClassId)) {
+      errors.push(err("MULTIPLE_INHERITANCE", "$.payload.kind", `La clase '${assoc.sourceClassId}' ya tiene una generalización; solo se admite herencia simple.`));
+    }
+    if (createsGeneralizationCycle(validationModel, assoc.sourceClassId, assoc.targetClassId)) {
+      errors.push(err("GENERALIZATION_CYCLE", "$.payload.kind", "La generalización crearía un ciclo de herencia."));
+    }
+  }
+  if (assoc && kind === "composition" && otherAssociations.some((item) => item.kind === "composition" && item.targetClassId === assoc.targetClassId)) {
+    errors.push(err("COMPOSITION_PART_OCCUPIED", "$.payload.kind", `La clase '${assoc.targetClassId}' ya es parte de otra composición.`));
+  }
+  if (kind === "associationClass") {
+    if (!associationClassId) {
+      errors.push(err("MISSING_ASSOCIATION_CLASS", "$.payload.associationClassId", "Una clase-asociación requiere 'associationClassId'."));
+    } else if (!model.classes.some((cls) => cls.id === associationClassId)) {
+      errors.push(err("ASSOCIATION_CLASS_NOT_FOUND", "$.payload.associationClassId", `No existe la clase con id '${associationClassId}'.`));
+    }
   }
 
   return {
@@ -556,9 +632,11 @@ function evaluateUpdateAssociation(model: DomainModel, command: UpdateAssociatio
       const target = m.associations.find((a) => a.id === p.associationId);
       if (!target) return;
       if (p.name !== undefined) target.name = p.name;
-      if (p.sourceMultiplicity !== undefined) target.sourceMultiplicity = p.sourceMultiplicity;
-      if (p.targetMultiplicity !== undefined) target.targetMultiplicity = p.targetMultiplicity;
-      if (p.navigability !== undefined) target.navigability = p.navigability;
+      target.kind = kind;
+      target.sourceMultiplicity = structural ? sourceMultiplicity ?? "1" : "1";
+      target.targetMultiplicity = structural ? targetMultiplicity ?? "1" : "1";
+      target.navigability = structural ? navigability ?? "unidirectional" : "unidirectional";
+      target.associationClassId = kind === "associationClass" ? associationClassId : undefined;
       if (p.description !== undefined) target.description = p.description;
     },
   };
@@ -640,6 +718,7 @@ function evaluateDeletePackage(model: DomainModel, command: DeletePackageCommand
 const HANDLERS: Record<ModelCommand["type"], CommandHandler> = {
   CreateClass: evaluateCreateClass as CommandHandler,
   RenameClass: evaluateRenameClass as CommandHandler,
+  UpdateClass: evaluateUpdateClass as CommandHandler,
   DeleteClass: evaluateDeleteClass as CommandHandler,
   AddAttribute: evaluateAddAttribute as CommandHandler,
   UpdateAttribute: evaluateUpdateAttribute as CommandHandler,

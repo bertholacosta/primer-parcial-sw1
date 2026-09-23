@@ -6,17 +6,6 @@ interface AuthPanelProps {
   onAuthenticated(session: AuthSession): void;
 }
 
-const inputStyle: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '8px 10px',
-  fontSize: '14px',
-  border: '1px solid #cbd5e1',
-  borderRadius: '6px',
-  marginBottom: '12px',
-};
-
 /** Registro e inicio de sesión con correo y contraseña (identity-access-v1). */
 export const AuthPanel: React.FC<AuthPanelProps> = ({ api, onAuthenticated }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -31,11 +20,8 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ api, onAuthenticated }) =>
     setBusy(true);
     setError(null);
     try {
-      if (mode === 'register') {
-        await api.register(email, password, displayName || email);
-      }
-      const session = await api.login(email, password);
-      onAuthenticated(session);
+      if (mode === 'register') await api.register(email, password, displayName || email);
+      onAuthenticated(await api.login(email, password));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No fue posible autenticar la sesión.');
     } finally {
@@ -44,119 +30,42 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ api, onAuthenticated }) =>
   };
 
   return (
-    <div
-      data-testid="auth-panel"
-      style={{
-        maxWidth: '380px',
-        margin: '10vh auto',
-        padding: '28px',
-        border: '1px solid #e2e8f0',
-        borderRadius: '10px',
-        fontFamily: 'system-ui, sans-serif',
-        background: '#ffffff',
-        boxShadow: '0 4px 12px rgba(15,23,42,0.08)',
-      }}
-    >
-      <h1 style={{ fontSize: '20px', margin: '0 0 4px 0', color: '#0f172a' }}>Editor CASE</h1>
-      <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 18px 0' }}>
-        {mode === 'login' ? 'Inicia sesión para colaborar en diagramas.' : 'Crea tu cuenta para empezar.'}
-      </p>
-
-      {error && (
-        <div
-          role="alert"
-          data-testid="auth-error"
-          style={{
-            background: '#fef2f2',
-            border: '1px solid #fca5a5',
-            color: '#991b1b',
-            borderRadius: '6px',
-            padding: '8px 10px',
-            fontSize: '13px',
-            marginBottom: '12px',
-          }}
-        >
-          {error}
+    <main className="auth-layout" data-testid="auth-panel">
+      <section className="auth-hero" aria-label="Presentación de CASE Studio">
+        <div className="auth-hero-mark" aria-hidden="true">CS</div>
+        <h1>CASE Studio</h1>
+        <p>Diseña modelos UML consistentes, colabora en tiempo real y transforma tus diagramas en software verificable.</p>
+      </section>
+      <section className="auth-panel-wrap">
+        <div className="auth-card">
+          <h2>{mode === 'login' ? 'Bienvenido' : 'Crear cuenta'}</h2>
+          <p>{mode === 'login' ? 'Accede a tus modelos y sesiones colaborativas.' : 'Configura tu espacio de modelado.'}</p>
+          {error && <div role="alert" data-testid="auth-error" className="alert error">{error}</div>}
+          <form onSubmit={submit}>
+            {mode === 'register' && (
+              <label className="form-label">
+                Nombre visible
+                <input data-testid="register-display-name-input" className="form-control" value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoComplete="name" />
+              </label>
+            )}
+            <label className="form-label">
+              Correo electrónico
+              <input data-testid="login-email-input" className="form-control" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+            </label>
+            <label className="form-label">
+              Contraseña
+              <input data-testid="login-password-input" className="form-control" type="password" required minLength={mode === 'register' ? 12 : undefined} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+            </label>
+            <button data-testid="login-submit" className="button-primary" type="submit" disabled={busy} style={{ width: '100%' }}>
+              {busy ? 'Procesando…' : mode === 'login' ? 'Entrar al espacio' : 'Crear cuenta y entrar'}
+            </button>
+          </form>
+          <button data-testid="auth-mode-toggle" className="button-ghost" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); }} style={{ width: '100%', marginTop: 10 }}>
+            {mode === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
+          </button>
         </div>
-      )}
-
-      <form onSubmit={submit}>
-        {mode === 'register' && (
-          <label style={{ fontSize: '12px', color: '#334155' }}>
-            Nombre visible
-            <input
-              data-testid="register-display-name-input"
-              style={inputStyle}
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              autoComplete="name"
-            />
-          </label>
-        )}
-        <label style={{ fontSize: '12px', color: '#334155' }}>
-          Correo
-          <input
-            data-testid="login-email-input"
-            type="email"
-            required
-            style={inputStyle}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-        </label>
-        <label style={{ fontSize: '12px', color: '#334155' }}>
-          Contraseña
-          <input
-            data-testid="login-password-input"
-            type="password"
-            required
-            minLength={mode === 'register' ? 12 : undefined}
-            style={inputStyle}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-          />
-        </label>
-        <button
-          data-testid="login-submit"
-          type="submit"
-          disabled={busy}
-          style={{
-            width: '100%',
-            padding: '9px',
-            fontSize: '14px',
-            fontWeight: 600,
-            color: '#ffffff',
-            background: '#0f172a',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: busy ? 'wait' : 'pointer',
-          }}
-        >
-          {mode === 'login' ? 'Entrar' : 'Registrarse y entrar'}
-        </button>
-      </form>
-
-      <button
-        data-testid="auth-mode-toggle"
-        onClick={() => {
-          setMode(mode === 'login' ? 'register' : 'login');
-          setError(null);
-        }}
-        style={{
-          marginTop: '14px',
-          background: 'none',
-          border: 'none',
-          color: '#0284c7',
-          fontSize: '13px',
-          cursor: 'pointer',
-          padding: 0,
-        }}
-      >
-        {mode === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
-      </button>
-    </div>
+      </section>
+    </main>
   );
 };
 

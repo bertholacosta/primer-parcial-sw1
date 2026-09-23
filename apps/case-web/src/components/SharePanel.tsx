@@ -113,15 +113,8 @@ export const SharePanel: React.FC<SharePanelProps> = ({ api, diagramId, currentU
   return (
     <aside
       data-testid="share-panel"
-      style={{
-        borderTop: '1px solid #e2e8f0',
-        background: '#ffffff',
-        padding: '12px 20px',
-        fontSize: '12px',
-        fontFamily: 'system-ui, sans-serif',
-        maxHeight: '220px',
-        overflowY: 'auto',
-      }}
+      className="share-panel"
+      style={{ padding: '14px 20px', fontSize: '12px', maxHeight: '260px', overflowY: 'auto' }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <h2 style={{ fontSize: '14px', margin: 0, color: '#0f172a' }}>Compartir diagrama</h2>

@@ -288,4 +288,37 @@ describe("tipos de relación UML (ADR-0009)", () => {
     expect(ok.result).toBe("accepted");
     expect(ok.model.associations[0].associationClassId).toBe("cls-c");
   });
+
+  it("UpdateClass cambia nombre, paquete y descripción de forma atómica", () => {
+    const model = baseModel();
+    model.packages.push({ id: "pkg-02", name: "catalogo" });
+    const outcome = applyCommand(
+      model,
+      cmd({ type: "UpdateClass", payload: { classId: "cls-01", name: "Articulo", packageId: "pkg-02", description: "Entidad editable" } }),
+    );
+    expect(outcome.result).toBe("accepted");
+    expect(outcome.model.classes[0]).toMatchObject({ name: "Articulo", packageId: "pkg-02", description: "Entidad editable" });
+  });
+
+  it("UpdateAssociation permite cambiar tipo y propiedades conservando extremos", () => {
+    const created = applyCommand(
+      modelWithClasses(),
+      cmd({ type: "CreateAssociation", payload: { id: "a1", kind: "association", sourceClassId: "cls-a", targetClassId: "cls-b", sourceMultiplicity: "1", targetMultiplicity: "0..*", navigability: "bidirectional" } }),
+    );
+    const updated = applyCommand(created.model, {
+      ...cmd({ type: "UpdateAssociation", payload: { associationId: "a1", kind: "aggregation", name: "contiene", sourceMultiplicity: "1", targetMultiplicity: "1..*", navigability: "unidirectional", description: "Agregación editable" } }),
+      modelVersion: created.modelVersion,
+    });
+    expect(updated.result).toBe("accepted");
+    expect(updated.model.associations[0]).toMatchObject({
+      kind: "aggregation",
+      name: "contiene",
+      sourceClassId: "cls-a",
+      targetClassId: "cls-b",
+      sourceMultiplicity: "1",
+      targetMultiplicity: "1..*",
+      navigability: "unidirectional",
+      description: "Agregación editable",
+    });
+  });
 });

@@ -270,18 +270,18 @@ describe('ConnectedApp — coedición (P10-010)', () => {
     const socket = await openDiagram('admin');
 
     await act(async () => {
-      fireEvent.click(screen.getByTestId('btn-add-attribute-Libro'));
+      fireEvent.click(screen.getByTestId('btn-edit-attr-Libro-titulo'));
     });
-    fireEvent.change(screen.getByTestId('add-attribute-name-input-Libro'), { target: { value: 'genero' } });
+    fireEvent.change(screen.getByTestId('edit-attribute-input-attr-1'), { target: { value: 'genero' } });
     await act(async () => {
-      fireEvent.click(screen.getByTestId('confirm-add-attribute-Libro'));
+      fireEvent.click(screen.getByTestId('confirm-edit-attribute-attr-1'));
     });
 
     // El comando sale por el socket pero el modelo local no cambia todavía.
     const submitted = socket.envelopes().find((e) => e.type === 'SubmitCommand');
     expect(submitted).toBeDefined();
     const payload = submitted!.payload as { clientCommandId: string; command: { type: string; commandId: string; payload: { name: string } } };
-    expect(payload.command.type).toBe('AddAttribute');
+    expect(payload.command.type).toBe('UpdateAttribute');
     expect(payload.command.payload.name).toBe('genero');
     expect(payload.clientCommandId).toBe(payload.command.commandId);
     expect(screen.queryByTestId('attribute-row-Libro-genero')).not.toBeInTheDocument();
@@ -309,11 +309,11 @@ describe('ConnectedApp — coedición (P10-010)', () => {
     const socket = await openDiagram('editor');
 
     await act(async () => {
-      fireEvent.click(screen.getByTestId('btn-add-attribute-Libro'));
+      fireEvent.click(screen.getByTestId('btn-edit-attr-Libro-titulo'));
     });
-    fireEvent.change(screen.getByTestId('add-attribute-name-input-Libro'), { target: { value: 'titulo' } });
+    fireEvent.change(screen.getByTestId('edit-attribute-input-attr-1'), { target: { value: 'tituloDuplicado' } });
     await act(async () => {
-      fireEvent.click(screen.getByTestId('confirm-add-attribute-Libro'));
+      fireEvent.click(screen.getByTestId('confirm-edit-attribute-attr-1'));
     });
     const submitted = socket.envelopes().find((e) => e.type === 'SubmitCommand');
     const clientCommandId = (submitted!.payload as { clientCommandId: string }).clientCommandId;
@@ -354,7 +354,6 @@ describe('ConnectedApp — coedición (P10-010)', () => {
     expect(screen.queryByTestId('btn-add-attribute-Libro')).not.toBeInTheDocument();
     expect(screen.queryByTestId('btn-add-association')).not.toBeInTheDocument();
     expect(screen.queryByTestId('btn-edit-attr-Libro-titulo')).not.toBeInTheDocument();
-    expect(screen.getByTestId('readonly-footer-Libro')).toBeInTheDocument();
   });
 
   it('una caída del socket muestra reconexión sin perder el modelo', async () => {

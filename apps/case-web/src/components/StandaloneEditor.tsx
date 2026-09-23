@@ -1,29 +1,38 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { parseDomainModel } from '../adapter/domainModelAdapter';
 import { CaseWebCanvas } from './CaseWebCanvas';
 import type { CanonicalDomainModel } from '../domain/model';
 import {
   executeAddAttribute,
   executeUpdateAttribute,
+  executeDeleteAttribute,
   type CommandExecutionResult,
   type AddAttributeCommand,
   type UpdateAttributeCommand,
+  type DeleteAttributeCommand,
 } from '../commands/attributeCommands';
 import {
   executeCreateAssociation,
+  executeUpdateAssociation,
   executeDeleteAssociation,
   type CreateAssociationCommand,
+  type UpdateAssociationCommand,
   type DeleteAssociationCommand,
   type CreateAssociationInput,
+  type CreateAssociationClassInput,
+  type UpdateAssociationInput,
 } from '../commands/associationCommands';
 import {
   executeCreateClass,
   executeRenameClass,
+  executeUpdateClass,
   executeDeleteClass,
   executeCreatePackage,
   executeDeletePackage,
   type CreateClassCommand,
   type RenameClassCommand,
+  type UpdateClassCommand,
+  type UpdateClassInput,
   type DeleteClassCommand,
   type CreatePackageCommand,
   type DeletePackageCommand,
@@ -108,9 +117,17 @@ interface StandaloneEditorProps {
 export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
   initialModelData = DEFAULT_CANONICAL_FIXTURE,
 }) => {
-  const [model, setModel] = useState<CanonicalDomainModel | null>(null);
+  const [model, setModelState] = useState<CanonicalDomainModel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastCommandResult, setLastCommandResult] = useState<CommandExecutionResult | null>(null);
+  // Ref sincronizado con el estado: garantiza que los callbacks siempre lean
+  // la versión más reciente sin depender del ciclo de re-render de React.
+  const modelRef = useRef<CanonicalDomainModel | null>(null);
+
+  const setModel = useCallback((next: CanonicalDomainModel | null) => {
+    modelRef.current = next;
+    setModelState(next);
+  }, []);
 
   useEffect(() => {
     try {
@@ -124,90 +141,96 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
   }, [initialModelData]);
 
   const handleAddAttribute = useCallback(
-    (classId: string, name: string, type: string, multiplicity: string) => {
-      if (!model) return;
+    (classId: string, name: string, type: string, multiplicity: string, nullable = multiplicity === '0..1', description?: string) => {
+      const m = modelRef.current;
+      if (!m) return;
       const command: AddAttributeCommand = {
         type: 'AddAttribute',
         commandId: `cmd-add-${Date.now()}`,
-        modelId: model.id,
-        modelVersion: model.version,
+        modelId: m.id,
+        modelVersion: m.version,
         payload: {
-          attributeId: `attr-${Date.now()}`,
+          attributeId: `attr-${crypto.randomUUID()}`,
           classId,
           name,
           type,
-          nullable: multiplicity === '0..1',
+          nullable,
           multiplicity,
+          description,
         },
       };
-
-      const { updatedModel, result } = executeAddAttribute(model, command);
+      const { updatedModel, result } = executeAddAttribute(m, command);
       setLastCommandResult(result);
-      if (result.result === 'accepted') {
-        setModel(updatedModel);
-      }
+      if (result.result === 'accepted') setModel(updatedModel);
     },
-    [model]
+    [setModel]
   );
 
   const handleUpdateAttribute = useCallback(
-    (classId: string, attributeId: string, newName: string) => {
-      if (!model) return;
+    (classId: string, attributeId: string, updates: { name: string; type: string; multiplicity: string; nullable: boolean; description?: string }) => {
+      const m = modelRef.current;
+      if (!m) return;
       const command: UpdateAttributeCommand = {
         type: 'UpdateAttribute',
         commandId: `cmd-upd-${Date.now()}`,
-        modelId: model.id,
-        modelVersion: model.version,
-        payload: {
-          attributeId,
-          classId,
-          name: newName,
-        },
+        modelId: m.id,
+        modelVersion: m.version,
+        payload: { attributeId, classId, ...updates },
       };
-
-      const { updatedModel, result } = executeUpdateAttribute(model, command);
+      const { updatedModel, result } = executeUpdateAttribute(m, command);
       setLastCommandResult(result);
-      if (result.result === 'accepted') {
-        setModel(updatedModel);
-      }
+      if (result.result === 'accepted') setModel(updatedModel);
     },
-    [model]
+    [setModel]
+  );
+
+  const handleDeleteAttribute = useCallback(
+    (classId: string, attributeId: string) => {
+      const m = modelRef.current;
+      if (!m) return;
+      const command: DeleteAttributeCommand = {
+        type: 'DeleteAttribute',
+        commandId: `cmd-delattr-${Date.now()}`,
+        modelId: m.id,
+        modelVersion: m.version,
+        payload: { classId, attributeId },
+      };
+      const { updatedModel, result } = executeDeleteAttribute(m, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') setModel(updatedModel);
+    },
+    [setModel]
   );
 
   const handleCreateClass = useCallback(
     (input: CreateClassInput) => {
-      if (!model) return;
+      const m = modelRef.current;
+      if (!m) return;
       const command: CreateClassCommand = {
         type: 'CreateClass',
         commandId: `cmd-class-${Date.now()}`,
-        modelId: model.id,
-        modelVersion: model.version,
-        payload: {
-          classId: input.classId,
-          name: input.name,
-          packageId: input.packageId,
-        },
+        modelId: m.id,
+        modelVersion: m.version,
+        payload: { classId: input.classId, name: input.name, packageId: input.packageId },
       };
-
-      const { updatedModel, result } = executeCreateClass(model, command);
+      const { updatedModel, result } = executeCreateClass(m, command);
       setLastCommandResult(result);
-      if (result.result === 'accepted') {
-        setModel(updatedModel);
-      }
+      if (result.result === 'accepted') setModel(updatedModel);
     },
-    [model]
+    [setModel]
   );
 
   const handleCreateAssociation = useCallback(
     (input: CreateAssociationInput) => {
-      if (!model) return;
+      const m = modelRef.current;
+      if (!m) return;
       const command: CreateAssociationCommand = {
         type: 'CreateAssociation',
         commandId: `cmd-assoc-${Date.now()}`,
-        modelId: model.id,
-        modelVersion: model.version,
+        modelId: m.id,
+        modelVersion: m.version,
         payload: {
-          id: `assoc-${Date.now()}`,
+          id: `assoc-${crypto.randomUUID()}`,
           name: input.name,
           sourceClassId: input.sourceClassId,
           targetClassId: input.targetClassId,
@@ -219,99 +242,182 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
           description: input.description,
         },
       };
-
-      const { updatedModel, result } = executeCreateAssociation(model, command);
+      const { updatedModel, result } = executeCreateAssociation(m, command);
       setLastCommandResult(result);
-      if (result.result === 'accepted') {
-        setModel(updatedModel);
-      }
+      if (result.result === 'accepted') setModel(updatedModel);
     },
-    [model]
+    [setModel]
+  );
+
+  /**
+   * Crea la clase portadora y la asociación de tipo associationClass de forma
+   * atómica: ambos comandos se ejecutan contra el mismo snapshot del modelo.
+   */
+  const handleCreateAssociationClass = useCallback(
+    (input: CreateAssociationClassInput) => {
+      const m = modelRef.current;
+      if (!m) return;
+      // Paso 1: crear la clase portadora
+      const classCmd: CreateClassCommand = {
+        type: 'CreateClass',
+        commandId: `cmd-class-${Date.now()}`,
+        modelId: m.id,
+        modelVersion: m.version,
+        payload: { classId: input.newClassId, name: input.newClassName, packageId: m.packages[0]?.id },
+      };
+      const { updatedModel: modelWithClass, result: classResult } = executeCreateClass(m, classCmd);
+      setLastCommandResult(classResult);
+      if (classResult.result !== 'accepted') return;
+      // Paso 2: la asociación usa el modelo ya actualizado (versión correcta)
+      const assocCmd: CreateAssociationCommand = {
+        type: 'CreateAssociation',
+        commandId: `cmd-assoc-${Date.now()}`,
+        modelId: modelWithClass.id,
+        modelVersion: modelWithClass.version,
+        payload: {
+          id: `assoc-${crypto.randomUUID()}`,
+          name: input.associationName,
+          sourceClassId: input.sourceClassId,
+          targetClassId: input.targetClassId,
+          sourceMultiplicity: input.sourceMultiplicity,
+          targetMultiplicity: input.targetMultiplicity,
+          navigability: input.navigability,
+          kind: 'associationClass',
+          associationClassId: input.newClassId,
+          description: input.description,
+        },
+      };
+      const { updatedModel: finalModel, result: assocResult } = executeCreateAssociation(modelWithClass, assocCmd);
+      setLastCommandResult(assocResult);
+      if (assocResult.result === 'accepted') setModel(finalModel);
+    },
+    [setModel]
   );
 
   const handleRenameClass = useCallback(
     (classId: string, newName: string) => {
-      if (!model) return;
+      const m = modelRef.current;
+      if (!m) return;
       const command: RenameClassCommand = {
         type: 'RenameClass',
         commandId: `cmd-ren-${Date.now()}`,
-        modelId: model.id,
-        modelVersion: model.version,
+        modelId: m.id,
+        modelVersion: m.version,
         payload: { classId, newName },
       };
-      const { updatedModel, result } = executeRenameClass(model, command);
+      const { updatedModel, result } = executeRenameClass(m, command);
       setLastCommandResult(result);
       if (result.result === 'accepted') setModel(updatedModel);
     },
-    [model]
+    [setModel]
+  );
+
+  const handleUpdateClass = useCallback(
+    (input: UpdateClassInput) => {
+      const m = modelRef.current;
+      if (!m) return;
+      const command: UpdateClassCommand = {
+        type: 'UpdateClass',
+        commandId: `cmd-updclass-${Date.now()}`,
+        modelId: m.id,
+        modelVersion: m.version,
+        payload: input,
+      };
+      const { updatedModel, result } = executeUpdateClass(m, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') setModel(updatedModel);
+    },
+    [setModel]
   );
 
   const handleDeleteClass = useCallback(
     (classId: string) => {
-      if (!model) return;
+      const m = modelRef.current;
+      if (!m) return;
       const command: DeleteClassCommand = {
         type: 'DeleteClass',
         commandId: `cmd-del-${Date.now()}`,
-        modelId: model.id,
-        modelVersion: model.version,
+        modelId: m.id,
+        modelVersion: m.version,
         payload: { classId },
       };
-      const { updatedModel, result } = executeDeleteClass(model, command);
+      const { updatedModel, result } = executeDeleteClass(m, command);
       setLastCommandResult(result);
       if (result.result === 'accepted') setModel(updatedModel);
     },
-    [model]
+    [setModel]
   );
 
   const handleCreatePackage = useCallback(
     (input: CreatePackageInput) => {
-      if (!model) return;
+      const m = modelRef.current;
+      if (!m) return;
       const command: CreatePackageCommand = {
         type: 'CreatePackage',
         commandId: `cmd-pkg-${Date.now()}`,
-        modelId: model.id,
-        modelVersion: model.version,
+        modelId: m.id,
+        modelVersion: m.version,
         payload: { packageId: input.packageId, name: input.name },
       };
-      const { updatedModel, result } = executeCreatePackage(model, command);
+      const { updatedModel, result } = executeCreatePackage(m, command);
       setLastCommandResult(result);
       if (result.result === 'accepted') setModel(updatedModel);
     },
-    [model]
+    [setModel]
   );
 
   const handleDeletePackage = useCallback(
     (packageId: string) => {
-      if (!model) return;
+      const m = modelRef.current;
+      if (!m) return;
       const command: DeletePackageCommand = {
         type: 'DeletePackage',
         commandId: `cmd-delpkg-${Date.now()}`,
-        modelId: model.id,
-        modelVersion: model.version,
+        modelId: m.id,
+        modelVersion: m.version,
         payload: { packageId },
       };
-      const { updatedModel, result } = executeDeletePackage(model, command);
+      const { updatedModel, result } = executeDeletePackage(m, command);
       setLastCommandResult(result);
       if (result.result === 'accepted') setModel(updatedModel);
     },
-    [model]
+    [setModel]
+  );
+
+  const handleUpdateAssociation = useCallback(
+    (input: UpdateAssociationInput) => {
+      const m = modelRef.current;
+      if (!m) return;
+      const command: UpdateAssociationCommand = {
+        type: 'UpdateAssociation',
+        commandId: `cmd-updassoc-${Date.now()}`,
+        modelId: m.id,
+        modelVersion: m.version,
+        payload: input,
+      };
+      const { updatedModel, result } = executeUpdateAssociation(m, command);
+      setLastCommandResult(result);
+      if (result.result === 'accepted') setModel(updatedModel);
+    },
+    [setModel]
   );
 
   const handleDeleteAssociation = useCallback(
     (associationId: string) => {
-      if (!model) return;
+      const m = modelRef.current;
+      if (!m) return;
       const command: DeleteAssociationCommand = {
         type: 'DeleteAssociation',
         commandId: `cmd-delassoc-${Date.now()}`,
-        modelId: model.id,
-        modelVersion: model.version,
+        modelId: m.id,
+        modelVersion: m.version,
         payload: { associationId },
       };
-      const { updatedModel, result } = executeDeleteAssociation(model, command);
+      const { updatedModel, result } = executeDeleteAssociation(m, command);
       setLastCommandResult(result);
       if (result.result === 'accepted') setModel(updatedModel);
     },
-    [model]
+    [setModel]
   );
 
   if (error) {
@@ -352,12 +458,16 @@ export const StandaloneEditor: React.FC<StandaloneEditorProps> = ({
       lastCommandResult={lastCommandResult}
       onAddAttribute={handleAddAttribute}
       onUpdateAttribute={handleUpdateAttribute}
+      onDeleteAttribute={handleDeleteAttribute}
+      onUpdateClass={handleUpdateClass}
       onCreateAssociation={handleCreateAssociation}
+      onCreateAssociationClass={handleCreateAssociationClass}
       onCreateClass={handleCreateClass}
       onRenameClass={handleRenameClass}
       onDeleteClass={handleDeleteClass}
       onCreatePackage={handleCreatePackage}
       onDeletePackage={handleDeletePackage}
+      onUpdateAssociation={handleUpdateAssociation}
       onDeleteAssociation={handleDeleteAssociation}
     />
   );

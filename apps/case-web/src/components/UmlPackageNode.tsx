@@ -18,8 +18,8 @@ export const UmlPackageNode: React.FC<NodeProps<UmlPackageFlowNode>> = ({ data }
       <svg width="200" height={TAB_HEIGHT + BODY_HEIGHT} style={{ display: 'block' }}>
         <polygon
           points={`0,${TAB_HEIGHT} 0,0 ${TAB_WIDTH},0 ${TAB_WIDTH + 12},${TAB_HEIGHT}`}
-          fill="#f1f5f9"
-          stroke="#1e293b"
+          fill="var(--diagram-surface-raised)"
+          stroke="var(--diagram-border)"
           strokeWidth="1.5"
         />
         <rect
@@ -27,8 +27,8 @@ export const UmlPackageNode: React.FC<NodeProps<UmlPackageFlowNode>> = ({ data }
           y={TAB_HEIGHT}
           width="200"
           height={BODY_HEIGHT}
-          fill="#ffffff"
-          stroke="#1e293b"
+          fill="var(--diagram-surface)"
+          stroke="var(--diagram-border)"
           strokeWidth="1.5"
         />
       </svg>
@@ -39,7 +39,7 @@ export const UmlPackageNode: React.FC<NodeProps<UmlPackageFlowNode>> = ({ data }
           left: 8,
           fontSize: '11px',
           fontWeight: 600,
-          color: '#0f172a',
+          color: 'var(--diagram-text)',
           maxWidth: TAB_WIDTH - 8,
           overflow: 'hidden',
           textOverflow: 'ellipsis',

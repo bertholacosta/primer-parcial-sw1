@@ -1,6 +1,6 @@
 # Contrato de comandos del editor — `model-commands` v1
 
-- **Versión del contrato:** 1.0.0
+- **Versión del contrato:** 1.1.0
 - **Estado:** accepted
 - **Fecha:** 2026-09-20
 - **Autoridad:** Product Owner (ADR-0000)
@@ -215,7 +215,24 @@ Cambia el `name` de una clase existente.
 
 ---
 
-### 3.3 `DeleteClass`
+### 3.3 `UpdateClass`
+
+Modifica de forma atómica las propiedades editables de una clase sin cambiar su identidad.
+
+#### Payload
+
+| Campo | Tipo | Obligatorio | Descripción |
+|---|---|---|---|
+| `classId` | string | sí | Id de la clase a modificar. |
+| `name` | string | no | Nuevo nombre canónico. |
+| `packageId` | string \| null | no | Nuevo paquete; `null` mueve la clase al espacio raíz. |
+| `description` | string | no | Nueva descripción. |
+
+Los valores resultantes deben conservar la unicidad de nombre en el paquete y referenciar un paquete existente. Los campos ausentes no cambian; un payload sin cambios produce `noop`.
+
+---
+
+### 3.4 `DeleteClass`
 
 Elimina una clase y todos sus atributos. Las asociaciones que la referencian también se eliminan.
 
@@ -551,6 +568,8 @@ Modifica campos de una asociación existente.
 | `sourceMultiplicity` | string | no | Nueva multiplicidad origen. |
 | `targetMultiplicity` | string | no | Nueva multiplicidad destino. |
 | `navigability` | string | no | Nuevo valor de navegabilidad. |
+| `kind` | string | no | Nuevo tipo UML (`association`, `aggregation`, `composition`, `generalization`, `dependency`, `associationClass`). |
+| `associationClassId` | string \| null | no | Clase portadora cuando el tipo resultante es `associationClass`; `null` elimina la referencia. |
 | `description` | string | no | Nuevo texto libre. |
 
 Al menos uno de los campos opcionales debe estar presente; si no hay campos, el resultado es `noop`.
@@ -567,10 +586,14 @@ Al menos uno de los campos opcionales debe estar presente; si no hay campos, el 
 | PC-UAssoc-4 | Si `sourceMultiplicity` está presente: es un literal permitido. | `INVALID_MULTIPLICITY` |
 | PC-UAssoc-5 | Si `targetMultiplicity` está presente: es un literal permitido. | `INVALID_MULTIPLICITY` |
 | PC-UAssoc-6 | Si `navigability` está presente: es `"unidirectional"` o `"bidirectional"`. | `INVALID_NAVIGABILITY` |
+| PC-UAssoc-7 | El tipo resultante es un tipo UML permitido y satisface sus invariantes. | `INVALID_ASSOCIATION_KIND`, `MULTIPLE_INHERITANCE`, `GENERALIZATION_CYCLE`, `COMPOSITION_PART_OCCUPIED` |
+| PC-UAssoc-8 | Una clase-asociación resultante referencia una clase portadora existente. | `MISSING_ASSOCIATION_CLASS`, `ASSOCIATION_CLASS_NOT_FOUND` |
 
 #### Resultado: `accepted`
 
 - Los campos presentes en el payload reemplazan los valores actuales.
+- Al cambiar a generalización o dependencia, multiplicidades y navegabilidad se normalizan a valores neutros.
+- `associationClassId` solo se conserva para `kind: "associationClass"`.
 - Los campos ausentes no cambian.
 - La versión `PATCH` del modelo se incrementa.
 
@@ -668,11 +691,11 @@ Elimina un paquete. Solo puede eliminarse un paquete vacío (sin clases asignada
 | `MODEL_NOT_FOUND` | ERROR | Todos | El `modelId` no existe en el repositorio. |
 | `CONCURRENT_MODIFICATION` | ERROR | Todos | La `modelVersion` del comando no coincide con la versión actual del modelo. |
 | `DUPLICATE_ID` | ERROR | CreateClass, AddAttribute, CreateAssociation, CreatePackage | Ya existe una entidad con el mismo `id` en el documento. |
-| `CLASS_NOT_FOUND` | ERROR | RenameClass, DeleteClass, AddAttribute, UpdateAttribute, DeleteAttribute, CreateAssociation | No existe una clase con el `classId` o `sourceClassId`/`targetClassId` especificado. |
+| `CLASS_NOT_FOUND` | ERROR | RenameClass, UpdateClass, DeleteClass, AddAttribute, UpdateAttribute, DeleteAttribute, CreateAssociation | No existe una clase con el `classId` o `sourceClassId`/`targetClassId` especificado. |
 | `ATTRIBUTE_NOT_FOUND` | ERROR | UpdateAttribute, DeleteAttribute | No existe un atributo con el `attributeId` en la clase indicada. |
 | `ASSOCIATION_NOT_FOUND` | ERROR | UpdateAssociation, DeleteAssociation | No existe una asociación con el `associationId`. |
-| `PACKAGE_NOT_FOUND` | ERROR | CreateClass, CreatePackage, DeletePackage | No existe un paquete con el `packageId` especificado. |
-| `DUPLICATE_CLASS_NAME` | ERROR | CreateClass, RenameClass | Ya existe una clase con el mismo `name` en el mismo `packageId`. |
+| `PACKAGE_NOT_FOUND` | ERROR | CreateClass, UpdateClass, CreatePackage, DeletePackage | No existe un paquete con el `packageId` especificado. |
+| `DUPLICATE_CLASS_NAME` | ERROR | CreateClass, RenameClass, UpdateClass | Ya existe una clase con el mismo `name` en el mismo `packageId`. |
 | `DUPLICATE_ATTRIBUTE_NAME` | ERROR | AddAttribute, UpdateAttribute | Ya existe un atributo con el mismo `name` en la misma clase. |
 | `DUPLICATE_PACKAGE_NAME` | ERROR | CreatePackage | Ya existe un paquete con el mismo `name` bajo el mismo `parentId`. |
 | `INVALID_NAME_FORMAT` | ERROR | CreateClass, RenameClass, AddAttribute, UpdateAttribute, CreatePackage | El `name` no satisface `[A-Za-z_][A-Za-z0-9_]*`. |

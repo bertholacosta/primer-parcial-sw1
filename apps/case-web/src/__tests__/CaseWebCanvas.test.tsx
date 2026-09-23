@@ -61,6 +61,7 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
       data: {
         id: 'cls-01',
         name: 'Libro',
+        packages: [],
         attributes: [
           { id: 'a1', name: 'titulo', type: 'String', nullable: false, multiplicity: '1' },
           { id: 'a2', name: 'paginas', type: 'Integer', nullable: true, multiplicity: '0..1' },
@@ -86,29 +87,11 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
     expect(screen.getByTestId('attribute-row-Libro-paginas')).toHaveTextContent('+ paginas: Integer');
   });
 
-  it('permite agregar un atributo dinámicamente mediante el botón + Atributo y actualiza el modelo y la vista (P4-004)', () => {
+  it('no muestra el control + Atributo dentro de las clases', () => {
     render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
 
-    // Click en + Atributo de Libro
-    const addBtn = screen.getByTestId('btn-add-attribute-Libro');
-    fireEvent.click(addBtn);
-
-    // Escribir nombre del nuevo atributo
-    const nameInput = screen.getByTestId('add-attribute-name-input-Libro');
-    fireEvent.change(nameInput, { target: { value: 'genero' } });
-
-    // Click en Crear
-    const confirmBtn = screen.getByTestId('confirm-add-attribute-Libro');
-    fireEvent.click(confirmBtn);
-
-    // Debe mostrarse en el nodo y en la lista semántica
-    expect(screen.getByTestId('attribute-row-Libro-genero')).toBeInTheDocument();
-    expect(screen.getByTestId('semantic-item-Libro').textContent).toContain('genero: String [1]');
-
-    // El banner de comandos muestra accepted
-    const banner = screen.getByTestId('command-result-banner');
-    expect(banner.textContent).toContain('Comando aplicado');
-    expect(banner.textContent).toContain('Versión del modelo: 1.0.1');
+    expect(screen.queryByTestId('btn-add-attribute-Libro')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('btn-add-attribute-Autor')).not.toBeInTheDocument();
   });
 
   it('permite renombrar un atributo mediante edición inline y actualiza el modelo y la vista (P4-004)', () => {
@@ -121,6 +104,8 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
     // Cambiar nombre a codigoIsbn
     const editInput = screen.getByTestId('edit-attribute-input-attr-02');
     fireEvent.change(editInput, { target: { value: 'codigoIsbn' } });
+    fireEvent.change(screen.getByTestId('edit-attribute-type-attr-02'), { target: { value: 'UUID' } });
+    fireEvent.change(screen.getByTestId('edit-attribute-multiplicity-attr-02'), { target: { value: '0..1' } });
 
     // Guardar
     const saveBtn = screen.getByTestId('confirm-edit-attribute-attr-02');
@@ -128,33 +113,22 @@ describe('CaseWeb Visual Rendering & Attribute Commands (P4-003 & P4-004)', () =
 
     // Debe actualizarse la vista
     expect(screen.getByTestId('attribute-row-Libro-codigoIsbn')).toBeInTheDocument();
-    expect(screen.getByTestId('semantic-item-Libro').textContent).toContain('codigoIsbn: String [1]');
+    expect(screen.getByTestId('semantic-item-Libro').textContent).toContain('codigoIsbn: UUID [0..1]');
 
     const banner = screen.getByTestId('command-result-banner');
     expect(banner.textContent).toContain('Comando aplicado');
   });
 
-  it('preserva el estado anterior si se intenta agregar un atributo con nombre inválido (P4-004)', () => {
+  it('permite eliminar un atributo desde su editor inline', () => {
     render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
 
-    const addBtn = screen.getByTestId('btn-add-attribute-Libro');
-    fireEvent.click(addBtn);
+    fireEvent.click(screen.getByTestId('btn-edit-attr-Libro-isbn'));
+    fireEvent.click(screen.getByTestId('delete-attribute-attr-02'));
 
-    const nameInput = screen.getByTestId('add-attribute-name-input-Libro');
-    fireEvent.change(nameInput, { target: { value: '123Invalido!' } });
-
-    const confirmBtn = screen.getByTestId('confirm-add-attribute-Libro');
-    fireEvent.click(confirmBtn);
-
-    // Debe mostrarse el rechazo en el banner
-    const banner = screen.getByTestId('command-result-banner');
-    expect(banner.textContent).toContain('Comando rechazado');
-    expect(banner.textContent).toContain('INVALID_NAME_FORMAT');
-
-    // No se agregó el atributo inválido
-    expect(screen.queryByTestId('attribute-row-Libro-123Invalido!')).not.toBeInTheDocument();
-    expect(screen.getByTestId('semantic-item-Libro').textContent).not.toContain('123Invalido!');
+    expect(screen.queryByTestId('attribute-row-Libro-isbn')).not.toBeInTheDocument();
+    expect(screen.getByTestId('semantic-item-Libro').textContent).not.toContain('isbn');
   });
+
 });
 
 describe('CaseWeb Visual Association Commands (P4-005)', () => {
@@ -262,6 +236,20 @@ describe('CaseWeb Palette & CreateClass Command', () => {
     expect(screen.getByTestId('semantic-item-Ejemplar')).toBeInTheDocument();
   });
 
+  it('edita nombre, paquete y descripción de una clase desde la barra contextual', () => {
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    fireEvent.click(screen.getByTestId('uml-class-node-Libro'));
+    fireEvent.click(screen.getByTestId('toolbar-edit-class-cls-01'));
+    fireEvent.change(screen.getByTestId('edit-class-name-cls-01'), { target: { value: 'Publicacion' } });
+    fireEvent.change(screen.getByTestId('edit-class-package-cls-01'), { target: { value: '' } });
+    fireEvent.change(screen.getByTestId('edit-class-description-cls-01'), { target: { value: 'Descripción completa' } });
+    fireEvent.click(screen.getByTestId('confirm-edit-class-cls-01'));
+
+    expect(screen.getByTestId('semantic-item-Publicacion')).toBeInTheDocument();
+    expect(screen.getByTestId('command-result-banner').textContent).toContain('Comando aplicado');
+  });
+
   it('rechaza un renombrado a nombre duplicado en el mismo ámbito sin mutar el modelo', () => {
     render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
 
@@ -341,5 +329,18 @@ describe('Tipos de relación UML en el popover (ADR-0009)', () => {
     fireEvent.click(screen.getByTestId('confirm-add-association'));
     const banner = screen.getByTestId('command-result-banner');
     expect(banner.textContent).toContain('Comando rechazado');
+  });
+
+  it('permite alternar entre los temas claro y oscuro', () => {
+    localStorage.removeItem('case-web-theme');
+    document.documentElement.dataset.theme = 'light';
+    render(<App initialModelData={DEFAULT_CANONICAL_FIXTURE} />);
+
+    const toggle = screen.getByTestId('theme-toggle');
+    fireEvent.click(toggle);
+
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(localStorage.getItem('case-web-theme')).toBe('dark');
+    expect(toggle).toHaveAccessibleName('Cambiar a tema claro');
   });
 });

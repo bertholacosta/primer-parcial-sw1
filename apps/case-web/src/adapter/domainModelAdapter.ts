@@ -4,18 +4,23 @@ import {
   CanonicalAttribute,
   DomainModelContractError,
 } from '../domain/model';
-import { MarkerType, type Node, type Edge } from '@xyflow/react';
+import { type Node, type Edge } from '@xyflow/react';
 
 export interface UmlClassNodeData {
   [key: string]: unknown;
   id: string;
   name: string;
   packageId?: string;
+  description?: string;
+  packages: { id: string; name: string }[];
   attributes: CanonicalAttribute[];
   readOnly?: boolean;
-  onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string) => void;
-  onUpdateAttribute?: (classId: string, attributeId: string, newName: string) => void;
+  onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string, nullable?: boolean, description?: string) => void;
+  onUpdateAttribute?: (classId: string, attributeId: string, updates: { name: string; type: string; multiplicity: string; nullable: boolean; description?: string }) => void;
+  onDeleteAttribute?: (classId: string, attributeId: string) => void;
+  onUpdateClass?: (input: { classId: string; name: string; packageId: string | null; description: string }) => void;
   onRenameClass?: (classId: string, newName: string) => void;
+  onDeleteClass?: (classId: string) => void;
 }
 
 export type UmlClassFlowNode = Node<UmlClassNodeData, 'umlClass'>;
@@ -143,9 +148,12 @@ export function parseDomainModel(raw: unknown): CanonicalDomainModel {
  */
 export interface FlowNodeCallbacks {
   readOnly?: boolean;
-  onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string) => void;
-  onUpdateAttribute?: (classId: string, attributeId: string, newName: string) => void;
+  onAddAttribute?: (classId: string, name: string, type: string, multiplicity: string, nullable?: boolean, description?: string) => void;
+  onUpdateAttribute?: (classId: string, attributeId: string, updates: { name: string; type: string; multiplicity: string; nullable: boolean; description?: string }) => void;
+  onDeleteAttribute?: (classId: string, attributeId: string) => void;
+  onUpdateClass?: (input: { classId: string; name: string; packageId: string | null; description: string }) => void;
   onRenameClass?: (classId: string, newName: string) => void;
+  onDeleteClass?: (classId: string) => void;
 }
 
 export function modelToFlowNodes(
@@ -175,11 +183,16 @@ export function modelToFlowNodes(
         id: cls.id,
         name: cls.name,
         packageId: cls.packageId,
+        description: cls.description,
+        packages: model.packages.map((item) => ({ id: item.id, name: item.name })),
         attributes: cls.attributes,
         readOnly: callbacks?.readOnly,
         onAddAttribute: callbacks?.readOnly ? undefined : callbacks?.onAddAttribute,
         onUpdateAttribute: callbacks?.readOnly ? undefined : callbacks?.onUpdateAttribute,
+        onDeleteAttribute: callbacks?.readOnly ? undefined : callbacks?.onDeleteAttribute,
+        onUpdateClass: callbacks?.readOnly ? undefined : callbacks?.onUpdateClass,
         onRenameClass: callbacks?.readOnly ? undefined : callbacks?.onRenameClass,
+        onDeleteClass: callbacks?.readOnly ? undefined : callbacks?.onDeleteClass,
       },
     };
   });
@@ -219,11 +232,11 @@ export function modelToFlowEdges(model: CanonicalDomainModel): Edge[] {
       label: `${assoc.name ?? ''}${mults}`.trim() || undefined,
       labelBgPadding: [4, 2] as [number, number],
       labelBgBorderRadius: 4,
-      labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.85 },
-      style: { stroke: '#475569', strokeWidth: 1.5 },
+      labelBgStyle: { fill: 'var(--diagram-surface)', fillOpacity: 0.9 },
+      style: { stroke: 'var(--diagram-border)', strokeWidth: 2 },
       markerEnd:
         kind === 'association' && assoc.navigability === 'unidirectional'
-          ? { type: MarkerType.ArrowClosed, color: '#475569' }
+          ? 'url(#uml-association-arrow)'
           : undefined,
       data: {
         name: assoc.name,
