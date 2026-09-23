@@ -25,7 +25,8 @@ const KNOWN_IGNORED_PACKAGED_TYPES = new Set([
   'uml:Artifact',
   'uml:Node',
   'uml:Collaboration',
-  'uml:Signal'
+  'uml:Signal',
+  'uml:AssociationClass'
 ]);
 
 export function importXmi(xmiContent: string, options: ImportOptions = {}): ImportResult {

@@ -97,6 +97,21 @@ Un `ownedAttribute` que no sea el extremo de una asociación (sin `association` 
 
 **Restricción:** self-associations (`sourceClassId == targetClassId`) generan `SELF_ASSOCIATION_NOT_SUPPORTED` (§7).
 
+**Exportación de `kind` de asociación (extensión compatible, ADR-0009):**
+
+El modelo canónico distingue `kind` de asociación. En exportación se mapea a los elementos UML correspondientes; en importación el `kind` no se recupera (las asociaciones vuelven como `association`, y `uml:Dependency`/`uml:AssociationClass`/`<generalization>` se ignoran según §4 — pérdida documentada en §8).
+
+| `kind` canónico | Elemento XMI emitido |
+|---|---|
+| `association` (o ausente) | `packagedElement uml:Association` |
+| `aggregation` | `uml:Association` con `aggregation="shared"` en el extremo del todo (origen) |
+| `composition` | `uml:Association` con `aggregation="composite"` en el extremo del todo (origen) |
+| `generalization` | `<generalization xmi:type="uml:Generalization" general="{targetClassId}">` dentro de la clase específica (origen) |
+| `dependency` | `packagedElement uml:Dependency` con `client="{sourceClassId}"` y `supplier="{targetClassId}"` |
+| `associationClass` | `packagedElement uml:AssociationClass` que fusiona los extremos de la asociación y los `ownedAttribute` de la clase portadora (`associationClassId`); la portadora no se emite como `uml:Class` independiente |
+
+En exportación, `navigability: "unidirectional"` se emite con `isNavigable="false"` en el extremo origen (navegable origen → destino). El exportador declara `xmi:exporter="Enterprise Architect"` y `xmi:exporterVersion` configurable, por defecto `15.0.1514.12`.
+
 ---
 
 ## 4. Elementos XMI ignorados (pérdida de información tolerada)

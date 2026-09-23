@@ -2,6 +2,8 @@
 
 Importación y exportación del subconjunto UML/XMI compatible con Enterprise Architect definido por contrato.
 
+`exportXmi(model, { eaVersion })` emite XMI 2.1 declarando `xmi:exporter="Enterprise Architect"` (por defecto `eaVersion: '15.0.1514.12'`). El archivo `.xmi` resultante se importa en EA 15 mediante **Import Model from XMI**. Los `kind` de asociación canónicos se mapean a UML (`aggregation`/`composite`, `uml:Generalization`, `uml:Dependency`, `uml:AssociationClass`); al reimportar, el `kind` no se recupera (§4/§8 del contrato).
+
 ## Política de normalización de multiplicidad y nulabilidad (§3.4, §8)
 
 En UML 2.5 / XMI 2.1 de Enterprise Architect, la multiplicidad y la nulabilidad se representan únicamente a través de los límites `<lowerValue>` y `<upperValue>`. No existe un atributo UML estándar independiente para `nullable`.

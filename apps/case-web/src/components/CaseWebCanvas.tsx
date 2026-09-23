@@ -40,6 +40,7 @@ import {
 } from '../commands/associationCommands';
 import type { CreateClassInput } from '../commands/classCommands';
 import { generateAndDownloadSpringBoot } from '../generator/springBootGenerator';
+import { generateAndDownloadEnterpriseArchitect } from '../generator/enterpriseArchitectGenerator';
 
 export interface CollaborationBarInfo {
   stateLabel: string;
@@ -323,13 +324,13 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
         associationClassId: assocKind === 'associationClass' ? assocClassId || null : null,
         description: assocDescription,
       });
-    } else if (assocKind === 'associationClass' && onCreateAssociationClass) {
+    } else if (assocKind === 'associationClass' && !assocClassId && assocNewClassName.trim() && onCreateAssociationClass) {
       // Creación de clase-asociación: genera la clase portadora automáticamente.
       onCreateAssociationClass({
         associationName: assocName.trim() || undefined,
         sourceClassId: pendingConnection.sourceClassId,
         targetClassId: pendingConnection.targetClassId,
-        newClassName: assocNewClassName.trim() || 'AsociacionClase',
+        newClassName: assocNewClassName.trim(),
         newClassId: `cls-${crypto.randomUUID()}`,
         sourceMultiplicity: assocSourceMult,
         targetMultiplicity: assocTargetMult,
@@ -345,6 +346,7 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
         sourceMultiplicity: structural ? assocSourceMult : '1',
         targetMultiplicity: structural ? assocTargetMult : '1',
         navigability: structural ? assocNavigability : 'unidirectional',
+        associationClassId: assocKind === 'associationClass' ? assocClassId || undefined : undefined,
         description: assocDescription || undefined,
       });
     }
@@ -390,6 +392,15 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
     }
   }, [model]);
 
+  const handleExportEnterpriseArchitect = useCallback(() => {
+    setExporting(true);
+    try {
+      generateAndDownloadEnterpriseArchitect(model);
+    } finally {
+      setExporting(false);
+    }
+  }, [model]);
+
   const editable = !readOnly;
 
   return (
@@ -416,6 +427,19 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
             }
           >
             {exporting ? 'Generando…' : 'Exportar Spring Boot'}
+          </button>
+          <button
+            data-testid="btn-export-enterprise-architect"
+            className="button-secondary"
+            onClick={handleExportEnterpriseArchitect}
+            disabled={exporting || model.classes.length === 0}
+            title={
+              model.classes.length === 0
+                ? 'Se requiere al menos una clase para exportar'
+                : 'Descarga un archivo .xmi importable en Enterprise Architect 15 (Import Model from XMI)'
+            }
+          >
+            {exporting ? 'Generando…' : 'Exportar EA 15 (XMI)'}
           </button>
           <div data-testid="model-classes-count" className="editor-count">
             {model.classes.length} {model.classes.length === 1 ? 'clase renderizada' : 'clases renderizadas'}
@@ -695,18 +719,38 @@ const CaseWebCanvasInner: React.FC<CaseWebCanvasProps> = ({
                       ))}
                   </select>
                 ) : (
-                  /* Creación: nombre de la nueva clase portadora */
+                  /* Creación: elegir una clase existente o escribir el nombre de una nueva */
                   <>
+                    <select
+                      data-testid="assoc-class-select"
+                      aria-label="Clase de la asociación"
+                      value={assocClassId}
+                      onChange={(e) => {
+                        setAssocClassId(e.target.value);
+                        if (e.target.value) setAssocNewClassName('');
+                      }}
+                      className="field-control"
+                    >
+                      <option value="">— clase portadora existente —</option>
+                      {model.classes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       data-testid="assoc-new-class-name-input"
                       aria-label="Nombre de la clase portadora"
-                      placeholder="Nombre de la clase portadora (ej. Contrato)"
+                      placeholder="O nombre de una clase portadora nueva (ej. Contrato)"
                       value={assocNewClassName}
-                      onChange={(e) => setAssocNewClassName(e.target.value)}
+                      onChange={(e) => {
+                        setAssocNewClassName(e.target.value);
+                        if (e.target.value) setAssocClassId('');
+                      }}
                       className="field-control"
                     />
                     <span className="field-hint" aria-live="polite">
-                      Se creará una nueva clase con este nombre.
+                      Elige una clase existente o escribe un nombre para crearla.
                     </span>
                   </>
                 )

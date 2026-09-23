@@ -8,6 +8,7 @@ import type { ModelServerConfig } from "./config.js";
 import { PlatformError } from "./errors.js";
 import { NoopMailer, PlatformStore, type DiagramRole, type Mailer } from "./platform-store.js";
 import { RateLimiter } from "./rate-limiter.js";
+import { buildVisionExtractor, createImageProposal, type VisionExtractor } from "./multimodal-proposals.js";
 import { registerCollaborationTransport } from "./websocket-transport.js";
 import { hashPassword, newOpaqueToken, signAccessToken, tokenHash, verifyAccessToken, verifyPassword, type AccessIdentity } from "./security.js";
 
@@ -26,12 +27,15 @@ interface InvitationBody extends RoleBody { email: string; expiresAt: string }
 interface TokenParams { token: string }
 interface ShareBody extends RoleBody { expiresAt: string; maxUses?: number }
 interface ShareParams extends DiagramParams { linkId: string }
+interface ImageProposalBody { imageBase64?: string; mimeType?: string; capturedAt?: string; clientPlatform?: string }
 
 export interface BuildHttpAppOptions {
   database: Database;
   config: ModelServerConfig;
   mailer?: Mailer;
   now?: () => Date;
+  /** Extractor de visión inyectable (tests); si falta se construye desde config.ai. */
+  visionExtractor?: VisionExtractor;
 }
 
 function normalizeEmail(email: string): string {
@@ -68,6 +72,8 @@ export async function buildHttpApp(options: BuildHttpAppOptions): Promise<Fastif
   const mailer = options.mailer ?? new NoopMailer();
   const loginLimiter = new RateLimiter(5, 60_000);
   const registerLimiter = new RateLimiter(5, 60_000);
+  const proposalLimiter = new RateLimiter(10, 60_000);
+  const visionExtractor = options.visionExtractor ?? buildVisionExtractor(options.config.ai);
 
   await app.register(cookie);
   await app.register(cors, { origin: options.config.corsOrigins, credentials: true });
@@ -181,6 +187,25 @@ export async function buildHttpApp(options: BuildHttpAppOptions): Promise<Fastif
     if (!diagram) throw new PlatformError("DIAGRAM_NOT_FOUND", 404, "Diagrama no encontrado.");
     return diagram;
   });
+
+  /**
+   * Propuesta multimodal por imagen (multimodal-proposals-v1 §5.2): la IA
+   * extrae el diagrama, el servidor traduce a comandos y ejecuta el dry-run.
+   * Devuelve la propuesta para confirmación humana; nunca muta el modelo.
+   */
+  app.post<{ Params: DiagramParams; Body: ImageProposalBody }>(
+    "/api/v1/diagrams/:diagramId/proposals",
+    { bodyLimit: 22 * 1024 * 1024 },
+    async (request, reply) => {
+      const identity = await authenticate(request);
+      if (!visionExtractor) throw new PlatformError("AI_NOT_CONFIGURED", 503, "Reconocimiento por IA no configurado; defina AI_PROVIDER.");
+      const diagram = await store.getDiagram(identity.userId, request.params.diagramId);
+      if (!diagram) throw new PlatformError("DIAGRAM_NOT_FOUND", 404, "Diagrama no encontrado.");
+      if (!proposalLimiter.consume(identity.userId)) throw new PlatformError("AI_RATE_LIMITED", 429, "Demasiadas solicitudes de reconocimiento.");
+      const proposal = await createImageProposal({ diagram, body: request.body ?? {}, extractor: visionExtractor, now });
+      return reply.status(201).send(proposal);
+    },
+  );
 
   app.get<{ Params: DiagramParams }>("/api/v1/diagrams/:diagramId/members", async (request) => store.listMembers((await authenticate(request)).userId, request.params.diagramId));
 

@@ -47,6 +47,12 @@ navegador debe estar en `CORS_ORIGINS` o el WebSocket se rechaza.
 - REST `/api/v1/users/me`, `/api/v1/diagrams[...]` — CRUD de diagramas,
   miembros, invitaciones (`/api/v1/invitations/:token/accept`) y
   share-links (`/api/v1/share-links/:token/accept`).
+- REST `POST /api/v1/diagrams/:id/proposals` — propuesta multimodal por
+  imagen (contrato `multimodal-proposals-v1`): acepta
+  `{ imageBase64, mimeType }`, invoca el extractor configurado
+  (`AI_PROVIDER=gemini|ollama`), traduce la extracción a comandos
+  `model-commands-v1`, ejecuta el dry-run determinista y devuelve la
+  `MultimodalProposal` (201) sin mutar el modelo.
 - WS `/collaboration` — STOMP: `CONNECT` con `authorization: Bearer`,
   `SUBSCRIBE /topic/diagrams/{id}`, `SEND /app/diagrams/{id}`.
 - `GET /health` — 200/503 según la base de datos.

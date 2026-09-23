@@ -63,4 +63,21 @@ describe('springBootGenerator — buildSpringBootZip', () => {
     expect(custom.file('src/main/java/bo/edu/umsa/BibliotecaApplication.java')).toBeTruthy();
     expect(custom.file('src/main/java/bo/edu/umsa/libro/entity/LibroEntity.java')).toBeTruthy();
   });
+
+  it('incluye Dockerfile, docker-compose.yml, .dockerignore y README', async () => {
+    const dockerfile = await zip.file('Dockerfile')!.async('string');
+    expect(dockerfile).toContain('eclipse-temurin-17');
+    expect(dockerfile).toContain('EXPOSE 8080');
+
+    const compose = await zip.file('docker-compose.yml')!.async('string');
+    // La BD se llama como el artifactId con guiones → guiones bajos
+    expect(compose).toContain('POSTGRES_DB: biblioteca');
+    // La app conecta al servicio "db" via variables de entorno de Spring
+    expect(compose).toContain('SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/biblioteca');
+    expect(compose).toContain('condition: service_healthy');
+
+    expect(zip.file('.dockerignore')).toBeTruthy();
+    const readme = await zip.file('README.md')!.async('string');
+    expect(readme).toContain('docker compose up');
+  });
 });

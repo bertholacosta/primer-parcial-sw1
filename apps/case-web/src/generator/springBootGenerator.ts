@@ -586,6 +586,110 @@ server:
 `;
 }
 
+function genDockerfile(): string {
+  return `# Build multi-stage: compila con Maven y empaqueta en una imagen JRE mínima.
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn -q -B dependency:go-offline
+COPY src ./src
+RUN mvn -q -B package -DskipTests
+
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
+`;
+}
+
+function genDockerCompose(artifactId: string): string {
+  const dbName = artifactId.replace(/-/g, '_');
+  return `services:
+  db:
+    image: postgres:16
+    container_name: ${artifactId}-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${dbName}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    container_name: ${artifactId}-app
+    ports:
+      - "8080:8080"
+    environment:
+      # En compose la BD se resuelve por el nombre del servicio "db"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${dbName}
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+`;
+}
+
+function genDockerignore(): string {
+  return `target/
+.git/
+.gitignore
+*.iml
+.idea/
+.vscode/
+`;
+}
+
+function genReadme(artifactId: string): string {
+  const dbName = artifactId.replace(/-/g, '_');
+  return `# ${artifactId}
+
+Proyecto Spring Boot generado automáticamente desde el modelo de dominio.
+
+## Opción A — Todo en Docker (recomendado)
+
+Levanta la aplicación y PostgreSQL juntos; la base de datos \`${dbName}\`
+se crea sola y las tablas se generan con \`ddl-auto: update\`:
+
+\`\`\`bash
+docker compose up --build
+\`\`\`
+
+API disponible en \`http://localhost:8080\`.
+
+## Opción B — App local + Postgres en Docker
+
+\`\`\`bash
+docker run -d --name ${artifactId}-db \\
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \\
+  -e POSTGRES_DB=${dbName} -p 5432:5432 postgres:16
+
+mvn spring-boot:run
+\`\`\`
+
+## Opción C — Solo compilar
+
+\`\`\`bash
+mvn package -DskipTests
+java -jar target/${artifactId}-1.0.0-SNAPSHOT.jar
+\`\`\`
+
+Requiere PostgreSQL accesible en \`localhost:5432\` (ver \`src/main/resources/application.yml\`).
+`;
+}
+
 function genMainClass(groupId: string, appName: string): string {
   const pascal = toPascalCase(appName);
   return `package ${groupId};
@@ -629,6 +733,12 @@ export function buildSpringBootZip(
 
   // application.yml
   zip.file('src/main/resources/application.yml', genApplicationYml(artifactId));
+
+  // Docker + instrucciones de ejecución
+  zip.file('Dockerfile', genDockerfile());
+  zip.file('docker-compose.yml', genDockerCompose(artifactId));
+  zip.file('.dockerignore', genDockerignore());
+  zip.file('README.md', genReadme(artifactId));
 
   // Clase principal
   zip.file(`${srcBase}/${appName}Application.java`, genMainClass(groupId, appName));

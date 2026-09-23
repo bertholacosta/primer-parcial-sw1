@@ -1,5 +1,12 @@
 export type CanonicalMultiplicity = '1' | '0..1' | '1..*' | '0..*';
 export type CanonicalNavigability = 'bidirectional' | 'unidirectional';
+export type CanonicalAssociationKind =
+  | 'association'
+  | 'aggregation'
+  | 'composition'
+  | 'generalization'
+  | 'dependency'
+  | 'associationClass';
 export type CanonicalType =
   | 'String'
   | 'Integer'
@@ -16,6 +23,7 @@ export interface CanonicalAttribute {
   type: CanonicalType;
   nullable: boolean;
   multiplicity: CanonicalMultiplicity;
+  description?: string;
 }
 
 export interface CanonicalClass {
@@ -30,16 +38,20 @@ export interface CanonicalPackage {
   id: string;
   name: string;
   parentId?: string;
+  description?: string;
 }
 
 export interface CanonicalAssociation {
   id: string;
-  name: string;
+  name?: string;
   sourceClassId: string;
   targetClassId: string;
   sourceMultiplicity: CanonicalMultiplicity;
   targetMultiplicity: CanonicalMultiplicity;
   navigability: CanonicalNavigability;
+  kind?: CanonicalAssociationKind;
+  associationClassId?: string;
+  description?: string;
 }
 
 export interface CanonicalDomainModel {

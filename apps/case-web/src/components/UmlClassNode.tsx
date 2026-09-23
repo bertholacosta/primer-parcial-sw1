@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Handle, NodeToolbar, Position, type NodeProps } from '@xyflow/react';
 import type { CanonicalAttribute } from '../domain/model';
 import type { UmlClassFlowNode } from '../adapter/domainModelAdapter';
+import { ALLOWED_MULTIPLICITIES } from '../commands/attributeCommands';
 
 const ATTRIBUTE_TYPES = ['String', 'Integer', 'Long', 'Double', 'Boolean', 'Date', 'DateTime', 'UUID'];
 
@@ -42,7 +43,7 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
   const [editingAttrId, setEditingAttrId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('String');
-  const [editNullable, setEditNullable] = useState(false);
+  const [editMultiplicity, setEditMultiplicity] = useState('1');
   const [editIsPk, setEditIsPk] = useState(false);
   const [editIsFk, setEditIsFk] = useState(false);
   const [editDescription, setEditDescription] = useState('');
@@ -50,7 +51,7 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
   const [isAddingAttr, setIsAddingAttr] = useState(false);
   const [newAttrName, setNewAttrName] = useState('');
   const [newAttrType, setNewAttrType] = useState('String');
-  const [newAttrNullable, setNewAttrNullable] = useState(false);
+  const [newAttrMultiplicity, setNewAttrMultiplicity] = useState('1');
   const [newAttrIsPk, setNewAttrIsPk] = useState(false);
   const [newAttrIsFk, setNewAttrIsFk] = useState(false);
   const [newAttrDescription, setNewAttrDescription] = useState('');
@@ -88,7 +89,7 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
     setEditingAttrId(attribute.id);
     setEditName(attribute.name);
     setEditType(attribute.type);
-    setEditNullable(attribute.nullable);
+    setEditMultiplicity(attribute.multiplicity);
     const meta = parseAttrMeta(attribute.description);
     setEditIsPk(meta.isPk);
     setEditIsFk(meta.isFk);
@@ -99,8 +100,8 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
     data.onUpdateAttribute?.(data.id, attributeId, {
       name: editName.trim(),
       type: editType,
-      multiplicity: editNullable ? '0..1' : '1',
-      nullable: editNullable,
+      multiplicity: editMultiplicity,
+      nullable: editMultiplicity.startsWith('0'),
       description: buildAttrDescription(editIsPk, editIsFk, editDescription),
     });
     setEditingAttrId(null);
@@ -113,13 +114,13 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
       data.id,
       name,
       newAttrType,
-      newAttrNullable ? '0..1' : '1',
-      newAttrNullable,
+      newAttrMultiplicity,
+      newAttrMultiplicity.startsWith('0'),
       buildAttrDescription(newAttrIsPk, newAttrIsFk, newAttrDescription)
     );
     setNewAttrName('');
     setNewAttrType('String');
-    setNewAttrNullable(false);
+    setNewAttrMultiplicity('1');
     setNewAttrIsPk(false);
     setNewAttrIsFk(false);
     setNewAttrDescription('');
@@ -202,11 +203,13 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
                           {ATTRIBUTE_TYPES.map((t) => <option key={t}>{t}</option>)}
                         </select>
                       </label>
+                      <label>Multiplicidad
+                        <select data-testid={`edit-attribute-multiplicity-${attr.id}`} value={editMultiplicity} onChange={(e) => setEditMultiplicity(e.target.value)}>
+                          {ALLOWED_MULTIPLICITIES.map((m) => <option key={m}>{m}</option>)}
+                        </select>
+                      </label>
                     </div>
                     <div className="uml-add-attr-checks">
-                      <label className="uml-checkbox">
-                        <input type="checkbox" checked={editNullable} onChange={(e) => setEditNullable(e.target.checked)} /> Nullable
-                      </label>
                       <label className="uml-checkbox uml-pk-marker">
                         <input type="checkbox" data-testid={`edit-attribute-ispk-${attr.id}`} checked={editIsPk} onChange={(e) => setEditIsPk(e.target.checked)} />
                         <span title="Llave primaria (PK)">🗝️ PK</span>
@@ -261,11 +264,11 @@ export const UmlClassNode: React.FC<NodeProps<UmlClassFlowNode>> = ({ data, sele
                   <select data-testid={`new-attr-type-${data.id}`} value={newAttrType} onChange={(e) => setNewAttrType(e.target.value)}>
                     {ATTRIBUTE_TYPES.map((t) => <option key={t}>{t}</option>)}
                   </select>
+                  <select data-testid={`new-attr-multiplicity-${data.id}`} value={newAttrMultiplicity} onChange={(e) => setNewAttrMultiplicity(e.target.value)} aria-label="Multiplicidad">
+                    {ALLOWED_MULTIPLICITIES.map((m) => <option key={m}>{m}</option>)}
+                  </select>
                 </div>
                 <div className="uml-add-attr-checks">
-                  <label className="uml-checkbox">
-                    <input type="checkbox" checked={newAttrNullable} onChange={(e) => setNewAttrNullable(e.target.checked)} /> Nullable
-                  </label>
                   <label className="uml-checkbox uml-pk-marker">
                     <input type="checkbox" data-testid={`new-attr-ispk-${data.id}`} checked={newAttrIsPk} onChange={(e) => setNewAttrIsPk(e.target.checked)} />
                     <span title="Llave primaria">🗝️ PK</span>

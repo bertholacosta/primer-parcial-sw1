@@ -15,7 +15,8 @@
     "collaboration-protocol": "file:../../packages/collaboration-protocol",
     "jszip": "^3.10.2",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "xmi-adapter": "file:../../packages/xmi-adapter"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",

@@ -1,3 +1,12 @@
+/** Configuración del extractor de visión (multimodal-proposals-v1 §5.2). */
+export interface AiRecognitionConfig {
+  provider: "gemini" | "ollama";
+  geminiApiKey?: string;
+  geminiModel: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
+}
+
 export interface ModelServerConfig {
   databaseUrl: string;
   jwtSecret: string;
@@ -7,6 +16,8 @@ export interface ModelServerConfig {
   host: string;
   port: number;
   secureCookies: boolean;
+  /** Ausente cuando AI_PROVIDER no está definido: el endpoint de propuestas responde 503. */
+  ai?: AiRecognitionConfig;
 }
 
 function positiveInteger(value: string | undefined, fallback: number, name: string): number {
@@ -22,6 +33,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ModelServerCon
   if (!databaseUrl) throw new Error("INVALID_CONFIG: DATABASE_URL");
   if (!jwtSecret || jwtSecret.length < 32) throw new Error("INVALID_CONFIG: JWT_SECRET");
   if (corsOrigins.length === 0) throw new Error("INVALID_CONFIG: CORS_ORIGINS");
+
+  const aiProvider = env.AI_PROVIDER?.trim().toLowerCase();
+  let ai: AiRecognitionConfig | undefined;
+  if (aiProvider === "gemini") {
+    const geminiApiKey = env.GEMINI_API_KEY?.trim();
+    if (!geminiApiKey) throw new Error("INVALID_CONFIG: GEMINI_API_KEY");
+    ai = { provider: "gemini", geminiApiKey, geminiModel: env.GEMINI_MODEL?.trim() || "gemini-2.5-flash", ollamaBaseUrl: "", ollamaModel: "" };
+  } else if (aiProvider === "ollama") {
+    ai = { provider: "ollama", ollamaBaseUrl: env.OLLAMA_BASE_URL?.trim() || "http://127.0.0.1:11434", ollamaModel: env.OLLAMA_MODEL?.trim() || "llava", geminiModel: "" };
+  } else if (aiProvider && aiProvider !== "none") {
+    throw new Error("INVALID_CONFIG: AI_PROVIDER");
+  }
+
   return {
     databaseUrl,
     jwtSecret,
@@ -31,5 +55,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ModelServerCon
     host: env.HOST?.trim() || "127.0.0.1",
     port: positiveInteger(env.PORT, 3000, "PORT"),
     secureCookies: env.SECURE_COOKIES !== "false",
+    ai,
   };
 }

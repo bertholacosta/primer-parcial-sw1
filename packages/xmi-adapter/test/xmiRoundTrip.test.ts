@@ -25,10 +25,10 @@ describe('XMI Exporter & Semantic Round-trip', () => {
     // Profile conformance (§2, §3.1)
     expect(exportedXmi).toContain('xmi:version="2.1"');
     expect(exportedXmi).toContain('xmi:exporter="Enterprise Architect"');
-    expect(exportedXmi).toContain('xmi:exporterVersion="16.0"');
+    expect(exportedXmi).toContain('xmi:exporterVersion="15.0.1514.12"');
     expect(exportedXmi).toContain('xmlns:xmi="http://www.omg.org/spec/XMI/20131001"');
     expect(exportedXmi).toContain('xmlns:uml="http://www.omg.org/spec/UML/20131001"');
-    expect(exportedXmi).toContain('<xmi:Documentation exporter="Enterprise Architect" exporterVersion="16.0"/>');
+    expect(exportedXmi).toContain('<xmi:Documentation exporter="Enterprise Architect" exporterVersion="15.0.1514.12"/>');
     expect(exportedXmi).toContain('<uml:Model xmi:id="MODEL_06" name="Biblioteca" xmi:type="uml:Model">');
 
     // Verify type mappings in exported XMI (§5)
@@ -44,7 +44,7 @@ describe('XMI Exporter & Semantic Round-trip', () => {
     expect(parsedExpected.name).toBe('xmi:XMI');
     expect(parsedExported.attributes['xmi:version']).toBe('2.1');
     expect(parsedExported.attributes['xmi:exporter']).toBe('Enterprise Architect');
-    expect(parsedExported.attributes['xmi:exporterVersion']).toBe('16.0');
+    expect(parsedExported.attributes['xmi:exporterVersion']).toBe('15.0.1514.12');
 
     // Re-import and semantic equality
     const importResult = importXmi(exportedXmi);
