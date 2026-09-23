@@ -9,7 +9,6 @@
  * `IN_SYNC`; fuera de él se retienen en una cola de salida local.
  */
 
-import { randomUUID } from "node:crypto";
 import { applyCommand } from "./commands.js";
 import type { ModelCommand } from "./commands.js";
 import { cloneModel, modelSha256 } from "./model.js";
@@ -74,7 +73,8 @@ export class CollaborationClient {
   private targetSeqNumber?: number;
   private readonly outOfOrder = new Map<number, Envelope<CommandCommittedPayload>>();
   private readonly outboundQueue: Envelope<SubmitCommandPayload>[] = [];
-  private readonly pendingCommandIds = new Set<string>();
+  /** Comandos emitidos por este cliente aún sin resolución (commit/reject). */
+  private readonly unresolvedEnvelopes = new Map<string, Envelope<SubmitCommandPayload>>();
 
   constructor(options: ClientOptions) {
     this.clientId = options.clientId;
@@ -105,6 +105,15 @@ export class CollaborationClient {
 
   /** Corte del enlace: el estado local se conserva para la reconexión (§7.2). */
   disconnect(): void {
+    // Los comandos ya transmitidos pero sin resolución se reencolan al frente:
+    // tras el rejoin se reenvían con el mismo clientCommandId y payload intacto,
+    // así la deduplicación por commandHash del servidor los reconoce (§5.1, §9.5).
+    const resend = [...this.unresolvedEnvelopes.values()].filter(
+      (envelope) => !this.outboundQueue.includes(envelope),
+    );
+    if (resend.length > 0) {
+      this.outboundQueue.unshift(...resend);
+    }
     this.state = this.sessionId ? "RECONNECTING" : "DISCONNECTED";
   }
 
@@ -118,6 +127,9 @@ export class CollaborationClient {
     }
     this.state = "DISCONNECTED";
     this.sessionId = undefined;
+    // Cierre voluntario: el trabajo pendiente de envío se descarta.
+    this.outboundQueue.length = 0;
+    this.unresolvedEnvelopes.clear();
   }
 
   /**
@@ -130,7 +142,7 @@ export class CollaborationClient {
     }
     return {
       type,
-      commandId: randomUUID(),
+      commandId: crypto.randomUUID(),
       modelId: this.modelId,
       modelVersion: this.localModel.version,
       payload,
@@ -139,7 +151,9 @@ export class CollaborationClient {
 
   /**
    * Emite un `SubmitCommand`. Solo se envía en `IN_SYNC`; en cualquier otro
-   * estado se encola y se drena al alcanzar `IN_SYNC`.
+   * estado se encola y se drena al alcanzar `IN_SYNC`. El comando se conserva
+   * como no resuelto hasta su commit/reject, lo que permite reencolarlo tras
+   * una desconexión con payload intacto para la deduplicación del servidor.
    */
   submitCommand(command: ModelCommand): Envelope<SubmitCommandPayload> {
     const envelope = createEnvelope<SubmitCommandPayload>(this.sessionId ?? "", this.modelId, "SubmitCommand", {
@@ -147,7 +161,7 @@ export class CollaborationClient {
       baseSeqNumber: this.localSeqNumber,
       command,
     });
-    this.pendingCommandIds.add(command.commandId);
+    this.unresolvedEnvelopes.set(command.commandId, envelope);
     if (this.state === "IN_SYNC") {
       this.send(envelope);
     } else {
@@ -237,7 +251,7 @@ export class CollaborationClient {
 
   private onCommandCommitted(envelope: Envelope<CommandCommittedPayload>): void {
     const p = envelope.payload;
-    this.pendingCommandIds.delete(p.clientCommandId);
+    this.releaseUnresolved(p.clientCommandId);
 
     // §5.2: descarte idempotente de secuencias ya aplicadas.
     if (p.serverSeqNumber <= this.localSeqNumber) {
@@ -289,7 +303,7 @@ export class CollaborationClient {
     while (this.outOfOrder.has(next)) {
       const envelope = this.outOfOrder.get(next)!;
       this.outOfOrder.delete(next);
-      this.pendingCommandIds.delete(envelope.payload.clientCommandId);
+      this.releaseUnresolved(envelope.payload.clientCommandId);
       this.applyCommitted(envelope.payload);
       next = this.localSeqNumber + 1;
     }
@@ -298,7 +312,7 @@ export class CollaborationClient {
   private onCommandRejected(envelope: Envelope<CommandRejectedPayload>): void {
     const p = envelope.payload;
     if (p.originClientId === this.clientId) {
-      this.pendingCommandIds.delete(p.clientCommandId);
+      this.releaseUnresolved(p.clientCommandId);
       this.rejections.push(p);
     }
   }
@@ -347,6 +361,18 @@ export class CollaborationClient {
     // Drena la cola de salida retenida durante la sincronización (§8.1).
     while (this.outboundQueue.length > 0) {
       this.send(this.outboundQueue.shift()!);
+    }
+  }
+
+  /** Libera el comando tras commit/reject definitivo (I4, §5.1). */
+  private releaseUnresolved(clientCommandId: string): void {
+    const envelope = this.unresolvedEnvelopes.get(clientCommandId);
+    if (envelope) {
+      this.unresolvedEnvelopes.delete(clientCommandId);
+      const queued = this.outboundQueue.indexOf(envelope);
+      if (queued >= 0) {
+        this.outboundQueue.splice(queued, 1);
+      }
     }
   }
 }

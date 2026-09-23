@@ -1,4 +1,5 @@
 import { parseXml, XmlNode, XmlParseError } from './xmlParser.js';
+import { EA_ROOT_PACKAGE_ID } from './xmiExporter.js';
 import {
   CanonicalDomainModel,
   CanonicalPackage,
@@ -363,12 +364,16 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
 
         registerId(attrId, attrPath);
 
-        // Resolve attribute type (inspect attribute or child <type href="..." name="...">)
+        // Resolve attribute type (inspect attribute or child <type href="..." name="..." xmi:idref="...">)
         let rawType = child.attributes['type'] || '';
         if (!rawType) {
           const typeChild = findFirstChildByLocalName(child, 'type');
           if (typeChild) {
             rawType = typeChild.attributes['name'] || '';
+            if (!rawType && typeChild.attributes['xmi:idref']) {
+              // EA emite primitivos como EAnone_<tipo>; el sufijo es el nombre.
+              rawType = stripEaNonePrefix(typeChild.attributes['xmi:idref']);
+            }
             if (!rawType && typeChild.attributes['href']) {
               const href = typeChild.attributes['href'];
               const hashIdx = href.indexOf('#');
@@ -478,8 +483,10 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
       const srcEnd = endNodes[0];
       const tgtEnd = endNodes[1];
 
-      const sourceClassId = srcEnd.attributes['type'] || '';
-      const targetClassId = tgtEnd.attributes['type'] || '';
+      // EA emite el clasificador del extremo como hijo <type xmi:idref="..."/>;
+      // otros exportadores usan el atributo type="...". Soportar ambos.
+      const sourceClassId = resolveEndClassId(srcEnd);
+      const targetClassId = resolveEndClassId(tgtEnd);
 
       if (sourceClassId && targetClassId && sourceClassId === targetClassId) {
         const matchingClass = classes.find(c => c.id === sourceClassId);
@@ -533,9 +540,21 @@ export function importXmi(xmiContent: string, options: ImportOptions = {}): Impo
     }
   }
 
-  // Process root uml:Model elements
+  // Process root uml:Model elements. Si el único packagedElement raíz es el
+  // paquete contenedor EAPK_ROOT que nuestro exportador emite para EA (mismo
+  // nombre que el modelo), se pliega: sus hijos se procesan como de nivel
+  // raíz y no se materializa como paquete canónico.
   const modelPath = `uml:Model[@xmi:id='${modelId}']`;
-  for (const child of modelNode.children) {
+  const topLevelElements = modelNode.children.filter(c => getLocalName(c.name) === 'packagedElement');
+  const rootChildren =
+    topLevelElements.length === 1 &&
+    topLevelElements[0].attributes['xmi:type'] === 'uml:Package' &&
+    topLevelElements[0].attributes['xmi:id'] === EA_ROOT_PACKAGE_ID &&
+    topLevelElements[0].attributes['name'] === modelName
+      ? topLevelElements[0].children
+      : modelNode.children;
+
+  for (const child of rootChildren) {
     if (getLocalName(child.name) === 'packagedElement') {
       const type = child.attributes['xmi:type'];
       if (type === 'uml:Package') {
@@ -647,6 +666,19 @@ function findFirstChildByLocalName(node: XmlNode, localName: string): XmlNode | 
     }
   }
   return null;
+}
+
+function stripEaNonePrefix(idref: string): string {
+  return idref.startsWith('EAnone_') ? idref.slice('EAnone_'.length) : '';
+}
+
+function resolveEndClassId(end: XmlNode): string {
+  const attrType = end.attributes['type'];
+  if (attrType) {
+    return attrType;
+  }
+  const typeChild = findFirstChildByLocalName(end, 'type');
+  return typeChild?.attributes['xmi:idref'] ?? '';
 }
 
 function mapRawType(raw: string): { canonicalType?: CanonicalType; warning?: boolean; error?: boolean } {

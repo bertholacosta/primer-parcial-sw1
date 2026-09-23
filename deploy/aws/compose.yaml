@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: case
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: case
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U case -d case"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks: [internal]
+
+  model-server:
+    build:
+      context: ../..
+      dockerfile: deploy/aws/Dockerfile.model-server
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://case:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/case
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required}
+      CORS_ORIGINS: https://${SITE_DOMAIN:?SITE_DOMAIN required}
+      SECURE_COOKIES: "true"
+      HOST: 0.0.0.0
+      PORT: "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?SITE_DOMAIN required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../apps/case-web/dist:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [model-server]
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

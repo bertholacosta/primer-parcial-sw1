@@ -53,6 +53,8 @@ Los siguientes elementos y atributos XMI son procesados activamente en la conver
 | Anidamiento de `packagedElement` dentro de otro `packagedElement` | — | → `package.parentId` (el id del elemento padre) |
 | `visibility` | no | ignorado (§4) |
 
+**Paquete raíz EA (`EAPK_ROOT`):** EA requiere que todo el contenido viva dentro de un `uml:Package`; el exportador envuelve el modelo completo en un `packagedElement` con `xmi:id="EAPK_ROOT"` y el mismo nombre del modelo. En importación, si el único `packagedElement` de nivel raíz es ese paquete (id `EAPK_ROOT` y nombre igual al del `uml:Model`), se **pliega**: sus hijos se procesan como elementos de nivel raíz y no se materializa como paquete canónico. Paquetes raíz con otro id o nombre se importan normalmente.
+
 ### 3.3 Clases (`packagedElement` de tipo `uml:Class`)
 
 | Atributo XMI | Obligatorio | Mapeo canónico |
@@ -69,7 +71,7 @@ Un `ownedAttribute` que no sea el extremo de una asociación (sin `association` 
 |---|---|---|
 | `xmi:id` | sí | → `attribute.id` |
 | `name` | sí | → `attribute.name` |
-| `type` (xmi:idref o `<type>` con `href`) | sí | → `attribute.type` (ver §5, tabla de tipos) |
+| `type` (atributo, o hijo `<type>` con `xmi:idref`/`href`/`name`) | sí | → `attribute.type` (ver §5, tabla de tipos) |
 | `<lowerValue xmi:type="uml:LiteralInteger" value="…">` | no | → determina `nullable` y parte inferior de `multiplicity` |
 | `<upperValue xmi:type="uml:LiteralUnlimitedNatural" value="…">` | no | → parte superior de `multiplicity` |
 
@@ -89,8 +91,8 @@ Un `ownedAttribute` que no sea el extremo de una asociación (sin `association` 
 |---|---|---|
 | `xmi:id` | sí | → `association.id` |
 | `name` | no | → `association.name` |
-| `ownedEnd[0]` o `memberEnd[0]` con `type` | sí | → `association.sourceClassId` |
-| `ownedEnd[1]` o `memberEnd[1]` con `type` | sí | → `association.targetClassId` |
+| `ownedEnd[0]` o `memberEnd[0]` con `type` (atributo o hijo `<type xmi:idref>`) | sí | → `association.sourceClassId` |
+| `ownedEnd[1]` o `memberEnd[1]` con `type` (atributo o hijo `<type xmi:idref>`) | sí | → `association.targetClassId` |
 | `<lowerValue>` / `<upperValue>` en cada extremo | sí | → `sourceMultiplicity` / `targetMultiplicity` (misma tabla que §3.4) |
 | Ambos extremos sin restricción de navegabilidad (`isNavigable` ausente o `true`) | — | → `navigability: "bidirectional"` |
 | Un extremo con `isNavigable="false"` | — | → `navigability: "unidirectional"` (origen → destino) |
@@ -108,9 +110,21 @@ El modelo canónico distingue `kind` de asociación. En exportación se mapea a 
 | `composition` | `uml:Association` con `aggregation="composite"` en el extremo del todo (origen) |
 | `generalization` | `<generalization xmi:type="uml:Generalization" general="{targetClassId}">` dentro de la clase específica (origen) |
 | `dependency` | `packagedElement uml:Dependency` con `client="{sourceClassId}"` y `supplier="{targetClassId}"` |
-| `associationClass` | `packagedElement uml:AssociationClass` que fusiona los extremos de la asociación y los `ownedAttribute` de la clase portadora (`associationClassId`); la portadora no se emite como `uml:Class` independiente |
+| `associationClass` | `packagedElement uml:AssociationClass` que fusiona la clase portadora (sus `ownedAttribute`) con los extremos de la asociación; en la extensión EA el mismo `xmi:id` aparece como `<element>` (con el nombre de la portadora) y como `<connector>` con `associationclass` apuntando a ese elemento |
 
 En exportación, `navigability: "unidirectional"` se emite con `isNavigable="false"` en el extremo origen (navegable origen → destino). El exportador declara `xmi:exporter="Enterprise Architect"` y `xmi:exporterVersion` configurable, por defecto `15.0.1514.12`.
+
+**Representación de referencias en exportación (formato EA):** los `ownedEnd` llevan `association="{associationId}"` y el clasificador como hijo `<type xmi:idref="{classId}"/>` (no el atributo `type="..."` — EA no lo resuelve y descarta el conector). Los `ownedAttribute` llevan `visibility="private"` y el tipo como hijo `<type xmi:idref="EAnone_{tipo}"/>`, donde `EAnone_` es el prefijo de primitivos internos de EA; en importación el prefijo se elimina antes de mapear (§5).
+
+**Extensión EA en exportación (extensión compatible):**
+
+Para que EA muestre los elementos en un diagrama (no solo en el navegador de proyecto), el exportador emite `<xmi:Extension extender="Enterprise Architect" extenderID="6.5">` como hermano de `uml:Model`, con:
+
+- `<elements>`: una entrada por paquete y clase con `<model>`, `<properties>`, `<project>`, `<style>` y `<links>` (los conectores que tocan cada clase).
+- `<connectors>`: una entrada por asociación con `<source>`/`<target>` (`<type multiplicity aggregation>`, `isNavigable`), `<properties ea_type direction>`, `<labels lb mt rb>` y `<extendedProperties virtualInheritance="0" [associationclass]>`. `ea_type` es `Association`, `Generalization` o `Dependency` según `kind`; `direction` es `Bi-Directional` o `Source -> Destination`.
+- `<diagrams>`: un `<diagram>` `type="Logical"` (diagrama de clases) que contiene todas las clases en una grilla determinista (`geometry="Left..;Top..;Right..;Bottom..;"`, `subject`, `DUID` de 8 hex) y todos los conectores (`SX/SY/EX/EY/EDGE`, `SOID`/`EOID` apuntando a los DUID de los extremos).
+
+Puede desactivarse con `includeDiagram: false`. En importación este bloque se descarta completo (§4).
 
 ---
 

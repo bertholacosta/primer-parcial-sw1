@@ -1,0 +1,21 @@
+{$SITE_DOMAIN} {
+    encode zstd gzip
+
+    handle /api/* {
+        reverse_proxy model-server:3000
+    }
+
+    handle /collaboration* {
+        reverse_proxy model-server:3000
+    }
+
+    handle /health {
+        reverse_proxy model-server:3000
+    }
+
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}

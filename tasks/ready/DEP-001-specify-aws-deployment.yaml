@@ -1,0 +1,69 @@
+id: DEP-001
+title: "Especificar el despliegue integral en AWS sa-east-1"
+phase: 11
+status: ready
+kind: specification
+owner_role: unassigned
+objective: >-
+  Definir un plan verificable para desplegar los componentes ejecutables del producto
+  en la cuenta AWS 687979656624 (usuario indicado: acosta.berthol), región
+  sa-east-1, durante 15 días y con presupuesto máximo de USD 100, con
+  seguridad, operación, costos y criterios de aceptación explícitos.
+dependencies: []
+inputs:
+  files:
+    - docker-compose.yml
+    - apps/case-web/README.md
+    - apps/case-web/package.json
+    - apps/case-web/vite.config.ts
+    - apps/case-web/src/api/modelServerApi.ts
+    - apps/case-web/src/collaboration/CollaborationSession.ts
+    - apps/case-web/src/components/DiagramSessionView.tsx
+    - apps/mobile-flutter/README.md
+    - apps/mobile-flutter/pubspec.yaml
+    - services/model-server/README.md
+    - services/model-server/package.json
+    - services/model-server/.env.example
+    - services/model-server/src/config.ts
+    - services/model-server/src/main.ts
+    - services/generator-cli/README.md
+    - services/generator-cli/package.json
+  docs:
+    - docs/PROJECT.md
+    - docs/ARCHITECTURE.md
+    - docs/ROADMAP.md
+    - docs/REPO_MAP.md
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - tasks/ready/DEP-001-specify-aws-deployment.yaml
+    - docs/deployment/aws-sa-east-1.md
+  forbidden_paths:
+    - "**/generated/**"
+    - "fixtures/generated-projects/**"
+constraints:
+  - "No cambiar arquitectura ni requisitos fuera de un ADR aceptado."
+  - "No realizar refactorizaciones no solicitadas."
+  - "Conservar cambios preexistentes del usuario."
+  - "Respetar el presupuesto indicado de USD 100 para 15 días."
+  - "No aprovisionar recursos facturables antes de documentar la solución y su costo estimado."
+acceptance_criteria:
+  - "El inventario identifica cada componente desplegable y las dependencias externas."
+  - "La propuesta define topología, configuración, secretos, dominios, seguridad, observabilidad y recuperación."
+  - "El procedimiento de despliegue y reversión es reproducible y tiene validaciones objetivas."
+  - "Se documentan costos estimados y decisiones pendientes de la cuenta AWS."
+validation_commands:
+  - "git diff --check"
+deliverables:
+  - docs/deployment/aws-sa-east-1.md
+links: []
+attempts:
+  implementation_failures: 0
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: null
+  reviewer: null
+evidence: []

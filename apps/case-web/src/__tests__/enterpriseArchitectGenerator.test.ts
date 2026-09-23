@@ -37,7 +37,7 @@ describe('enterpriseArchitectGenerator', () => {
       expect(xmi).toContain(`xmi:id="${cls.id}"`);
       expect(xmi).toContain(`name="${cls.name}"`);
     }
-    expect(xmi).toContain('type="String"');
+    expect(xmi).toContain('EAnone_String');
     expect(xmi).toContain('xmi:type="uml:Property"');
   });
 

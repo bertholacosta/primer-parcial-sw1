@@ -86,6 +86,14 @@ export class CollaborationSession {
   private socket?: SocketLike;
   private inboundBuffer = '';
   private snapshotRequested = false;
+  /**
+   * Cola serializada de envío: un comando en vuelo por cliente. Cada comando
+   * se construye justo al despachar (modelVersion fresca post-commit), así los
+   * comandos encadenados (p. ej. clase-asociación) no chocan con la validación
+   * estricta de versión del servidor (CONCURRENT_MODIFICATION).
+   */
+  private readonly submitQueue: { commandId: string; type: ModelCommand['type']; payload: ModelCommand['payload'] }[] = [];
+  private inFlightSubmit?: string;
   private joinedOnce = false;
   private closed = false;
   private reconnectAttempts = 0;
@@ -118,8 +126,13 @@ export class CollaborationSession {
     return this.pending.size;
   }
 
+  /**
+   * El editor puede emitir comandos cuando hay copia local y la sesión sigue
+   * viva. Fuera de IN_SYNC el cliente los encola y los envía al resincronizar,
+   * así una edición durante la reconexión no se descarta en silencio.
+   */
   get canSubmit(): boolean {
-    return this.client.state === 'IN_SYNC' && this.client.localModel !== undefined;
+    return this.client.localModel !== undefined && this.client.state !== 'DISCONNECTED';
   }
 
   get participantIds(): string[] {
@@ -136,12 +149,17 @@ export class CollaborationSession {
     this.openSocket(token);
   }
 
-  /** Emite un comando del contrato model-commands; devuelve su commandId. */
+  /**
+   * Encola un comando del contrato model-commands; devuelve su commandId. El
+   * envío efectivo es serializado: cada comando se despacha cuando el anterior
+   * fue confirmado o rechazado, con la modelVersion vigente en ese instante.
+   */
   submit(type: ModelCommand['type'], payload: ModelCommand['payload']): string {
-    const command = this.client.buildCommand(type, payload);
-    this.client.submitCommand(command);
-    this.pending.set(command.commandId, { type, payload });
-    return command.commandId;
+    const commandId = crypto.randomUUID();
+    this.submitQueue.push({ commandId, type, payload });
+    this.pending.set(commandId, { type, payload });
+    this.drainSubmissions();
+    return commandId;
   }
 
   /** Cierre voluntario: LeaveSession + cierre del socket, sin reconexión. */
@@ -151,7 +169,10 @@ export class CollaborationSession {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
+    this.submitQueue.length = 0;
+    this.inFlightSubmit = undefined;
     this.client.leave('user_exit');
+    this.pending.clear();
     this.socket?.close();
     this.emitState('closed');
   }
@@ -236,6 +257,8 @@ export class CollaborationSession {
     if (envelope.type === 'SessionJoined') {
       const payload = envelope.payload as SessionJoinedPayload;
       events.onRole(payload.assignedRole);
+      this.reconnectAttempts = 0;
+      this.participants.clear();
       for (const id of payload.activeParticipants) this.participants.set(id, 'joined');
       this.emitParticipants();
       if (!this.client.localModel && !this.snapshotRequested) {
@@ -263,6 +286,9 @@ export class CollaborationSession {
           modelVersion: payload.resultingModelVersion,
         });
       }
+      if (this.inFlightSubmit === payload.clientCommandId) {
+        this.inFlightSubmit = undefined;
+      }
     }
 
     if (envelope.type === 'CommandRejected') {
@@ -278,6 +304,16 @@ export class CollaborationSession {
           errors: payload.errors,
         });
       }
+      if (this.inFlightSubmit === payload.clientCommandId) {
+        this.inFlightSubmit = undefined;
+      }
+    }
+
+    if (envelope.type === 'SessionError') {
+      const payload = envelope.payload as { errorCode?: string; message?: string; fatal?: boolean };
+      if (payload.fatal) {
+        events.onError(payload.message || payload.errorCode || 'Error de sesión de colaboración.');
+      }
     }
 
     if (this.client.localModel && this.client.localModel !== this.lastModelEmitted) {
@@ -285,6 +321,28 @@ export class CollaborationSession {
       events.onModel(this.client.localModel);
     }
     this.emitClientState();
+    this.drainSubmissions();
+  }
+
+  /**
+   * Despacha el siguiente comando encolado si no hay ninguno en vuelo. Se
+   * construye aquí (no al encolar) para que declare la versión del modelo
+   * posterior a los commits ya aplicados.
+   */
+  private drainSubmissions(): void {
+    if (this.inFlightSubmit !== undefined) return;
+    if (this.client.state !== 'IN_SYNC' || !this.client.localModel) return;
+    const next = this.submitQueue.shift();
+    if (!next) return;
+    const command = {
+      type: next.type,
+      commandId: next.commandId,
+      modelId: this.diagramId,
+      modelVersion: this.client.localModel.version,
+      payload: next.payload,
+    } as ModelCommand;
+    this.inFlightSubmit = next.commandId;
+    this.client.submitCommand(command);
   }
 
   private requestSnapshot(): void {

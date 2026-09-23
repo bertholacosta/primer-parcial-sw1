@@ -103,12 +103,29 @@ describe('XMI Exporter — Enterprise Architect 15.0.1514.12', () => {
     expect(xmi).not.toMatch(/xmi:id="END_ASSOC_COMP_TGT"[^>]*isNavigable/);
   });
 
+  it('emite los extremos en formato EA: association="<id>" y tipo como hijo <type xmi:idref>', () => {
+    const xmi = exportXmi(baseModel);
+    const umlPart = xmi.split('<xmi:Extension')[0];
+    // El extremo referencia su asociación y su clasificador como elemento hijo,
+    // no como atributo type="..." — EA descarta el conector en el formato viejo.
+    expect(umlPart).toMatch(
+      /<ownedEnd xmi:type="uml:Property" xmi:id="END_ASSOC_COMP_SRC" association="ASSOC_COMP"[^>]*>\s*<type xmi:idref="CLS_TODO"\/>/
+    );
+    expect(umlPart).toMatch(
+      /<ownedEnd xmi:type="uml:Property" xmi:id="END_ASSOC_COMP_TGT" association="ASSOC_COMP">\s*<type xmi:idref="CLS_PARTE"\/>/
+    );
+    expect(umlPart).not.toMatch(/<ownedEnd[^>]* type="CLS_/);
+    // Los atributos emiten primitivos EA como hijo <type xmi:idref="EAnone_..."/>
+    expect(umlPart).toMatch(/<type xmi:idref="EAnone_/);
+    expect(umlPart).not.toMatch(/<ownedAttribute[^>]* type="/);
+  });
+
   it('emite uml:Generalization dentro de la clase específica (origen)', () => {
     const xmi = exportXmi(baseModel);
     expect(xmi).toContain('<generalization xmi:type="uml:Generalization" xmi:id="ASSOC_GEN" general="CLS_BASE"');
     // La generalización no se emite como uml:Association
     const assocElements = xmi.match(/xmi:type="uml:Association"/g) ?? [];
-    // Solo ASSOC_COMP es uml:Association (ASSOC_ACLASS es AssociationClass, ASSOC_GEN no cuenta)
+    // ASSOC_COMP es uml:Association; ASSOC_ACLASS es uml:AssociationClass; ASSOC_GEN no
     expect(assocElements.length).toBe(1);
   });
 
@@ -119,16 +136,57 @@ describe('XMI Exporter — Enterprise Architect 15.0.1514.12', () => {
     );
   });
 
-  it('fusiona la clase portadora en uml:AssociationClass sin duplicarla como uml:Class', () => {
+  it('emite la clase-asociación como uml:AssociationClass fusionado (clase + extremos)', () => {
     const xmi = exportXmi(baseModel);
-    expect(xmi).toContain('xmi:type="uml:AssociationClass"');
-    expect(xmi).toContain('xmi:id="ASSOC_ACLASS"');
-    // Los atributos de la portadora van dentro del AssociationClass
-    expect(xmi).toContain('name="cantidad"');
-    // La portadora no aparece como uml:Class separada
-    const classMatches = xmi.match(/xmi:type="uml:Class"/g) ?? [];
-    // 5 clases reales (la portadora CLS_LINEA no se duplica)
+    const umlPart = xmi.split('<xmi:Extension')[0];
+    // Un único elemento que es clase y asociación: nombre de la portadora,
+    // atributos de la portadora y extremos de la asociación.
+    expect(umlPart).toMatch(
+      /<packagedElement xmi:type="uml:AssociationClass"\s+xmi:id="ASSOC_ACLASS" name="LineaAsignacion">/
+    );
+    expect(umlPart).toContain('name="cantidad"');
+    expect(umlPart).toMatch(/<ownedEnd[^>]*association="ASSOC_ACLASS"/);
+    // La portadora no se duplica como uml:Class independiente
+    expect(umlPart).not.toContain('xmi:id="CLS_LINEA"');
+    const classMatches = umlPart.match(/xmi:type="uml:Class"/g) ?? [];
     expect(classMatches.length).toBe(5);
+    // En la extensión el conector declara el vínculo al elemento fusionado
+    expect(xmi).toContain('associationclass="ASSOC_ACLASS"');
+    expect(xmi).toContain('<element xmi:idref="ASSOC_ACLASS" xmi:type="uml:Class" name="LineaAsignacion"');
+  });
+
+  it('emite la extensión EA con un diagrama de clases Logical y geometría de elementos', () => {
+    const xmi = exportXmi(baseModel);
+    expect(xmi).toContain('<xmi:Extension extender="Enterprise Architect" extenderID="6.5">');
+    expect(xmi).toContain('<diagrams>');
+    expect(xmi).toContain(`type="Logical"`);
+    expect(xmi).toContain(`name="${baseModel.name}"`);
+    // Cada clase tiene un elemento de diagrama con geometría y DUID (la
+    // portadora CLS_LINEA no: su caja usa el id de la asociación)
+    for (const cls of baseModel.classes) {
+      if (cls.id === 'CLS_LINEA') {
+        continue;
+      }
+      expect(xmi).toMatch(new RegExp(`geometry="Left=\\d+;Top=\\d+;Right=\\d+;Bottom=\\d+;" subject="${cls.id}"`));
+    }
+    // La clase-asociación tiene su caja con el id del elemento fusionado
+    expect(xmi).toMatch(/geometry="Left=\d+;Top=\d+;Right=\d+;Bottom=\d+;" subject="ASSOC_ACLASS"/);
+    // Los conectores referencian los DUID de origen/destino
+    expect(xmi).toMatch(/subject="ASSOC_COMP" style="Mode=3;EOID=[0-9A-F]{8};SOID=[0-9A-F]{8};/);
+  });
+
+  it('emite <elements> y <connectors> de la extensión EA con roles y multiplicidades', () => {
+    const xmi = exportXmi(baseModel);
+    expect(xmi).toContain('<connectors>');
+    expect(xmi).toContain('<properties ea_type="Association"');
+    expect(xmi).toContain('<properties ea_type="Generalization"');
+    expect(xmi).toContain('<properties ea_type="Dependency"');
+    // La composición lleva aggregation="composite" en el extremo del todo (source)
+    expect(xmi).toMatch(/<type multiplicity="1" aggregation="composite"/);
+    // Las clases listan sus conectores en <links>
+    expect(xmi).toContain('<links>');
+    expect(xmi).toContain('<Association xmi:id="ASSOC_COMP" start="CLS_TODO" end="CLS_PARTE"/>');
+    expect(xmi).toContain('<Generalization xmi:id="ASSOC_GEN" start="CLS_HIJA" end="CLS_BASE"/>');
   });
 
   it('omite el atributo name cuando la asociación no tiene nombre', () => {

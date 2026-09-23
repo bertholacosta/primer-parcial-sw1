@@ -90,6 +90,11 @@ const sessionModel: DomainModel = {
       name: 'Libro',
       attributes: [{ id: 'attr-1', name: 'titulo', type: 'String', nullable: false, multiplicity: '1' }],
     },
+    {
+      id: 'cls-2',
+      name: 'Autor',
+      attributes: [],
+    },
   ],
   associations: [],
 };
@@ -354,6 +359,72 @@ describe('ConnectedApp — coedición (P10-010)', () => {
     expect(screen.queryByTestId('btn-add-attribute-Libro')).not.toBeInTheDocument();
     expect(screen.queryByTestId('btn-add-association')).not.toBeInTheDocument();
     expect(screen.queryByTestId('btn-edit-attr-Libro-titulo')).not.toBeInTheDocument();
+  });
+
+  it('crea una clase-asociación encadenando CreateClass + CreateAssociation con versión post-commit', async () => {
+    const api = fakeApi();
+    await login(api);
+    const socket = await openDiagram('admin');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('btn-add-association'));
+    });
+    fireEvent.change(screen.getByTestId('assoc-kind-select'), { target: { value: 'associationClass' } });
+    fireEvent.change(screen.getByTestId('assoc-source-select'), { target: { value: 'cls-1' } });
+    fireEvent.change(screen.getByTestId('assoc-target-select'), { target: { value: 'cls-2' } });
+    fireEvent.change(screen.getByTestId('assoc-new-class-name-input'), { target: { value: 'Prestamo' } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('confirm-add-association'));
+    });
+
+    // Solo el primer comando sale; el segundo espera su commit.
+    let submits = socket.envelopes().filter((e) => e.type === 'SubmitCommand');
+    expect(submits).toHaveLength(1);
+    const first = submits[0].payload as {
+      clientCommandId: string;
+      command: { commandId: string; type: string; modelVersion: string; payload: { id: string } };
+    };
+    expect(first.command.type).toBe('CreateClass');
+    expect(first.command.modelVersion).toBe('1.0.0');
+
+    await act(async () => {
+      socket.serverMessage(
+        createEnvelope(diagram.diagramId, diagram.diagramId, 'CommandCommitted', {
+          serverSeqNumber: 1,
+          originClientId: 'client-1',
+          clientCommandId: first.clientCommandId,
+          resultingModelVersion: '1.0.1',
+          resultingSha256: 'sha',
+          command: first.command,
+        })
+      );
+    });
+
+    // El segundo comando se despacha declarando la versión post-commit.
+    submits = socket.envelopes().filter((e) => e.type === 'SubmitCommand');
+    expect(submits).toHaveLength(2);
+    const second = submits[1].payload as {
+      clientCommandId: string;
+      command: { commandId: string; type: string; modelVersion: string; payload: { associationClassId: string } };
+    };
+    expect(second.command.type).toBe('CreateAssociation');
+    expect(second.command.modelVersion).toBe('1.0.1');
+    expect(second.command.payload.associationClassId).toBe(first.command.payload.id);
+
+    await act(async () => {
+      socket.serverMessage(
+        createEnvelope(diagram.diagramId, diagram.diagramId, 'CommandCommitted', {
+          serverSeqNumber: 2,
+          originClientId: 'client-1',
+          clientCommandId: second.clientCommandId,
+          resultingModelVersion: '1.0.2',
+          resultingSha256: 'sha',
+          command: second.command,
+        })
+      );
+    });
+    expect(screen.getByTestId('semantic-association-list').textContent).toContain('«associationClass»');
+    expect(screen.getByTestId('command-result-banner').textContent).toContain('Comando aplicado');
   });
 
   it('una caída del socket muestra reconexión sin perder el modelo', async () => {

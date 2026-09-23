@@ -1,0 +1,24 @@
+FROM node:22-bookworm AS build
+
+WORKDIR /src
+COPY packages/collaboration-protocol/package.json packages/collaboration-protocol/package-lock.json packages/collaboration-protocol/tsconfig.json packages/collaboration-protocol/
+RUN npm ci --prefix packages/collaboration-protocol
+COPY packages/collaboration-protocol/src/ packages/collaboration-protocol/src/
+RUN npm run build --prefix packages/collaboration-protocol
+
+COPY services/model-server/package.json services/model-server/package-lock.json services/model-server/tsconfig.json services/model-server/
+RUN npm ci --prefix services/model-server
+COPY services/model-server/src/ services/model-server/src/
+RUN npm run build --prefix services/model-server && npm prune --omit=dev --prefix services/model-server
+
+FROM node:22-bookworm-slim
+ENV NODE_ENV=production
+WORKDIR /src/services/model-server
+COPY --from=build /src/services/model-server/package.json ./package.json
+COPY --from=build /src/services/model-server/dist/ ./dist/
+COPY --from=build /src/services/model-server/node_modules/ ./node_modules/
+COPY --from=build /src/packages/collaboration-protocol/package.json /src/packages/collaboration-protocol/package.json
+COPY --from=build /src/packages/collaboration-protocol/dist/ /src/packages/collaboration-protocol/dist/
+USER node
+EXPOSE 3000
+CMD ["node", "dist/main.js"]

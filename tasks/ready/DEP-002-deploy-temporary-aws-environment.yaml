@@ -1,0 +1,64 @@
+id: DEP-002
+title: "Desplegar el entorno temporal CASE en AWS"
+phase: 11
+status: ready
+kind: implementation
+owner_role: codex
+objective: >-
+  Publicar web y model-server en una sola instancia EC2 de la cuenta
+  687979656624 en sa-east-1 durante 15 días, con PostgreSQL, HTTPS,
+  respaldo, control de costos y verificación funcional, dentro de USD 100.
+dependencies:
+  - DEP-001
+inputs:
+  files:
+    - apps/case-web/package.json
+    - services/model-server/package.json
+    - services/model-server/src/config.ts
+    - docker-compose.yml
+  docs:
+    - docs/deployment/aws-sa-east-1.md
+    - docs/adr/0008-identity-access-and-persistent-collaboration.md
+scope:
+  allowed_paths:
+    - tasks/ready/DEP-002-deploy-temporary-aws-environment.yaml
+    - docs/deployment/aws-sa-east-1.md
+    - deploy/aws/**
+  forbidden_paths:
+    - "**/generated/**"
+    - "fixtures/generated-projects/**"
+constraints:
+  - "No modificar cambios preexistentes del usuario."
+  - "No superar USD 100 ni desplegar más de 15 días sin nueva autorización."
+  - "Implementación directa en el worktree actual autorizada explícitamente por el Product Owner; no usar Orca."
+  - "No cambiar arquitectura fuera de un ADR aceptado."
+acceptance_criteria:
+  - "La aplicación web y model-server responden por HTTPS en sa-east-1."
+  - "PostgreSQL persiste datos tras reinicio y no tiene acceso público."
+  - "Registro, login, creación de diagrama y colaboración entre dos clientes funcionan."
+  - "Existen presupuesto, respaldo y apagado programado para el periodo de 15 días."
+validation_commands:
+  - "npm run build --prefix apps/case-web"
+  - "npm test --prefix apps/case-web"
+  - "npm run build --prefix services/model-server"
+  - "npm test --prefix services/model-server"
+  - "git diff --check"
+deliverables:
+  - deploy/aws/
+  - docs/deployment/aws-sa-east-1.md
+links: []
+attempts:
+  implementation_failures: 1
+  maximum_before_analysis: 2
+orca:
+  issue: null
+  branch: null
+  worktree: null
+  writer: codex
+  reviewer: null
+evidence:
+  - "2026-09-23: paquete creado y subido a S3 privado en sa-east-1; pruebas web 80/80 y backend 23/23, compilaciones correctas."
+  - "2026-09-23: AWS creó grupo de seguridad, pero EC2 RunInstances fue rechazado: This account is currently blocked and not recognized as a valid account. No se lanzó instancia."
+  - "2026-09-23: CloudShell también indica que la verificación de cuenta sigue en curso. Se requiere habilitación por AWS antes de reintentar."
+  - "2026-09-23: caso AWS Support 179016314600087, Account Activation / Account Verification, estado Sin asignar."
+  - "2026-09-23: presupuesto CASE-SW1-15d-20260923 creado para USD 80 del 23/09 al 09/10, alertas por costo real >USD 40 y >USD 80 al correo autorizado."
